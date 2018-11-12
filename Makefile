@@ -35,7 +35,7 @@ LDFLAGS := -L$(wx_lib_dir) -pthread \
 	-lpangoft2-1.0 \
 	-lpangocairo-1.0 \
 	-lgdk_pixbuf-2.0 \
-	-lpng -ljpeg -llzma
+	-lpng
 
 
 outdir := build/linux/
