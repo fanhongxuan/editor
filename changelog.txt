@@ -1,0 +1,62 @@
+commit 148da5e2c0b73ce5abf7a10428d141e91da02992
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Sun Nov 11 22:33:42 2018 +0800
+
+    1) When a buffer has the keyboard focus, show the title as blue.
+
+commit 561ea8cd8826c856022d61349ef0cc31a1382615
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Sun Nov 11 09:39:15 2018 +0800
+
+    1) When save file will update the wxAutoCompWordInBufferProvider
+       If use try to close a file, don't update candidate.
+    2) When user input add the candidate dynamic.
+
+commit 781c566ea7da2c3e1690f17a9b3dd5da83b69556
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Sat Nov 10 22:33:54 2018 +0800
+
+    1) Add @:-_/.\ as the normal string in wxAutoCompWordInBufferProvider.
+         this will make the candidate a little longger to match words which include those char.
+    2) If the candidate length is less than the min len, don't add to the candidate set.
+
+commit 84ba459ed9ebf5cd316b320ddb13b73ead09846f
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Sat Nov 10 22:05:10 2018 +0800
+
+    1, Use Tab in Edit to increase indent.
+
+commit b7dbc14d890e0a3928f899d6bd63c8b30ccf7598
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Sat Nov 10 21:50:55 2018 +0800
+
+    1) Add autocomp:
+       auto complete all the keyword of C/C++
+       auto complete all the word in the same mode
+    2) Add CTRL+B to swtich the buffer list
+    3) Use CTRL+K to kill current buffer
+    4) When file is modified, show (*) on the notebook
+    5) Use CTRL+S to save current buffer
+    6) When file is modified and close, notify user to save it
+    7) Resolve the display issue when mouse click on the wxSearchListCtrl
+
+commit eef3b2a255d757e520143c0ebc13544e810d14fe
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Thu Nov 8 11:23:08 2018 +0800
+
+    1) Use UP/DOWN to select without active, Use CTRL/ALT+ENTER to select and active, Use ENTER to select, active and
+       switch the keyboard focus to the target.
+    2) When not search, show the desc default.
+    3) Mouse single click is active, Mouse double click is active and switch the keyboard focus to the target.
+    4) the wxSearchListCtrl don't accept keyboard focus.
+
+commit fca95563fd6fb493db14f9b5dce9c4e5b9dcf63a
+Author: fanhongxuan <fanhongxuan@gmail.com>
+Date:   Thu Nov 8 00:57:20 2018 +0800
+
+    First version:
+    1) add wxSear
+       Use DOWN/ENTER to select the next candidate.
+       Use UP/CTRL+ENTER to select the previous candidate.
+       Use mouse click to select an candidate.
+    2) add wxSearchDir
