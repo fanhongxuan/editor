@@ -53,42 +53,6 @@ private:
     wxString mDesc;
 };
 
-class wxSearchInputCtrl: public wxSearchCtrl
-{
-private:
-    wxSearch *mpParent;
-public:
-    wxSearchInputCtrl(wxSearch *parent)
-        :wxSearchCtrl(parent, wxID_ANY){mpParent = parent;}
-    virtual bool ProcessEvent(wxEvent &evt)
-    {
-        // note:fanhongxuan@gmail.com
-        // wxSearchCtrl will use wxEVT_CHAR_HOOK to handle the enter key.
-        // in this case we can't receive the wxEVT_KEY_DOWN here.
-        // so use wxEVT_CHAR_HOOK.
-        // if use wxTextCtrl instead of wxSearchCtrl, we can use wxEVT_KEY_DOWN here.
-        if (wxEVT_CHAR_HOOK == evt.GetEventType()){
-            wxKeyEvent *pEvt = dynamic_cast<wxKeyEvent*>(&evt);
-            if (NULL != pEvt){
-                if (pEvt->GetKeyCode() == WXK_UP || pEvt->GetKeyCode() == WXK_DOWN){
-                    // note:fanhongxuan@gmail.com
-                    // the default process of wxk_up and wxk_down will switch the keyboard focus,
-                    // we don't want it, so directly process it here, and stop propagation to our parent.
-                    evt.StopPropagation();
-                    if (NULL != mpParent){
-                        mpParent->OnKey(*pEvt);
-                    }
-                    return true;
-                }
-            }
-        }
-        else if (wxEVT_TEXT == evt.GetEventType()){
-            mpParent->UpdateSearchList(GetValue());
-        }
-        return wxSearchCtrl::ProcessEvent(evt);
-    }
-};
-
 class wxSearchListCtrl: public wxTextCtrl
 {
 private:
@@ -158,6 +122,53 @@ public:
         return wxTextCtrl::ProcessEvent(evt);
     }
 };
+
+class wxSearchInputCtrl: public wxSearchCtrl
+{
+private:
+    wxSearch *mpParent;
+    wxSearchListCtrl *mpList;
+public:
+    wxSearchInputCtrl(wxSearch *parent)
+        :wxSearchCtrl(parent, wxID_ANY), mpParent(parent), mpList(NULL){}
+    void SetList(wxSearchListCtrl *pList){mpList = pList;}
+    virtual bool ProcessEvent(wxEvent &evt)
+    {
+        // note:fanhongxuan@gmail.com
+        // wxSearchCtrl will use wxEVT_CHAR_HOOK to handle the enter key.
+        // in this case we can't receive the wxEVT_KEY_DOWN here.
+        // so use wxEVT_CHAR_HOOK.
+        // if use wxTextCtrl instead of wxSearchCtrl, we can use wxEVT_KEY_DOWN here.
+        if (wxEVT_CHAR_HOOK == evt.GetEventType()){
+            wxKeyEvent *pEvt = dynamic_cast<wxKeyEvent*>(&evt);
+            if (NULL != pEvt){
+                if (pEvt->GetKeyCode() == WXK_UP || pEvt->GetKeyCode() == WXK_DOWN){
+                    // note:fanhongxuan@gmail.com
+                    // the default process of wxk_up and wxk_down will switch the keyboard focus,
+                    // we don't want it, so directly process it here, and stop propagation to our parent.
+                    evt.StopPropagation();
+                    if (NULL != mpParent){
+                        mpParent->OnKey(*pEvt);
+                    }
+                    return true;
+                }
+            }
+        }
+        else if (wxEVT_TEXT == evt.GetEventType()){
+            mpParent->UpdateSearchList(GetValue());
+        }
+        else if (wxEVT_MOUSEWHEEL == evt.GetEventType()){
+            wxMouseEvent *pEvt = dynamic_cast<wxMouseEvent*>(&evt);
+            if (NULL != mpList && NULL != pEvt){
+                mpList->ScrollLines(-pEvt->GetWheelDelta()/pEvt->GetWheelRotation());
+            }
+        }
+        // todo:fanhongxuan@gmail.com
+        // on windows, we need to handle the mousewheel event to handle the scroll bar in wxSearchListCtrl
+        return wxSearchCtrl::ProcessEvent(evt);
+    }
+};
+
 
 wxSearchResult::wxSearchResult(const wxString &content, const wxString &target, void *pCustomData)
     :mContent(content), mTarget(target), mpCustomData(pCustomData)
@@ -315,6 +326,7 @@ wxSearch::wxSearch(wxWindow *pParent)
     pSizer->Add(mpInput, flags);
 
     mpList = new wxSearchListCtrl(this, wxSize(200, 400));
+    mpInput->SetList(mpList);
     flags.Proportion(1);
     pSizer->Add(mpList, flags);
     
@@ -642,6 +654,30 @@ wxString wxSearchDir::GetHelp() const
     return ret;
 }
 
+static void FindFiles(const wxString &dir, std::vector<wxString> &output)
+{
+    wxDir cwd(dir);
+    if (!cwd.IsOpened()){
+        return;
+    }
+    wxString filename;
+    bool cont = false;
+    cont = cwd.GetFirst(&filename, "*", wxDIR_DIRS | wxDIR_HIDDEN);
+    while(cont){
+        wxString child_dir = cwd.GetNameWithSep() + filename;
+        if (filename != ".git"){
+            FindFiles(child_dir, output);
+        }
+        cont = cwd.GetNext(&filename);
+    }
+
+    cont = cwd.GetFirst(&filename, "*", wxDIR_FILES | wxDIR_HIDDEN);
+    while(cont){
+        output.push_back(cwd.GetNameWithSep() + filename);
+        cont = cwd.GetNext(&filename);
+    }
+}
+
 bool wxSearchDir::StartSearch(const wxString &input)
 {
     // todo:fanhongxuan@gmail.com
@@ -649,7 +685,7 @@ bool wxSearchDir::StartSearch(const wxString &input)
     // skip all the file and dir list in a file named .ignore
 
     wxMyTimeTrace trace("StartSearch");
-    wxArrayString files;
+    // wxArrayString files;
     // note:fanhongxuan@gmail.com
     // wxDir::GetAllFiles default is casesensitive
     wxString filter = "*.*";
@@ -658,9 +694,13 @@ bool wxSearchDir::StartSearch(const wxString &input)
     if (cwd.length()!= 0 && cwd[cwd.length()-1] != '/'){
         cwd += "/";
     }
-    wxDir::GetAllFiles(cwd, &files, filter);
+    // todo:fanhongxuan@gmail.com
+    // skip the .git dir
+    // wxDir::GetAllFiles(cwd, &files, filter);
+    std::vector<wxString> files;
+    FindFiles(cwd, files);
     
-    for (i = 0; i < files.GetCount(); i++){
+    for (i = 0; i < files.size(); i++){
         path = files[i];
         int pos = path.Find(cwd);
         if (path.npos != pos){

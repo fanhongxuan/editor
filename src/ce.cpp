@@ -43,6 +43,7 @@
 #include "wxSearch.hpp"
 #include "wxEdit.hpp"
 #include "wxBufferSelect.hpp"
+#include "wxExplorer.hpp"
 #include "wxDockArt.hpp"
 // -- application --
 class MyFrame;
@@ -66,7 +67,7 @@ class MyFrame : public wxFrame
 {
     enum
     {
-        ID_CreateTree = wxID_HIGHEST+1,
+        ID_CreatePerspective = wxID_HIGHEST+1,
         // add begin by fanhongxuan@gmail.com
         ID_ShowSearch,
         ID_ShowFindFiles,
@@ -74,54 +75,9 @@ class MyFrame : public wxFrame
         ID_ShowOneWindow,
         ID_ShowBufferSelect,
         ID_SaveCurrentBuffer,
+        ID_TriggerComment,
+        ID_ShowExplorer,
         // add end by fanhongxuan@gmail.com
-        ID_CreateGrid,
-        ID_CreateText,
-        ID_CreateHTML,
-        ID_CreateNotebook,
-        ID_CreateSizeReport,
-        ID_GridContent,
-        ID_TextContent,
-        ID_TreeContent,
-        ID_HTMLContent,
-        ID_NotebookContent,
-        ID_SizeReportContent,
-        ID_CreatePerspective,
-        ID_CopyPerspectiveCode,
-        ID_AllowFloating,
-        ID_AllowActivePane,
-        ID_TransparentHint,
-        ID_VenetianBlindsHint,
-        ID_RectangleHint,
-        ID_NoHint,
-        ID_HintFade,
-        ID_NoVenetianFade,
-        ID_TransparentDrag,
-        ID_NoGradient,
-        ID_VerticalGradient,
-        ID_HorizontalGradient,
-        ID_LiveUpdate,
-        ID_AllowToolbarResizing,
-        ID_Settings,
-        ID_CustomizeToolbar,
-        ID_DropDownToolbarItem,
-        ID_NotebookNoCloseButton,
-        ID_NotebookCloseButton,
-        ID_NotebookCloseButtonAll,
-        ID_NotebookCloseButtonActive,
-        ID_NotebookAllowTabMove,
-        ID_NotebookAllowTabExternalMove,
-        ID_NotebookAllowTabSplit,
-        ID_NotebookWindowList,
-        ID_NotebookScrollButtons,
-        ID_NotebookTabFixedWidth,
-        ID_NotebookArtGloss,
-        ID_NotebookArtSimple,
-        ID_NotebookAlignTop,
-        ID_NotebookAlignBottom,
-
-        ID_SampleItem,
-
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
 
@@ -147,6 +103,7 @@ public:
     void OnKillCurrentBuffer(wxCommandEvent &evt);
     void OnShowOneWindow(wxCommandEvent &evt);
     void OnShowBufferSelect(wxCommandEvent &evt);
+    void OnShowExplorer(wxCommandEvent &evt);
     void OnSaveCurrentBuffer(wxCommandEvent &evt);
     void OnFileClose(wxAuiNotebookEvent &evt);
     void OnFileClosed(wxAuiNotebookEvent &evt);
@@ -164,6 +121,7 @@ private:
     wxSearchFile *mpSearch;
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
+    wxExplorer *mpExplorer;
     wxAuiManager m_mgr;
     wxArrayString m_perspectives;
     wxMenu* m_perspectives_menu;
@@ -212,6 +170,7 @@ EVT_MENU(ID_KillCurrentBuffer, MyFrame::OnKillCurrentBuffer)
 EVT_MENU(ID_ShowOneWindow, MyFrame::OnShowOneWindow)
 EVT_MENU(ID_ShowBufferSelect, MyFrame::OnShowBufferSelect)
 EVT_MENU(ID_SaveCurrentBuffer, MyFrame::OnSaveCurrentBuffer)
+EVT_MENU(ID_ShowExplorer, MyFrame::OnShowExplorer)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
 wxEND_EVENT_TABLE()
@@ -296,7 +255,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  6  
+#define ACCE_COUNT  8  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[1].Set(wxACCEL_CTRL, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -304,6 +263,8 @@ void MyFrame::CreateAcceTable()
     e[3].Set(wxACCEL_CTRL, (int)'1', ID_ShowOneWindow); // CTRL+1 (Hide all the pane except BufferList)
     e[4].Set(wxACCEL_CTRL, (int)'B', ID_ShowBufferSelect); // CTRL+B (SwitchBuffer)
     e[5].Set(wxACCEL_CTRL, (int)'S', ID_SaveCurrentBuffer); // CTRL+S (Save Current Buffer)
+    e[6].Set(wxACCEL_ALT,  (int)';', ID_TriggerComment);// ALT+; to comments/uncomments a block or current line
+    e[7].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
     wxAcceleratorTable acce(ACCE_COUNT, e);
     SetAcceleratorTable(acce);
 }
@@ -623,6 +584,23 @@ void MyFrame::OnSaveCurrentBuffer(wxCommandEvent &evt)
     }
 }
 
+void MyFrame::OnShowExplorer(wxCommandEvent &evt)
+{
+    wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("Explorer"));
+    if (pane.IsOk()){
+        pane.Show();
+    }
+    else{
+        mpExplorer = new wxExplorer(this);
+        m_mgr.AddPane(mpExplorer, wxAuiPaneInfo().Name(wxT("Explorer")).Caption(wxT("Explorer")).
+                      Left().BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
+    }
+    if (NULL != mpExplorer){
+        mpExplorer->SetFocus();
+    }
+    m_mgr.Update();
+}
+
 void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
 {
     wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("BufferSelect"));
@@ -713,9 +691,9 @@ void MyFrame::OnKillCurrentBuffer(wxCommandEvent &evt)
 void MyFrame::SwitchFocus()
 {
     if (NULL != mpBufferList){
-        int selection = mpBufferList->GetSelection();
-        if (wxNOT_FOUND != selection){
-            Edit *pEdit = dynamic_cast<Edit *>(mpBufferList->GetPage(selection));
+        int select = mpBufferList->GetSelection();
+        if (wxNOT_FOUND != select){
+            Edit *pEdit = dynamic_cast<Edit *>(mpBufferList->GetPage(select));
             if (NULL != pEdit){
                 wxPrintf("Change focus to %s\n", pEdit->GetFilename());
                 pEdit->SetFocus();

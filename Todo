@@ -1,0 +1,58 @@
+
+* Buffer displayed in the wxAuiNotebook is called a normal-buffer
+* Buffer displayed as a seperate pane is called mini-buffer
+   Mini-buffer is not displayed in the buffer-list
+   Mini-buffer can not use Ctrl+B to switch
+   Mini-buffer is killed as a normal-buffer (Ctrl+K)
+   Mini-buffer can not be real closed, but only hide by Ctrl+K or mouse click
+
+* When ce start, show a help mini-buffer to display the help info
+   Use Ctrl+H to show this buffer.
+   Show the help info of the current actived window.
+   
+* When ce start, show a default clip normal-buffer to store all kill ring
+   This buffer is also showed in the buffer-list, name is <*clip*>.
+   User can use Ctrl+B to switch to this buffer.
+   User can use mouse to close this buffer.
+   
+* Add Alt+F to do a multi-file search
+   Use ag to do the real search and display the result grouped by file.
+   Use Ctrl+D to change the CWD(Current Working Dir)
+   
+* Add Ctrl+D to Show a dir mini-buffer
+   Show the content as the explorer in UltraEdit
+   Default display the content of current dir
+   User can add/remove file/dir
+   User can use return key to enter a sub-dir or direclty open a file
+   User can use Left to switch to the parent dir
+   User can use Right key to open a sub-dir/file
+   Use Dir-Buffer to change the CWD(Current Working Dir) of Ctrl+O/Alt+F
+   Support mouse operation
+* Support Workspace mini-buffer
+   Use Ctrl+W to show the Workspace mini-buffer
+   List all the Project dir
+   List all isolated file which is not a child of the project dir
+   A workspace can have many project dir
+   There is a default workspace user can direclty used
+   User can change if the Ctrl+O/Alt+F use current dir or the workspace
+
+* Support session, when user close ce
+   Store the current normal-buffer list
+   Store the current workspace content
+   Store all the UI layout
+   When user next time open ce, all the thing is ready
+* Add Ctrl+; to comment/uncomments multi-line
+* Add TAB/Shift-TAB to increase/decrease the indent (done)
+* Add multi-edit mode
+   User can replease the content intime
+* Auto complete the member/function of class and struct
+* Add global ctags to navigate in the code
+   Work with current workspace
+   List all the calling of current function
+   List all the reference of a symbol/text
+   Goto the define of current class/type/variable/micro etc
+   If there are more than one match show as a list
+* Add Colour-Theme support
+* Add Compile-mode
+   Call user defined command to compile and show the result as a Normal-Buffer
+   Name is <*compile*>

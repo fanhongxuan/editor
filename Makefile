@@ -48,6 +48,7 @@ objects = \
 	$(outdir)wxAutoComp.o \
 	$(outdir)wxBufferSelect.o \
 	$(outdir)wxDockArt.o \
+	$(outdir)wxExplorer.o \
 	$(outdir)wxPrefs.o
 
 all: $(outdir) $(target)
