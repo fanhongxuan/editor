@@ -169,6 +169,9 @@ void MyFrame::CreateAcceTable()
     e[5].Set(wxACCEL_CTRL, (int)'S', ID_SaveCurrentBuffer); // CTRL+S (Save Current Buffer)
     e[6].Set(wxACCEL_ALT,  (int)';', ID_TriggerComment);// ALT+; to comments/uncomments a block or current line
     e[7].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
+
+    // todo:fanhongxuan@gmail.com
+    // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
     SetAcceleratorTable(acce);
 }
@@ -627,7 +630,6 @@ void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
 
 void MyFrame::OnShowOneWindow(wxCommandEvent &evt)
 {
-    wxPrintf("OnShowOneWindow\n");
     bool bUpdate = false;
     if (NULL != mpSearch){
         wxAuiPaneInfo &info = m_mgr.GetPane(mpSearch);
@@ -638,6 +640,13 @@ void MyFrame::OnShowOneWindow(wxCommandEvent &evt)
     }
     if (NULL != mpSearchDir){
         wxAuiPaneInfo &info = m_mgr.GetPane(mpSearchDir);
+        if (info.IsOk()){
+            bUpdate = true;
+            info.Hide();
+        }
+    }
+    if (NULL != mpExplorer){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpExplorer);
         if (info.IsOk()){
             bUpdate = true;
             info.Hide();
