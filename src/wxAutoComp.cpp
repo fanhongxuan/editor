@@ -72,7 +72,7 @@ wxString gCppKeyWord = "asm auto bool break case catch char class const "
     "reinterpret_cast return short signed sizeof static static_cast struct "
     "switch template this throw true try typedef typeid typename union "
     "unsigned unsing virtual void volatile wchar_t while";
-wxString gCPreKeyWord = "#define #elif #else #error #if #ifdef #ifndef #include #pragma #undef";
+wxString gCPreKeyWord = "#define #endif #elif #else #error #if #ifdef #ifndef #include #pragma #undef";
 
 wxString gJavaKeyWord = "";
 

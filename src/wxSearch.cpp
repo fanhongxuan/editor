@@ -135,10 +135,9 @@ public:
     virtual bool ProcessEvent(wxEvent &evt)
     {
         // note:fanhongxuan@gmail.com
-        // wxSearchCtrl will use wxEVT_CHAR_HOOK to handle the enter key.
-        // in this case we can't receive the wxEVT_KEY_DOWN here.
-        // so use wxEVT_CHAR_HOOK.
-        // if use wxTextCtrl instead of wxSearchCtrl, we can use wxEVT_KEY_DOWN here.
+        // If we use wxSearchCtrl, we can't receive the wxEVT_KEY_DOWN, wxEVT_KEY_UP evt.
+        // So use wxEVT_CHAR_HOOK.
+        // If use wxTextCtrl instead of wxSearchCtrl, we can use wxEVT_KEY_DOWN here.
         if (wxEVT_CHAR_HOOK == evt.GetEventType()){
             wxKeyEvent *pEvt = dynamic_cast<wxKeyEvent*>(&evt);
             if (NULL != pEvt){
@@ -147,9 +146,7 @@ public:
                     // the default process of wxk_up and wxk_down will switch the keyboard focus,
                     // we don't want it, so directly process it here, and stop propagation to our parent.
                     evt.StopPropagation();
-                    if (NULL != mpParent){
-                        mpParent->OnKey(*pEvt);
-                    }
+                    mpParent->OnKey(*pEvt);
                     return true;
                 }
             }
@@ -163,8 +160,6 @@ public:
                 mpList->ScrollLines(-pEvt->GetWheelDelta()/pEvt->GetWheelRotation());
             }
         }
-        // todo:fanhongxuan@gmail.com
-        // on windows, we need to handle the mousewheel event to handle the scroll bar in wxSearchListCtrl
         return wxSearchCtrl::ProcessEvent(evt);
     }
 };
@@ -215,6 +210,19 @@ bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector
     wxString result;
     int i = 0;
     int minMatch = mContent.length(), maxMatch = 0;
+    if (rets.empty()){
+        // note:fanhongxuan@gmail.com
+        // if the rets is empty, all is match, but don't highlight
+        mbMatch = true;
+        if (rich.GetLastPosition() != 0){
+            rich.WriteText("\n");
+        }
+        mRange.SetStart(rich.GetLastPosition());
+        rich.WriteText(mContent);
+        // wxPrintf("Add <%s>\n", mContent);
+        mRange.SetEnd(rich.GetLastPosition());
+        return true;
+    }
     mbMatch = false;
     for (i = 0; i < rets.size(); i++){
         wxString low = rets[i].Lower();
@@ -347,7 +355,7 @@ wxSearch::~wxSearch()
 bool wxSearch::SetMinStartLen(int minStartLen)
 {
     mMinStartLen = minStartLen;
-    if (mMinStartLen <= 0){
+    if (mMinStartLen < 0){
         mMinStartLen = 1;
     }
     return true;
@@ -364,7 +372,7 @@ bool wxSearch::SetMaxCandidate(int maxCandidate)
 
 bool wxSearch::SetInput(const wxString &input)
 {
-    wxPrintf("SetInput:<%s>\n", input);
+    // wxPrintf("SetInput:<%s>\n", input);
     Reset();
     if (NULL != mpInput){
         mpInput->SetValue(input);
@@ -552,17 +560,20 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     if (NULL == mpList){
         return false;
     }
-    
-    // todo:fanhongxuan@gmail.com
-    // opt the build speed    
+
     if (input.length() < mMinStartLen){
         Reset();
         return false;
     }
-    
+
+    // note:fanhongxuan@gmail.com
+    // if the mMinStartLen is 0
+    // when the input is empty, show all the result
     if (input.find_first_not_of("\r\n\t ") == wxString::npos){
         Reset();
-        return false;
+        if (mMinStartLen != 0){
+            return false;
+        }
     }
     if (!mbStartSearch){
         Reset(); // make sure the status has been reset.
@@ -575,7 +586,7 @@ bool wxSearch::UpdateSearchList(const wxString &input)
 
     // note:fanhongxuan@gmail.com
     // if all the search key is same as the previous value, directly return, do not need to update it.
-    if (rets.size() == mKeys.size()){
+    if (mMinStartLen != 0 && rets.size() == mKeys.size()){
         bool bDiff = false;
         for (i = 0; i < rets.size(); i++){
             if (rets[i] != mKeys[i]){
@@ -591,10 +602,9 @@ bool wxSearch::UpdateSearchList(const wxString &input)
 
     // here, we start update the list
     // wxMyTimeTrace trace("UpdateSearchList");
-    
     mpList->Clear();
     mCurrentLine = -1;
-
+    
     int count = 0;
     for (i = 0; i < mResults.size(); i++){
         // todo:fanhongxuan@gmail.com
@@ -654,6 +664,33 @@ wxString wxSearchDir::GetHelp() const
     return ret;
 }
 
+static bool IsTempFile(const wxString &file)
+{
+    if (file.empty()){
+        return true;
+    }
+    if (file[0] == '#'){
+        return true;
+    }
+    if (file[file.size() - 1] == '~'){
+        return true;
+    }
+    if (file[file.size() -1] == '#'){
+        return true;
+    }
+    return false;
+}
+
+static bool IsBinaryFile(const wxString &file)
+{
+    wxString ext;
+    wxFileName::SplitPath(file, NULL, NULL, NULL, &ext);
+    if (ext == "obj" || ext == "o" || ext == "pdb" || ext == "exe"){
+        return true;
+    }
+    return false;
+}
+
 static void FindFiles(const wxString &dir, std::vector<wxString> &output)
 {
     wxDir cwd(dir);
@@ -673,7 +710,12 @@ static void FindFiles(const wxString &dir, std::vector<wxString> &output)
 
     cont = cwd.GetFirst(&filename, "*", wxDIR_FILES | wxDIR_HIDDEN);
     while(cont){
-        output.push_back(cwd.GetNameWithSep() + filename);
+        // skip the edit temp file like:
+        // test~ (emacs auto save)
+        // #test# (emacs auto save)
+        if ((!IsTempFile(filename)) && (!IsBinaryFile(filename))){
+            output.push_back(cwd.GetNameWithSep() + filename);
+        }
         cont = cwd.GetNext(&filename);
     }
 }

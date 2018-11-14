@@ -6,6 +6,8 @@
 #include <wx/artprov.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 
+#include "ce.hpp"
+
 enum {
     explorer_harddisk,
     explorer_file,
@@ -122,8 +124,7 @@ void wxExplorer::OnItemActivated(wxTreeEvent &evt)
         Expand(id);
     }
     else{
-        // todo:fanhongxuan@gmail.com
-        // try to open the file.
+        wxGetApp().frame().OpenFile(pItem->mPath, pItem->mPath, true);
     }
 }
 

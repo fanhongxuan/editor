@@ -9,6 +9,7 @@
 wxBufferSelect::wxBufferSelect(wxWindow *pParent)
     :wxSearch(pParent),mMaxRecentFileCounts(100)
 {
+    SetMinStartLen(0);
 }
 
 wxBufferSelect::~wxBufferSelect()
@@ -33,7 +34,7 @@ bool wxBufferSelect::StopSearch()
 
 bool wxBufferSelect::AddBuffer(const wxString &name, const wxString &path)
 {
-    wxPrintf("AddBuffer:<%s><%s>\n", name, path);
+    // wxPrintf("AddBuffer:<%s><%s>\n", name, path);
     mBufferList[path] = name;
     return true;
 }
