@@ -48,7 +48,7 @@ public:
     wxSearch(wxWindow *parent);
     ~wxSearch();
     // the following function will be called when receive a front end message.
-    void OnChangeCWD(const int8_t* pCwd); // change Current Working Directory(CWD)
+    // void OnChangeCWD(const int8_t* pCwd); // change Current Working Directory(CWD)
     
     // the following function will be called when receive a backend message.
     void AddSearchResult(wxSearchResult *pResult);// add a item
@@ -74,8 +74,8 @@ public:
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
-    
-private:
+    virtual int GetPreferedLine(const wxString &input){return -1;};
+protected:
     wxSearchInputCtrl *mpInput;
     wxSearchListCtrl *mpList;
     wxStaticText *mpStatus;
@@ -121,13 +121,16 @@ public:
     wxSearchFile(wxWindow *parent);
     void SetFileName(const wxString &fileName);
     void SetBuffer(const wxString &buffer);
-    
+    void SetCurrentLine(int line);
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
     virtual bool StartSearch(const wxString &input);
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
+    virtual int GetPreferedLine(const wxString &input);
 private:
+    int mTotalLine;
+    int mCurLine;
     wxString mFileName;
     wxString mBuffer;
 };
