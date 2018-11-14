@@ -138,9 +138,14 @@ void wxExplorer::OnItemActivated(wxTreeEvent &evt)
     }
     // wxPrintf("Active:%s\n", pItem->mPath);
     // this is a folder, but has no children, try to load it.
-    if ((!pItem->mbFile) && (0 == GetChildrenCount(id))){
-        AddDir(pItem->mPath, *this, id, "");
-        Expand(id);
+    if ((!pItem->mbFile)){
+        if(0 == GetChildrenCount(id)){
+            AddDir(pItem->mPath, *this, id, "");
+            Expand(id);
+        }
+        else{
+            Toggle(id);
+        }
     }
     else{
         wxGetApp().frame().OpenFile(pItem->mPath, pItem->mPath, true);
