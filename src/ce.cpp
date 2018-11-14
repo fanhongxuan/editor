@@ -40,6 +40,7 @@
 #include "ce.hpp"
 #include "res/sample.xpm"
 
+#include <wx/config.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include "wxSearch.hpp"
 #include "wxEdit.hpp"
@@ -128,22 +129,7 @@ MyFrame::MyFrame(wxWindow* parent,
 
     // set frame icon
     SetIcon(wxIcon(sample_xpm));
-
     CreateAcceTable();
-    
-    // // create menu
-    // wxMenuBar* mb = new wxMenuBar;
-
-    // wxMenu* file_menu = new wxMenu;
-    // file_menu->Append(wxID_EXIT);
-    
-    // m_perspectives_menu = new wxMenu;
-    // m_perspectives_menu->Append(ID_CreatePerspective, _("Create Perspective"));
-    // m_perspectives_menu->Append(ID_CopyPerspectiveCode, _("Copy Perspective Data To Clipboard"));
-    // m_perspectives_menu->AppendSeparator();
-    // m_perspectives_menu->Append(ID_FirstPerspective+0, _("Default Startup"));
-    // m_perspectives_menu->Append(ID_FirstPerspective+1, _("All Panes"));
-
     
     // min size for the frame itself isn't completely done.
     // see the end up wxAuiManager::Update() for the test
@@ -163,8 +149,7 @@ MyFrame::MyFrame(wxWindow* parent,
     m_mgr.AddPane(mpCmd, wxAuiPaneInfo().Name(wxT("Cmd")).Caption(wxT("Command"))
                   .Bottom().CloseButton(false).Resizable(false).Fixed().Floatable(false)
                   .CaptionVisible(false).Row(0).Layer(0).Position(0));
-    // "commit" all changes made to wxAuiManager
-    m_mgr.Update();
+    LoadInfo();
 }
 
 MyFrame::~MyFrame()
@@ -285,6 +270,94 @@ void MyFrame::ChangeToBuffer(Edit *pEdit, int pos)
     //pEdit->SetInsertionPoint(pos);
 }
 
+void MyFrame::SaveInfo()
+{
+    // note: fanhongxuan@gmail.com
+    // store current perspective, when open, will restore it.
+    wxString perspective = m_mgr.SavePerspective();
+    wxConfig config("CE");
+    config.Write("/Config/LastPerspective", perspective);
+    // store all the open file, when open, open it again.
+    if (NULL != mpBufferList){
+        int i = 0;
+        for (i = 0; i < mpBufferList->GetPageCount(); i++){
+            Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+            if (NULL != pEdit){
+                config.Write(wxString::Format("/Config/LastOpenFile/%d", i), pEdit->GetFilename());
+            }
+        }
+        int selection = mpBufferList->GetSelection();
+        config.Write("/Config/LastOpenFile/Selection", selection);
+        Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(selection));
+        if (NULL != pEdit){
+           config.Write("/Config/LastOpenFile/FirstVisibleLine", pEdit->GetFirstVisibleLine());
+           config.Write("/Config/LastOpenFile/InsertionPoint", pEdit->GetInsertionPoint());
+        }
+    }
+
+    // save the window pos and size
+    wxPoint pos = GetPosition();
+    wxSize size = GetSize();
+    config.Write("/Config/LastPos.X", pos.x);
+    config.Write("/Config/LastPos.Y", pos.y);
+    config.Write("/Config/LastSize.width", size.GetWidth());
+    config.Write("/Config/LastSize.height", size.GetHeight());
+}
+
+void MyFrame::LoadInfo()
+{
+    wxConfig config("CE");
+    int i = 0;
+    for (i = 0; i < 100; i++){
+        wxString entry = wxString::Format("/Config/LastOpenFile/%d", i);
+        if (!config.HasEntry(entry)){
+            int selection = config.ReadLong("/Config/LastOpenFile/Selection", 0);
+            if (selection < mpBufferList->GetPageCount()){
+                Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(selection));
+                if (NULL != pEdit){
+                    long line = config.ReadLong("/Config/LastOpenFile/FirstVisibleLine", 0);
+                    long insertionPoint = config.ReadLong("/Config/LastOpenFile/InsertionPoint", 0);
+                    pEdit->SetFirstVisibleLine(line);
+                    pEdit->SetSelection(insertionPoint, insertionPoint);
+                    pEdit->SetInsertionPoint(insertionPoint);
+                }
+                mpBufferList->SetSelection(selection);
+            }
+            
+            break;
+        }
+        else{
+            wxString filename;
+            config.Read(entry, &filename);
+            if (!filename.empty()){
+                OpenFile(filename, filename, false);
+            }
+        }
+    }
+    wxString perspective;
+    config.Read("/Config/LastPerspective", &perspective);
+    if (!perspective.empty()){
+            wxCommandEvent evt;
+            OnShowSearch(evt);
+            OnShowExplorer(evt);
+            OnShowFindFiles(evt);
+            OnShowBufferSelect(evt);
+        m_mgr.LoadPerspective(perspective);
+    }
+    else{
+        m_mgr.Update();
+    }
+    int x = 0, y = 0, width = 0, height = 0;
+    x = config.ReadLong("/Config/LastPos.X", 0);
+    y = config.ReadLong("/Config/LastPos.Y", 0);
+    width = config.ReadLong("/Config/LastSize.width", 0);
+    height = config.ReadLong("/Config/LastSize.height", 0);
+    if ((x+y+width+height) != 0){
+        SetSize(x, y, width, height);
+    }
+    SwitchFocus();
+}
+
 void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results)
 {
     // get the current selection
@@ -306,9 +379,6 @@ void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, st
 
 void MyFrame::OnClose(wxCloseEvent &evt)
 {
-    // todo:fanhongxuan@gmail.com
-    // store all the information and restore later.
-
     if (NULL != mpBufferList){
         int i = 0;
         for (i = 0; i < mpBufferList->GetPageCount(); i++){
@@ -331,6 +401,8 @@ void MyFrame::OnClose(wxCloseEvent &evt)
         }
     }
     evt.Skip();
+
+    SaveInfo();
 }
 
 void MyFrame::OnPaneClose(wxAuiManagerEvent &evt)

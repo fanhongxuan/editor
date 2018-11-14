@@ -6,6 +6,7 @@
 #include <wx/artprov.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 
+#include <wx/config.h>
 #include "ce.hpp"
 
 enum {
@@ -97,7 +98,19 @@ wxExplorer::wxExplorer(wxWindow *parent)
 {
     CreateImageList();
     // iterator the file system only add the path to the current dir.
-    wxString cwd = wxGetCwd();
+    wxConfig config("CE");
+    wxString cwd;
+    config.Read("/Config/CurrentWorkingDirectory", &cwd);
+    if (!cwd.empty()){
+        // if the Stored Working Directory is exist, switch to, otherwize use current
+        wxDir dir(cwd);
+        if (!dir.IsOpened()){
+            cwd = wxGetCwd();
+        }
+    }
+    else{
+        cwd = wxGetCwd();
+    }
     wxString volume;
     wxFileName::SplitPath(cwd, &volume, NULL, NULL, NULL);
     if (volume.empty()){
@@ -110,6 +123,12 @@ wxExplorer::wxExplorer(wxWindow *parent)
     AddDir(volume, *this, root, cwd);
 }
 
+wxExplorer::~wxExplorer()
+{
+    wxConfig config("CE");
+    config.Write("/Config/CurrentWorkingDirectory", wxGetCwd());
+}
+
 void wxExplorer::OnItemActivated(wxTreeEvent &evt)
 {
     wxTreeItemId id = evt.GetItem();
@@ -117,7 +136,7 @@ void wxExplorer::OnItemActivated(wxTreeEvent &evt)
     if (NULL == pItem){
         return;
     }
-    wxPrintf("Active:%s\n", pItem->mPath);
+    // wxPrintf("Active:%s\n", pItem->mPath);
     // this is a folder, but has no children, try to load it.
     if ((!pItem->mbFile) && (0 == GetChildrenCount(id))){
         AddDir(pItem->mPath, *this, id, "");
@@ -139,7 +158,7 @@ void wxExplorer::OnSelectionChanged(wxTreeEvent &evt)
     if (pItem->mbFile){
         wxFileName::SplitPath(pItem->mPath, NULL, &path, NULL, NULL);
     }
-    wxPrintf("SetWorkingDirectory:%s\n", path);
+    // wxPrintf("SetWorkingDirectory:%s\n", path);
     wxSetWorkingDirectory(path);
 }
 
@@ -183,4 +202,14 @@ int wxExplorer::OnCompareItems(const wxTreeItemId &first, const wxTreeItemId &se
         return -1;
     }
     return wxTreeCtrl::OnCompareItems(first, second);
+}
+
+wxString wxExplorer::GetCwd()
+{
+    return wxGetCwd();
+}
+
+void wxExplorer::SetCwd(const wxString &cwd)
+{
+    // todo:fanhongxuan@gmail.com
 }

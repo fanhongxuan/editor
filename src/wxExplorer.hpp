@@ -11,8 +11,9 @@ class wxExplorer: public wxTreeCtrl
 {
 public:
     wxExplorer(wxWindow *parent);
+    ~wxExplorer();
     wxString GetCwd(); // Get the Cwd, should return the same result as getcwd
-
+    void SetCwd(const wxString &cwd);
     void OnItemActivated(wxTreeEvent &evt);
     void OnSelectionChanged(wxTreeEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,

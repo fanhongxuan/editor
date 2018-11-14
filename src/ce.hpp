@@ -83,7 +83,8 @@ public:
 private:
     void CreateAcceTable();
     void SwitchFocus();
-    
+    void SaveInfo();
+    void LoadInfo();
 private:
     wxAuiNotebook *mpBufferList;
     wxSearchFile *mpSearch;
