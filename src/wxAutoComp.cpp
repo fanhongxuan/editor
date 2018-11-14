@@ -220,7 +220,7 @@ bool wxAutoCompWordInBufferProvider::AddFileContent(const wxString &file, const 
     int i = 0, size = file.size();
     wxString word;
     for (i = 0; i < size; i++){
-        if (IsValidChar(file[i])){
+        if (IsValidChar(file[i].GetValue())){
             word += file[i];
         }
         else{
