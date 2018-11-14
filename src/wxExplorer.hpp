@@ -9,6 +9,7 @@
 
 class wxExplorer: public wxTreeCtrl
 {
+    wxDECLARE_CLASS(wxExplorer);
 public:
     wxExplorer(wxWindow *parent);
     ~wxExplorer();

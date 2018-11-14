@@ -18,6 +18,7 @@ enum {
     explorer_icon_count,
 };
 
+wxIMPLEMENT_CLASS(wxExplorer, wxTreeCtrl);
 class wxExplorerItemInfo: public wxTreeItemData
 {
 public:
