@@ -49,9 +49,9 @@ const CommonInfo g_CommonPrefs = {
     false, // readOnlyInitial
     false,  // wrapModeInitial
     false, // displayEOLEnable
-    false, // IndentGuideEnable
+    true, // IndentGuideEnable
     true,  // lineNumberEnable
-    false, // longLineOnEnable
+    true, // longLineOnEnable
     false, // whiteSpaceEnable
 };
 

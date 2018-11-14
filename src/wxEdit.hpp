@@ -60,6 +60,9 @@ public:
     ~Edit ();
 
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
+    void OnReturn(int currentLine);
+    void OnEndBrace(int currentLine);
+    void OnBeginBrace(int currentLine);
     
     // event handlers
     // common
@@ -112,7 +115,8 @@ public:
     void OnCharAdded  (wxStyledTextEvent &event);
 
     void OnKeyDown(wxKeyEvent &event);
-
+    void OnKeyUp(wxKeyEvent &event);
+    
     //! language/lexer
     wxString DeterminePrefs (const wxString &filename);
     bool InitializePrefs (const wxString &filename);

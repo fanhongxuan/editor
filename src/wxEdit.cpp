@@ -120,6 +120,7 @@ wxBEGIN_EVENT_TABLE (Edit, wxStyledTextCtrl)
     EVT_STC_CHARADDED (wxID_ANY,       Edit::OnCharAdded)
 
     EVT_KEY_DOWN( Edit::OnKeyDown )
+EVT_KEY_UP(Edit::OnKeyUp)
 wxEND_EVENT_TABLE()
 
 Edit::Edit (wxWindow *parent,
@@ -178,8 +179,12 @@ Edit::Edit (wxWindow *parent,
     // miscellaneous
     m_LineNrMargin = TextWidth (wxSTC_STYLE_LINENUMBER, wxT("_09999"));
     m_FoldingMargin = 16;
-    // CmdKeyClear (wxSTC_KEY_TAB, 0); // this is done by the menu accelerator key
+    // disable the default tab key, return key
+    // CmdKeyClear(wxSTC_KEY_TAB, 0); // this is done by the menu accelerator key
+    // CmdKeyClear(wxSTC_KEY_RETURN, 0);
+    
     SetLayoutCache (wxSTC_CACHE_PAGE);
+    // SetIndentationGuides(wxSTC_IV_LOOKBOTH);
     UsePopUp(wxSTC_POPUP_ALL);
 }
 
@@ -268,18 +273,25 @@ void Edit::OnEditClear (wxCommandEvent &WXUNUSED(event)) {
 
 void Edit::OnKeyDown (wxKeyEvent &event)
 {
-    if (CallTipActive())
-        CallTipCancel();
-    if (event.GetKeyCode() == WXK_SPACE && event.ControlDown() && event.ShiftDown())
-    {
-        int pos = GetCurrentPos();
-        CallTipSetBackground(*wxYELLOW);
-        CallTipShow(pos,
-                    "This is a CallTip with multiple lines.\n"
-                    "It is meant to be a context sensitive popup helper for the user.");
-        return;
-    }
+    // if (CallTipActive())
+    //     CallTipCancel();
+    // if (event.GetKeyCode() == WXK_SPACE && event.ControlDown() && event.ShiftDown())
+    // {
+    //     int pos = GetCurrentPos();
+    //     CallTipSetBackground(*wxYELLOW);
+    //     CallTipShow(pos,
+    //                 "This is a CallTip with multiple lines.\n"
+    //                 "It is meant to be a context sensitive popup helper for the user.");
+    //     return;
+    // }
+    // if (WXK_TAB == event.GetKeyCode()){
+    // }
     event.Skip();
+}
+
+void Edit::OnKeyUp(wxKeyEvent &event)
+{
+    
 }
 
 void Edit::OnEditCut (wxCommandEvent &WXUNUSED(event)) {
@@ -575,6 +587,87 @@ bool Edit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
     return true;
 }
 
+static bool IsWhiteSpace(char ch)
+{
+    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == ' '){
+        return true;
+    }
+    return false;
+}
+
+static bool IsNeedIncreaseIndentation(char ch){
+    if (ch == '{' || ch == ':' || ch == '.'){
+        return true;
+    }
+    return false;
+}
+
+static bool IsNeedDecreaseIndentation(char ch){
+    if (ch == '}'){
+        return true;
+    }
+    return false;
+}
+
+
+void Edit::OnEndBrace(int currentLine)
+{
+    if (NULL == m_language || wxString(m_language->name) != "C++"){
+        // only handle this in C/C++
+        return;
+    }
+    // if this line only has a }, then decrease the indent
+    long pos = GetInsertionPoint();
+    int last = pos-1;
+    while(last > 0){
+        int ch = GetCharAt(last-1);
+        if (!IsWhiteSpace(ch)){
+            int line = LineFromPosition(last-1);
+            int lineInd = GetLineIndentation(line);
+            if (line != currentLine && ch != '{'){
+                lineInd -= GetIndent();
+                SetLineIndentation(currentLine, lineInd);
+                GotoPos(pos - GetIndent());
+            }
+            break;
+        }
+        last--;
+    }
+}
+
+void Edit::OnReturn(int currentLine)
+{
+    int lineInd = 0;
+    if (currentLine > 0) {
+        lineInd = GetLineIndentation(currentLine - 1);
+    }
+    bool bNeedIncrease = false;
+    if (NULL != m_language && wxString(m_language->name) == "C++"){
+        // note:fanhongxuan@gmail.com
+        // if the previous valid char is {.:
+        // increase indentation
+        long pos = GetInsertionPoint();
+        int last = pos;
+        while(last > 0){
+            int ch = GetCharAt(last-1);
+            if (!IsWhiteSpace(ch)){
+                int line = LineFromPosition(last);
+                lineInd = GetLineIndentation(line);
+                if (IsNeedIncreaseIndentation(ch)){
+                    bNeedIncrease = true;
+                }
+                break;
+            }
+            last--;
+        }
+    }
+    if (bNeedIncrease){
+        lineInd += GetIndent();
+    }
+    SetLineIndentation(currentLine, lineInd);
+    GotoPos(PositionFromLine(currentLine) + lineInd);
+}
+
 void Edit::OnCharAdded (wxStyledTextEvent &event) {
     // note:fanhongxuan@gmail.com
     // if the next is a validchar for autocomp, we don't show the autocomp
@@ -609,6 +702,15 @@ void Edit::OnCharAdded (wxStyledTextEvent &event) {
         }
         mInputWord = GetTextRange(start, pos);
         wxAutoCompWordInBufferProvider::Instance().AddCandidate(mInputWord, opt);
+        char chr = (char)event.GetKey();
+        int currentLine = GetCurrentLine();
+        // Change this if support for mac files with \r is needed
+        if (chr == '\n'){
+            OnReturn(currentLine);
+        }
+        if (chr == '}'){
+            OnEndBrace(currentLine);
+        }
         return;
     }
     
@@ -766,12 +868,12 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetUseTabs (false);
     SetTabIndents (true);
     SetBackSpaceUnIndents (true);
-    SetIndent (g_CommonPrefs.indentEnable? 4: 0);
+    SetIndent(g_CommonPrefs.indentEnable? 4: 0);
 
     // others
     SetViewEOL (g_CommonPrefs.displayEOLEnable);
     SetIndentationGuides (g_CommonPrefs.indentGuideEnable);
-    SetEdgeColumn (80);
+    SetEdgeColumn (120);
     SetEdgeMode (g_CommonPrefs.longLineOnEnable? wxSTC_EDGE_LINE: wxSTC_EDGE_NONE);
     SetViewWhiteSpace (g_CommonPrefs.whiteSpaceEnable?
                        wxSTC_WS_VISIBLEALWAYS: wxSTC_WS_INVISIBLE);
