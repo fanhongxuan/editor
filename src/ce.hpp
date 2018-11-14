@@ -86,6 +86,7 @@ private:
     void SaveInfo();
     void LoadInfo();
 private:
+    bool mbLoadFinish;
     wxAuiNotebook *mpBufferList;
     wxSearchFile *mpSearch;
     wxSearchDir *mpSearchDir;

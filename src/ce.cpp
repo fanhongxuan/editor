@@ -118,6 +118,7 @@ MyFrame::MyFrame(wxWindow* parent,
                  long style)
         : wxFrame(parent, id, title, pos, size, style)
 {
+    mbLoadFinish = false;
     mpSearchDir = NULL;
     mpSearch = NULL;
     mpBufferList = NULL;
@@ -150,6 +151,7 @@ MyFrame::MyFrame(wxWindow* parent,
                   .Bottom().CloseButton(false).Resizable(false).Fixed().Floatable(false)
                   .CaptionVisible(false).Row(0).Layer(0).Position(0));
     LoadInfo();
+    mbLoadFinish = true;
 }
 
 MyFrame::~MyFrame()
@@ -211,7 +213,7 @@ public:
             else{
                 // todo:fanhongxuan@gmail.com
                 // show the searched char as red
-                mpEdit->SetSelection(lineStart, lineEnd);
+                mpEdit->SetSelection(lineStart, lineEnd-1);
             }
         }
     }
@@ -363,6 +365,8 @@ void MyFrame::LoadInfo()
 
 void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results)
 {
+    // note:fanhongxuan@gmail.com
+    // prepare the current file to wxSearchFile.
     // get the current selection
     if (NULL == mpBufferList || NULL == mpSearch){
         return;
@@ -485,12 +489,15 @@ void MyFrame::OnFileClose(wxAuiNotebookEvent &evt)
 
 void MyFrame::OnShowSearch(wxCommandEvent &evt)
 {
+#define VALID_CHAR_WHEN_SEARCH_FILE "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"    
     wxString value;
+    int line = -1;
     int select = mpBufferList->GetSelection();
-    if (wxNOT_FOUND != select){
+    if (wxNOT_FOUND != select && mbLoadFinish){
         Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
-            value = pEdit->GetCurrentWord();
+            value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_FILE);
+            line = pEdit->GetCurrentLine();
         }
     }
     wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("Find"));
@@ -507,6 +514,11 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
                       .Bottom().Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
     if (!value.empty()){
+        if (line >= 0){
+            mpSearch->SetCurrentLine(line);
+        }
+        // note:fanhongxuan@gmail.com
+        // select the candidate by the current position
         mpSearch->SetInput(value);
     }
     if (NULL != mpSearch){
@@ -517,12 +529,13 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
 
 void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
 {
+#define VALID_CHAR_WHEN_SEARCH_DIR "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890/."     
     wxString value;
     int select = mpBufferList->GetSelection();
-    if (wxNOT_FOUND != select){
+    if (wxNOT_FOUND != select && mbLoadFinish){
         Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
-            value = pEdit->GetCurrentWord();
+            value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_DIR);
         }
     }
     

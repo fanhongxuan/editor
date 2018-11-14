@@ -59,7 +59,7 @@ public:
     //! destructor
     ~Edit ();
 
-    wxString GetCurrentWord();
+    wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     
     // event handlers
     // common
@@ -130,7 +130,7 @@ public:
 
 private:
     bool LoadAutoComProvider(const wxString &filename);
-    bool IsValidChar(char ch);
+    bool IsValidChar(char ch, const wxString &validCharList = wxEmptyString);
     bool GetCandidate(const wxString &input, std::set<wxString> &candidates);
     std::vector<wxAutoCompProvider *> mAllProviders;
 private:

@@ -372,7 +372,6 @@ bool wxSearch::SetMaxCandidate(int maxCandidate)
 
 bool wxSearch::SetInput(const wxString &input)
 {
-    // wxPrintf("SetInput:<%s>\n", input);
     Reset();
     if (NULL != mpInput){
         mpInput->SetValue(input);
@@ -493,12 +492,6 @@ void wxSearch::Reset()
     mbStartSearch = false;
 }
 
-void wxSearch::OnChangeCWD(const int8_t *pCwd)
-{
-    
-}
-
-
 void wxSearch::AddSearchResult(wxSearchResult *pResult)
 {
     if (NULL != pResult){
@@ -550,12 +543,17 @@ bool wxSearch::DoStartSearch(const wxString &input)
         }
     }
     // wxPrintf("DoStartSearch %s\n", input);
-    StartSearch(input);
+    // note:fanhongxuan@gmail.com
+    // when call StartSearch we only use the first minStartLen char.
+    StartSearch(input.substr(0, mMinStartLen));
     return true;
 }
 
 bool wxSearch::UpdateSearchList(const wxString &input)
 {
+    // fixme:fanhongxuan@gmail.com
+    // on windows, then the edit is empty, will not call UpdateSearch list
+    // so in buffer list, can not show all the candidate.
     int i = 0;
     if (NULL == mpList){
         return false;
@@ -575,6 +573,7 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             return false;
         }
     }
+    
     if (!mbStartSearch){
         Reset(); // make sure the status has been reset.
         mbStartSearch = true;
@@ -619,6 +618,15 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     }
     mpList->SetInsertionPoint(0);
     mpStatus->SetLabel(GetSummary(input, count));
+
+    if (mCurrentLine < 0){
+        int prefer = GetPreferedLine(input);
+        if (prefer >= 0){
+            SelectLine(prefer, true, true);
+        }
+        // no selection, getPreferedSelection
+        
+    }
     return true;
 }
 
@@ -764,8 +772,45 @@ bool wxSearchDir::StopSearch()
 }
 
 wxSearchFile::wxSearchFile(wxWindow *parent)
-    :wxSearch(parent)
+    :wxSearch(parent), mTotalLine(0), mCurLine(0)
 {
+}
+
+int wxSearchFile::GetPreferedLine(const wxString &input)
+{
+    int i = 0;
+    int dis = 0;
+    int line = 0;
+    int bestLine = 0;
+    int distance = mTotalLine;
+    for (i = 0; i < mResults.size(); i++){
+        if (mResults[i]->IsMatch()){
+            wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(mResults[i]);
+            if (NULL != pRet){
+                // if this is near to the mCurLine, store it
+                int curDist = pRet->GetLine() - mCurLine;
+                if (curDist < 0){ curDist = -curDist;}
+                if (curDist < distance){
+                    distance = curDist;
+                    bestLine = line;
+                }
+            }
+            line++;
+        }
+    }
+    return bestLine;
+}
+
+void wxSearchFile::SetCurrentLine(int line)
+{
+    mCurLine = line;
+    // int i = 0;
+    // for (i = 0; i < mResults.size(); i++){
+    //     // todo:fanhongxuan@gmail.com
+    //     // update the mCurentLine of wxSearch
+    //     // find the respond mResults according the line.
+    //     // but the mResults maybe filted again
+    // }
 }
 
 void wxSearchFile::SetFileName(const wxString &fileName)
@@ -785,12 +830,6 @@ wxSearchFileResult::wxSearchFileResult(const wxString &content, const wxString &
 
 bool wxSearchFile::StartSearch(const wxString &input)
 {
-    // todo:fanhongxuan@gmail.com
-    // if ((!mFileName.empty()) && (mBuffer.empty()))
-    // {
-    //     LoadFile(mFileName);
-    // }
-    // wxPrintf("wxSearchFile::StartSearch %s\n", input);
     std::vector<wxString> rets;
     wxString niddle = input.Lower();
     bool bCaseSenstive = niddle != input;
@@ -815,7 +854,8 @@ bool wxSearchFile::StartSearch(const wxString &input)
         pos += strlen(rets[i]);
         line ++;
     }
-    // wxPrintf("total %d line\n", line);
+    mTotalLine = line;
+    // update mCurrentLine according the position
     return true;
 }
 

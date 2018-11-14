@@ -185,29 +185,20 @@ Edit::Edit (wxWindow *parent,
 
 Edit::~Edit () {}
 
-static bool isAlphaNumber(char c)
+wxString Edit::GetCurrentWord(const wxString &validCharList)
 {
-    if (c >= '0' && c <= '9'){
-        return true;
+    // if has selection, return selection
+    wxString ret = GetSelectedText();
+    if (!ret.empty()){
+        return ret;
     }
-    if (c >= 'A' && c <= 'Z'){
-        return true;
-    }
-    if (c >= 'a' && c <= 'z'){
-        return true;
-    }
-    return false;
-}
-
-wxString Edit::GetCurrentWord()
-{
     long pos = GetInsertionPoint();
     long max = GetText().Length();
     long start = pos, end = pos;
     int i = 0;
     while(start > 0){
         int ch = GetCharAt(start-1);
-        if (isAlphaNumber(ch)){
+        if (IsValidChar(ch)){
             start--;
         }
         else{
@@ -217,7 +208,7 @@ wxString Edit::GetCurrentWord()
     
     while(end < max){
         int ch = GetCharAt(end+1);
-        if (isAlphaNumber(ch)){
+        if (IsValidChar(ch)){
             end++;
         }
         else{
@@ -227,7 +218,7 @@ wxString Edit::GetCurrentWord()
     if (start == end){
         return wxEmptyString;
     }
-    if (!isAlphaNumber(GetCharAt(pos))){
+    if (!IsValidChar(GetCharAt(pos))){
         if (start != pos){
             end = pos - 1;
         }
@@ -551,8 +542,14 @@ bool Edit::LoadAutoComProvider(const wxString &filename)
     return wxAutoCompProvider::GetValidProvider(opt, mAllProviders);
 }
 
-bool Edit::IsValidChar(char ch)
+bool Edit::IsValidChar(char ch, const wxString &validCharList)
 {
+    if (!validCharList.empty()){
+        if (validCharList.find(ch) != validCharList.npos){
+            return true;
+        }
+        return false;
+    }
     int i = 0;
     for (i = 0; i < mAllProviders.size(); i++){
         if (mAllProviders[i]->IsValidChar(ch)){
