@@ -375,6 +375,7 @@ bool wxSearch::SetInput(const wxString &input)
     Reset();
     if (NULL != mpInput){
         mpInput->SetValue(input);
+        mpInput->SetSelection(0, input.size());
     }
     return true;
 }
@@ -734,7 +735,7 @@ bool wxSearchDir::StartSearch(const wxString &input)
     // skip some dir, like the .git
     // skip all the file and dir list in a file named .ignore
 
-    wxMyTimeTrace trace("StartSearch");
+    // wxMyTimeTrace trace("StartSearch");
     // wxArrayString files;
     // note:fanhongxuan@gmail.com
     // wxDir::GetAllFiles default is casesensitive
@@ -772,7 +773,7 @@ bool wxSearchDir::StopSearch()
 }
 
 wxSearchFile::wxSearchFile(wxWindow *parent)
-    :wxSearch(parent), mTotalLine(0), mCurLine(0)
+    :wxSearch(parent), mTotalLine(0), mCurLine(0), mpEdit(NULL)
 {
 }
 
@@ -823,6 +824,10 @@ void wxSearchFile::SetBuffer(const wxString &buffer)
     mBuffer = buffer;
 }
 
+void wxSearchFile::SetEdit(Edit *pEdit)
+{
+    mpEdit = pEdit;
+}
 wxSearchFileResult::wxSearchFileResult(const wxString &content, const wxString &target, int line, int pos)
     :wxSearchResult(content, target), mLine(line), mPos(pos)
 {
@@ -830,31 +835,75 @@ wxSearchFileResult::wxSearchFileResult(const wxString &content, const wxString &
 
 bool wxSearchFile::StartSearch(const wxString &input)
 {
-    std::vector<wxString> rets;
+    wxMyTimeTrace trace("wxSearchFile::StartSearch");
     wxString niddle = input.Lower();
     bool bCaseSenstive = niddle != input;
     if (bCaseSenstive){
         niddle = input;
     }
-    
-    ParseString(mBuffer, rets, '\n', true);
-    int pos = 0;
-    int line = 0;
-    int i = 0;
-    for (i = 0; i < rets.size(); i++){
-        wxString value = rets[i];
-        if (!bCaseSenstive){
-            value.MakeLower();
+    if (NULL != mpEdit){
+        int i = 0;
+        int pos = 0;
+        mTotalLine = mpEdit->GetLineCount();
+        for (i = 0; i < mTotalLine; i++){
+            wxString text = mpEdit->GetLineText(i);
+            wxString value = text;
+            if (!bCaseSenstive){
+                value.MakeLower();
+            }
+            int offset = value.find(niddle);
+            if (offset != wxString::npos){
+                AddSearchResult(new wxSearchFileResult(wxString::Format("%d\t%s", i+1, text), text, i, pos + offset));
+            }
+            pos += 1; // this is the newline
+            pos += text.Length();
         }
-        int offset = value.find(niddle);
-        if (offset != wxString::npos){
-            AddSearchResult(new wxSearchFileResult(rets[i], rets[i], line, pos + offset));
-        }
-        pos += 1; // this is the newline
-        pos += strlen(rets[i]);
-        line ++;
     }
-    mTotalLine = line;
+    
+    // int pos = 0;
+    // int line = 0;
+    // int i = 0;
+    // wxString value;
+    // int size = mBuffer.size();
+    // for (i = 0; i < size; i++){
+    //     int chr= mBuffer[i].GetValue();
+    //     if (chr != '\n'){
+    //         value += chr;
+    //         continue;
+    //     }
+    //     if (!bCaseSenstive){
+    //         value.MakeLower();
+    //     }
+    //     int offset = value.find(niddle);
+    //     if (offset != wxString::npos){
+    //         AddSearchResult(new wxSearchFileResult(value, value, line, pos + offset));
+    //     }
+    //     pos += 1; // this is the newline
+    //     pos += value.size();
+    //     line++;
+    //     value.Clear();
+    // }
+
+    // std::vector<wxString> rets;
+    // ParseString(mBuffer, rets, '\n', true);
+    // int pos = 0;
+    // int line = 0;
+    // int i = 0;
+    // for (i = 0; i < rets.size(); i++){
+    //     wxString value = rets[i];
+    //     if (!bCaseSenstive){
+    //         value.MakeLower();
+    //     }
+    //     int offset = value.find(niddle);
+    //     if (offset != wxString::npos){
+    //         AddSearchResult(new wxSearchFileResult(rets[i], rets[i], line, pos + offset));
+    //     }
+    //     pos += 1; // this is the newline
+    //     pos += strlen(rets[i]);
+    //     line ++;
+    // }
+    
+    // mTotalLine = line;
     // update mCurrentLine according the position
     return true;
 }

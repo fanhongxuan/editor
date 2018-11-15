@@ -150,8 +150,8 @@ Edit::Edit (wxWindow *parent,
     SetReadOnly (g_CommonPrefs.readOnlyInitial);
     SetWrapMode (g_CommonPrefs.wrapModeInitial?
                  wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
-    wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
-    StyleSetFont (wxSTC_STYLE_DEFAULT, font);
+    // wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    // StyleSetFont (wxSTC_STYLE_DEFAULT, font);
     StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxBLACK);
     StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxWHITE);
     StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("DARK GREY")));
@@ -165,30 +165,23 @@ Edit::Edit (wxWindow *parent,
     SetYCaretPolicy (wxSTC_CARET_EVEN|wxSTC_VISIBLE_STRICT|wxSTC_CARET_SLOP, 1);
 
     // markers
-    MarkerDefine (wxSTC_MARKNUM_FOLDER,        wxSTC_MARK_DOTDOTDOT, wxT("BLACK"), wxT("BLACK"));
-    MarkerDefine (wxSTC_MARKNUM_FOLDEROPEN,    wxSTC_MARK_ARROWDOWN, wxT("BLACK"), wxT("BLACK"));
-    MarkerDefine (wxSTC_MARKNUM_FOLDERSUB,     wxSTC_MARK_EMPTY,     wxT("BLACK"), wxT("BLACK"));
-    MarkerDefine (wxSTC_MARKNUM_FOLDEREND,     wxSTC_MARK_DOTDOTDOT, wxT("BLACK"), wxT("WHITE"));
-    MarkerDefine (wxSTC_MARKNUM_FOLDEROPENMID, wxSTC_MARK_ARROWDOWN, wxT("BLACK"), wxT("WHITE"));
-    MarkerDefine (wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_EMPTY,     wxT("BLACK"), wxT("BLACK"));
-    MarkerDefine (wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_EMPTY,     wxT("BLACK"), wxT("BLACK"));
-
-    // annotations
-    AnnotationSetVisible(wxSTC_ANNOTATION_BOXED);
+    MarkerDefine(wxSTC_MARKNUM_FOLDER,        wxSTC_MARK_BOXPLUS, wxT("WHITE"), wxT("BLACK"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEROPEN,    wxSTC_MARK_BOXMINUS,  wxT("WHITE"), wxT("BLACK"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERSUB,     wxSTC_MARK_VLINE,     wxT("WHITE"), wxT("BLACK"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEREND,     wxSTC_MARK_BOXPLUSCONNECTED, wxT("WHITE"), wxT("BLACK"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEROPENMID, wxSTC_MARK_BOXMINUSCONNECTED, wxT("WHITE"), wxT("BLACK"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_TCORNER,     wxT("WHITE"), wxT("BLACK"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_LCORNER,     wxT("WHITE"), wxT("BLACK"));
 
     // miscellaneous
     m_LineNrMargin = TextWidth (wxSTC_STYLE_LINENUMBER, wxT("_09999"));
     m_FoldingMargin = 16;
-    // disable the default tab key, return key
-    // CmdKeyClear(wxSTC_KEY_TAB, 0); // this is done by the menu accelerator key
-    // CmdKeyClear(wxSTC_KEY_RETURN, 0);
 
     SetCaretLineBackground(wxColour(193, 213, 255));
     SetCaretLineVisible(true);
     SetCaretLineVisibleAlways(true);
     
     SetLayoutCache (wxSTC_CACHE_PAGE);
-    // SetIndentationGuides(wxSTC_IV_LOOKBOTH);
     UsePopUp(wxSTC_POPUP_ALL);
 }
 
@@ -249,6 +242,7 @@ void Edit::OnModified(wxStyledTextEvent &evt)
     // if (GetModify()){
     //     wxPrintf("The file is modified:%s\n", GetFilename());
     // }
+    UpdateLineNumberMargin();
 }
 
 void Edit::OnSize( wxSizeEvent& event ) {
@@ -311,6 +305,7 @@ void Edit::OnEditCopy (wxCommandEvent &WXUNUSED(event)) {
 void Edit::OnEditPaste (wxCommandEvent &WXUNUSED(event)) {
     if (!CanPaste()) return;
     Paste ();
+    // update the linenumber margin
     // todo:fanhongxuan@gmail.com
     // get the pasted content and update the wxAutoCompWordInBufferProvider.
 }
@@ -907,6 +902,17 @@ bool Edit::LoadFile ()
 #endif // wxUSE_FILEDLG
 }
 
+void Edit::UpdateLineNumberMargin()
+{
+    int lineCount = GetLineCount();
+    wxString linenumber = wxT("_");
+    while(lineCount != 0){
+        linenumber += wxT("9");
+        lineCount = lineCount / 10;
+    }
+    SetMarginWidth(m_LineNrID, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
+}
+
 bool Edit::LoadFile (const wxString &filename) {
 
     // load file in edit and clear undo
@@ -920,14 +926,8 @@ bool Edit::LoadFile (const wxString &filename) {
     wxFileName fname (m_filename);
     InitializePrefs (DeterminePrefs (fname.GetFullName()));
 
-    int lineCount = GetLineCount();
-    wxString linenumber = wxT("_");
-    while(lineCount != 0){
-        linenumber += wxT("9");
-        lineCount = lineCount / 10;
-    }
-    SetMarginWidth(m_LineNrID, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
-
+    
+    // UpdateLineNumberMargin();
     LoadAutoComProvider(filename);
     wxString opt;
     if (NULL != m_language){
@@ -971,18 +971,6 @@ bool Edit::SaveFile (const wxString &filename, bool bClose) {
         // handle the pasted event, when save file, do not need to update this again.
         wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), opt);
     }
-//     // save edit in file and clear undo
-//     if (!filename.empty()) m_filename = filename;
-//     wxFile file (m_filename, wxFile::write);
-//     if (!file.IsOpened()) return false;
-//     wxString buf = GetText();
-//     bool okay = file.Write (buf);
-//     file.Close();
-//     if (!okay) return false;
-//     EmptyUndoBuffer();
-//     SetSavePoint();
-
-//     return true;
 
     return wxStyledTextCtrl::SaveFile(filename);
 

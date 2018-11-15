@@ -60,6 +60,8 @@ public:
     ~Edit ();
 
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
+    void UpdateLineNumberMargin();
+    
     void OnReturn(int currentLine);
     void OnEndBrace(int currentLine);
     void OnBeginBrace(int currentLine);

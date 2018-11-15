@@ -205,9 +205,8 @@ public:
             mpEdit->GotoLine(line);
             int lineStart = mpEdit->PositionFromLine (line);
             int lineEnd = mpEdit->PositionFromLine (line + 1);
-            
-            mpEdit->SetSelection(pRet->GetPos(), pRet->GetPos());
-            mpEdit->GotoPos(pRet->GetPos());
+            // mpEdit->SetSelection(pRet->GetPos(), pRet->GetPos());
+            // mpEdit->GotoPos(pRet->GetPos());
             if (bActive){
                 mpEdit->SetFocus();
             }
@@ -279,7 +278,7 @@ void MyFrame::SaveInfo()
     wxConfig config("CE");
     config.Write("/Config/LastPerspective", perspective);
     // store all the open file, when open, open it again.
-    if (NULL != mpBufferList){
+    if (NULL != mpBufferList && mpBufferList->GetPageCount() != 0){
         int i = 0;
         for (i = 0; i < mpBufferList->GetPageCount(); i++){
             Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
@@ -377,7 +376,8 @@ void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, st
     }
     handler.SetEdit(pEdit);
     mpSearch->SetFileName(pEdit->GetFilename());
-    mpSearch->SetBuffer(pEdit->GetText());
+    // mpSearch->SetBuffer(pEdit->GetText());
+    mpSearch->SetEdit(pEdit);
 }
 
 void MyFrame::OnClose(wxCloseEvent &evt)
