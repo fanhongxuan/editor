@@ -511,7 +511,7 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
         mpSearch->AddHandler(pSearchHandler);
         mpSearch->SetMinStartLen(3);
         m_mgr.AddPane(mpSearch, wxAuiPaneInfo().Name(wxT("Find")).Caption(wxT("Find..."))
-                      .Bottom().Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
+                      .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
     if (!value.empty()){
         if (line >= 0){
@@ -549,7 +549,7 @@ void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
         mpSearchDir->AddHandler(pSearchHandler);
         mpSearchDir->SetMinStartLen(3);
         m_mgr.AddPane(mpSearchDir, wxAuiPaneInfo().Name(wxT("FindFiles")).Caption(wxT("Find files..."))
-                      .Bottom().Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300, 100)));
+                      .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300, 100)));
 
     }
     
@@ -606,7 +606,7 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
     else{
         mpExplorer = new wxExplorer(this);
         m_mgr.AddPane(mpExplorer, wxAuiPaneInfo().Name(wxT("Explorer")).Caption(wxT("Explorer")).
-                      Left().BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
+                      Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
     if (NULL != mpExplorer){
         mpExplorer->SetFocus();
@@ -633,7 +633,7 @@ void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
             }
         }
         m_mgr.AddPane(mpBufferSelect, wxAuiPaneInfo().Name(wxT("BufferSelect")).Caption(wxT("Select buffers..."))
-                      .Bottom().Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
+                      .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
     if (NULL != mpBufferSelect){
         mpBufferSelect->SetFocus();

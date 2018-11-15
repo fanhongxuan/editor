@@ -2,7 +2,7 @@ CC := g++
 wx_inc_dir := import/wxWidgets/include/
 wx_lib_dir := import/wxWidgets/lib/linux
 
-CFLAGS := -I$(wx_inc_dir) -I$(wx_lib_dir)/include/ -I. -D__WXGTK__
+CFLAGS := -I$(wx_inc_dir) -I$(wx_lib_dir)/include/ -I. -D__WXGTK__ -g
 
 LDFLAGS := -L$(wx_lib_dir) -pthread \
 	-lexpat \

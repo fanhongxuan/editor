@@ -17,6 +17,8 @@ public:
     void SetCwd(const wxString &cwd);
     void OnItemActivated(wxTreeEvent &evt);
     void OnSelectionChanged(wxTreeEvent &evt);
+    void OnItemExpanding(wxTreeEvent &evt);
+    void OnKeyDown(wxKeyEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
 private:

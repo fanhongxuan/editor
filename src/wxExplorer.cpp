@@ -44,15 +44,25 @@ static void AddDir(const wxString &dir, wxExplorer &explorer, wxTreeItemId paren
         wxString child_dir = cwd.GetNameWithSep() + filename;
         wxExplorerItemInfo *pInfo =
             new wxExplorerItemInfo(child_dir, false);
-        wxTreeItemId child = explorer.AppendItem(parent,
-                                                 filename,
-                                                 explorer_folder,
-                                                 explorer_folder_select,
-                                                 pInfo);
+        wxTreeItemId child_id = explorer.AppendItem(parent,
+                                                    filename,
+                                                    explorer_folder,
+                                                    explorer_folder_select,
+                                                    pInfo);
         // check if need to follow
         if (target.find(child_dir) == 0){
-            AddDir(child_dir, explorer, child, target);
+            AddDir(child_dir, explorer, child_id, target);
         }
+        else{
+            // note:fanhongxuan@gmail.com
+            // check if this dir has children,
+            // if has add a temp node to it.
+            wxDir child(child_dir);
+            if (child.IsOpened() &&(child.HasFiles() || child.HasSubDirs())){
+                explorer.AppendItem(child_id, filename, explorer_folder, explorer_folder_select, NULL);
+            }
+        }
+                
         cont = cwd.GetNext(&filename);
     }
     
@@ -85,6 +95,8 @@ static void AddDir(const wxString &dir, wxExplorer &explorer, wxTreeItemId paren
 wxBEGIN_EVENT_TABLE(wxExplorer, wxTreeCtrl)
 EVT_TREE_ITEM_ACTIVATED(wxID_ANY, wxExplorer::OnItemActivated)
 EVT_TREE_SEL_CHANGED(wxID_ANY, wxExplorer::OnSelectionChanged)
+EVT_TREE_ITEM_EXPANDING(wxID_ANY, wxExplorer::OnItemExpanding)
+EVT_KEY_DOWN(wxExplorer::OnKeyDown)
 wxEND_EVENT_TABLE()
 
 wxExplorer::wxExplorer(wxWindow *parent)
@@ -95,6 +107,9 @@ wxExplorer::wxExplorer(wxWindow *parent)
                 wxTR_HIDE_ROOT |  /*On linux all the file system is mounted at the root, so we hide it.*/
 #endif                
                 wxTR_LINES_AT_ROOT |
+#ifdef WIN32
+                wxTR_NO_LINES |
+#endif
                 wxTR_FULL_ROW_HIGHLIGHT)
 {
     CreateImageList();
@@ -130,19 +145,110 @@ wxExplorer::~wxExplorer()
     config.Write("/Config/CurrentWorkingDirectory", wxGetCwd());
 }
 
+void wxExplorer::OnKeyDown(wxKeyEvent &evt)
+{
+    int key = evt.GetKeyCode();
+    if (WXK_LEFT == key){
+        wxTreeItemId id = GetFocusedItem();
+        if (id.IsOk() && IsExpanded(id)){
+            Collapse(id);
+            return;
+        }
+    }
+    else{
+        // if the key is a-z 0-9 try to match it the item on current level.
+        if ((key >= 'A' && key <= 'Z') || (key <= '9' && key >= '0')){
+            wxTreeItemId id = GetFocusedItem();
+            if (id.IsOk()){
+                wxTreeItemId next = GetNextSibling(id);
+                bool bMatch = false;
+                while(next.IsOk()){
+                    wxString text = GetItemText(next).Upper();
+                    if (text[0].GetValue() == key){
+                        SelectItem(next);
+                        return;
+                    }
+                    next = GetNextSibling(next);
+                }
+
+                // todo:fanhongxuan@gmail.com
+                // find the first child
+                next = GetItemParent(id);
+                if (next.IsOk()){
+                    wxTreeItemIdValue cookie = NULL;
+                    next = GetFirstChild(next, cookie);
+                }
+                while(next.IsOk()){
+                    wxString text = GetItemText(next).Upper();
+                    if (text[0].GetValue() == key){
+                        SelectItem(next);
+                        return;
+                    }                    
+                    next = GetNextSibling(next);
+                }
+            }
+            return;
+        }
+    }
+    evt.Skip();
+}
+
+void wxExplorer::OnItemExpanding(wxTreeEvent &evt)
+{
+    evt.Skip();
+    wxTreeItemId id = evt.GetItem();
+    if (!id.IsOk()){
+        return;
+    }
+    wxTreeItemData *pInfo = GetItemData(id);
+    if (NULL == pInfo){
+        return;
+    }
+    wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(pInfo);
+    if (NULL == pItem){
+        return;
+    }
+    // wxPrintf("Active:%s\n", pItem->mPath);
+    // this is a folder, but has no children, try to load it.
+    if (pItem->mbFile){
+        return;
+    }
+    if(1 == GetChildrenCount(id)){
+        wxTreeItemIdValue cookie = id;
+        wxTreeItemId child = GetFirstChild(id, cookie);
+        if (child.IsOk() && NULL == GetItemData(child)){
+            DeleteChildren(id);
+            AddDir(pItem->mPath, *this, id, "");
+            // Expand(id);
+        }
+    } 
+}
+
 void wxExplorer::OnItemActivated(wxTreeEvent &evt)
 {
     wxTreeItemId id = evt.GetItem();
-    wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(GetItemData(id));
+    if (!id.IsOk()){
+        return;
+    }
+    wxTreeItemData *pInfo = GetItemData(id);
+    if (NULL == pInfo){
+        return;
+    }
+    wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(pInfo);
     if (NULL == pItem){
         return;
     }
     // wxPrintf("Active:%s\n", pItem->mPath);
     // this is a folder, but has no children, try to load it.
     if ((!pItem->mbFile)){
-        if(0 == GetChildrenCount(id)){
-            AddDir(pItem->mPath, *this, id, "");
-            Expand(id);
+        if(1 == GetChildrenCount(id)){
+            wxTreeItemIdValue cookie = id;
+            wxTreeItemId child = GetFirstChild(id, cookie);
+            if (child.IsOk() && NULL == GetItemData(child)){
+                DeleteChildren(id);
+                AddDir(pItem->mPath, *this, id, "");
+                Expand(id);
+            }
         }
         else{
             Toggle(id);
@@ -156,7 +262,14 @@ void wxExplorer::OnItemActivated(wxTreeEvent &evt)
 void wxExplorer::OnSelectionChanged(wxTreeEvent &evt)
 {
     wxTreeItemId id = evt.GetItem();
-    wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(GetItemData(id));
+    if (!id.IsOk()){
+        return;
+    }
+    wxTreeItemData *pInfo = GetItemData(id);
+    if (NULL == pInfo){
+        return;
+    }
+    wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(pInfo);
     if (NULL == pItem){
         return;
     }
@@ -196,6 +309,15 @@ void wxExplorer::CreateImageList()
 
 int wxExplorer::OnCompareItems(const wxTreeItemId &first, const wxTreeItemId &second)
 {
+    if ((!first.IsOk()) || (!second.IsOk())){
+        return 1;
+    }
+    if (NULL == GetItemData(first)){
+        return 1;
+    }
+    if (NULL == GetItemData(second)){
+        return -1;
+    }
     wxExplorerItemInfo *pFirst = dynamic_cast<wxExplorerItemInfo*>(GetItemData(first));
     wxExplorerItemInfo *pSecond = dynamic_cast<wxExplorerItemInfo*>(GetItemData(second));
     if (NULL == pFirst || NULL == pSecond){
