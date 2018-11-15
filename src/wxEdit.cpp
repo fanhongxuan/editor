@@ -182,6 +182,10 @@ Edit::Edit (wxWindow *parent,
     // disable the default tab key, return key
     // CmdKeyClear(wxSTC_KEY_TAB, 0); // this is done by the menu accelerator key
     // CmdKeyClear(wxSTC_KEY_RETURN, 0);
+
+    SetCaretLineBackground(wxColour(193, 213, 255));
+    SetCaretLineVisible(true);
+    SetCaretLineVisibleAlways(true);
     
     SetLayoutCache (wxSTC_CACHE_PAGE);
     // SetIndentationGuides(wxSTC_IV_LOOKBOTH);

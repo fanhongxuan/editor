@@ -12,7 +12,7 @@
 #include <wx/dir.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include <wx/stattext.h>
-
+#include "wxEdit.hpp"
 #ifndef WIN32
 #include <sys/time.h>
 #endif
@@ -79,7 +79,7 @@ public:
     bool SetSelection(int start, int end)
     {
         wxTextAttr normal(wxNullColour, wxColour(255, 255, 255));
-        wxTextAttr select(wxNullColour, wxColour(0, 255, 0));
+        wxTextAttr select(wxNullColour, wxColour(193, 213, 255));
         if (mStart >= 0 && mEnd >= 0){
             SetStyle(mStart, mEnd, normal);
         }

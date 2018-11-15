@@ -205,15 +205,11 @@ public:
             mpEdit->GotoLine(line);
             int lineStart = mpEdit->PositionFromLine (line);
             int lineEnd = mpEdit->PositionFromLine (line + 1);
+            
+            mpEdit->SetSelection(pRet->GetPos(), pRet->GetPos());
+            mpEdit->GotoPos(pRet->GetPos());
             if (bActive){
-                mpEdit->SetSelection(pRet->GetPos(), pRet->GetPos());
-                mpEdit->SetInsertionPoint(pRet->GetPos());
                 mpEdit->SetFocus();
-            }
-            else{
-                // todo:fanhongxuan@gmail.com
-                // show the searched char as red
-                mpEdit->SetSelection(lineStart, lineEnd-1);
             }
         }
     }
