@@ -1,10 +1,18 @@
 CC := g++
 wx_inc_dir := import/wxWidgets/include/
 wx_lib_dir := import/wxWidgets/lib/linux
+outdir := build/linux/
+srcdir := src/
+target := $(outdir)ce
 
-CFLAGS := -I$(wx_inc_dir) -I$(wx_lib_dir)/include/ -I. -D__WXGTK__ -g
+CFLAGS := \
+	-I$(wx_inc_dir) \
+	-I$(wx_lib_dir)/include/ \
+	-I. -D__WXGTK__ -g
 
-LDFLAGS := -L$(wx_lib_dir) -pthread \
+LDFLAGS := \
+	-L$(wx_lib_dir) \
+	-pthread \
 	-lexpat \
 	-lwx_gtk2u-3.1 \
 	-lwxscintilla-3.1 \
@@ -37,21 +45,14 @@ LDFLAGS := -L$(wx_lib_dir) -pthread \
 	-lgdk_pixbuf-2.0 \
 	-lpng
 
-
-outdir := build/linux/
-target := $(outdir)ce
-
-objects = \
-	$(outdir)ce.o \
-	$(outdir)wxSearch.o \
-	$(outdir)wxEdit.o \
-	$(outdir)wxAutoComp.o \
-	$(outdir)wxBufferSelect.o \
-	$(outdir)wxDockArt.o \
-	$(outdir)wxExplorer.o \
-	$(outdir)wxPrefs.o
+SRCS := $(wildcard $(srcdir)*.cpp)
+DIRS := $(notdir $(SRCS))
+DEPS := $(patsubst %.cpp, $(outdir)%.d, $(DIRS))
+objects := $(patsubst %.cpp, $(outdir)%.o, $(DIRS))
 
 all: $(outdir) $(target)
+
+-include $(DEPS)
 
 $(outdir):
 	@mkdir -p $(outdir)
@@ -59,15 +60,13 @@ $(outdir):
 $(target): $(objects)
 	$(CC) -o $(target) $(objects) $(LDFLAGS)
 
-%.d: %.cpp
-	@set -e; rm -f $@; \
-	$(CC) -M $(CPPFLAGS) $< > $@.; \
-	sed 's,\.o[ :]*,\1.o $@ : ,g' < $@. > $@; \
-        rm -f $@.
+$(DEPS): $(outdir)%.d:$(srcdir)%.cpp
+	$(CC) $(CFLAGS) -MF"$@" -MG -MM -MP -MT"$(@:.d=.o)" $<
 
-$(objects): $(outdir)%.o:src/%.cpp
+$(objects): $(outdir)%.o:$(srcdir)%.cpp
 	$(CC) -c $(CFLAGS) $< -o $@
+
 
 .PHONY:clean
 clean:
-	-rm -rf $(objects) $(target)
+	-rm -rf $(objects) $(target) $(DEPS)
