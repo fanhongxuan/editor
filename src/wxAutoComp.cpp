@@ -161,7 +161,7 @@ wxAutoCompWordInBufferProvider::wxAutoCompWordInBufferProvider()
 
 bool wxAutoCompWordInBufferProvider::IsValidChar(char c) const
 {
-    if (c == '_' || c == '@' || c == '.' || c == ':' || c == '-' || c == '/' || c == '\\'){
+    if (c == '_' || c == '@' /*|| c == '.' || c == ':' || c == '-'*/ || c == '/' || c == '\\'){
         return true;
     }
     return wxAutoCompProvider::IsValidChar(c);

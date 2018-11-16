@@ -407,6 +407,18 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
                 }
             }
         }
+        for (i = 0; i < mTempResults.size(); i++){
+            if (NULL != mTempResults[i] && mTempResults[i]->IsMatch()){
+                if (mTempResults[i]->IsInRange(pos)){
+                    int j = 0;
+                    for (j = 0; j < mHandlers.size(); j++){
+                        if (NULL != mHandlers[j]){
+                            mHandlers[j]->OnSelect(*mTempResults[i], !bRequestFocus);
+                        }
+                    }
+                }
+            }
+        }
     }
     if ((!mpInput->HasFocus()) && bRequestFocus){
         mpInput->SetFocus();
@@ -475,6 +487,18 @@ wxString wxSearch::GetHelp() const
 bool wxSearch::StopSearch()
 {
     return true;
+}
+
+void wxSearch::ClearTempResult()
+{
+    int i = 0;
+    for (i = 0; i < mTempResults.size(); i++){
+        wxSearchResult *pRet = mTempResults[i];
+        if (NULL != pRet){
+            delete pRet;
+        }
+    }
+    mTempResults.clear();
 }
 
 void wxSearch::Reset()
@@ -555,7 +579,7 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     // fixme:fanhongxuan@gmail.com
     // on windows, then the edit is empty, will not call UpdateSearch list
     // so in buffer list, can not show all the candidate.
-    int i = 0;
+    int i = 0, count = 0;
     if (NULL == mpList){
         return false;
     }
@@ -605,7 +629,6 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     mpList->Clear();
     mCurrentLine = -1;
     
-    int count = 0;
     for (i = 0; i < mResults.size(); i++){
         // todo:fanhongxuan@gmail.com
         // currently, if the match count is bigger than mMaxCandidate
@@ -617,6 +640,21 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             count++;
         }
     }
+
+    // can add some temp result here.
+    // for example:
+    // when switch buffer
+    // add a candidate like create new file
+    ClearTempResult();
+    for (i = 0; i < mHandlers.size(); i++){
+        if (NULL != mHandlers[i]){
+            mHandlers[i]->OnUpdateSearchResultAfter(input, mTempResults, count);
+        }
+    }
+    for (i = 0; i < mTempResults.size(); i++){
+        mTempResults[i]->ConvertToRichText(*mpList, rets, true);
+    }
+    
     mpList->SetInsertionPoint(0);
     mpStatus->SetLabel(GetSummary(input, count));
 
@@ -626,7 +664,6 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             SelectLine(prefer, true, true);
         }
         // no selection, getPreferedSelection
-        
     }
     return true;
 }

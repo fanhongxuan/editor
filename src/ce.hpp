@@ -27,6 +27,7 @@ class wxSearchFile;
 class wxSearchDir;
 class wxBufferSelect;
 class wxExplorer;
+class wxWorkSpace;
 class wxAuiDockArt;
 class wxAuiNotebookEvent;
 class wxAuiManagerEvent;
@@ -45,6 +46,7 @@ class MyFrame : public wxFrame
         ID_SaveCurrentBuffer,
         ID_TriggerComment,
         ID_ShowExplorer,
+        ID_ShowWorkSpace,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -72,6 +74,7 @@ public:
     void OnShowOneWindow(wxCommandEvent &evt);
     void OnShowBufferSelect(wxCommandEvent &evt);
     void OnShowExplorer(wxCommandEvent &evt);
+    void OnShowWorkSpace(wxCommandEvent &evt);
     void OnSaveCurrentBuffer(wxCommandEvent &evt);
     void OnFileClose(wxAuiNotebookEvent &evt);
     void OnFileClosed(wxAuiNotebookEvent &evt);
@@ -92,6 +95,7 @@ private:
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
     wxExplorer *mpExplorer;
+    wxWorkSpace *mpWorkSpace;
     wxAuiManager m_mgr;
     wxArrayString m_perspectives;
     wxMenu* m_perspectives_menu;

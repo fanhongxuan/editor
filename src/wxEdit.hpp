@@ -126,6 +126,7 @@ public:
     LanguageInfo const* GetLanguageInfo () {return m_language;};
 
     //! load/save file
+    bool NewFile(const wxString &defaultName);
     bool LoadFile ();
     bool LoadFile (const wxString &filename);
     bool SaveFile (bool bClose = false);
@@ -141,6 +142,7 @@ private:
     std::vector<wxAutoCompProvider *> mAllProviders;
 private:
     wxString mInputWord;
+    wxString mDefaultName;
     
     // file
     wxString m_filename;

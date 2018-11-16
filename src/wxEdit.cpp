@@ -550,6 +550,7 @@ bool Edit::LoadAutoComProvider(const wxString &filename)
     if (NULL != m_language){
         opt = m_language->name;
     }
+    mAllProviders.clear();
     return wxAutoCompProvider::GetValidProvider(opt, mAllProviders);
 }
 
@@ -880,7 +881,8 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetReadOnly (g_CommonPrefs.readOnlyInitial);
     SetWrapMode (g_CommonPrefs.wrapModeInitial?
                  wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
-
+    
+    LoadAutoComProvider(m_language->name);
     return true;
 }
 
@@ -926,14 +928,19 @@ bool Edit::LoadFile (const wxString &filename) {
     wxFileName fname (m_filename);
     InitializePrefs (DeterminePrefs (fname.GetFullName()));
 
-    
-    // UpdateLineNumberMargin();
-    LoadAutoComProvider(filename);
     wxString opt;
     if (NULL != m_language){
         opt = m_language->name;
     }
     wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), opt);
+    return true;
+}
+
+bool Edit::NewFile(const wxString &defaultName)
+{
+    mDefaultName = defaultName;
+    wxFileName fname (mDefaultName);
+    InitializePrefs (DeterminePrefs (fname.GetFullName()));
     return true;
 }
 
@@ -945,10 +952,13 @@ bool Edit::SaveFile (bool bClose)
 
     // get filename
     if (!m_filename) {
-        wxFileDialog dlg (this, wxT("Save file"), wxEmptyString, wxEmptyString, wxT("Any file (*)|*"),
+        wxFileDialog dlg (this, wxT("Save file"), wxEmptyString, mDefaultName, wxT("Any file (*)|*"),
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         if (dlg.ShowModal() != wxID_OK) return false;
         m_filename = dlg.GetPath();
+        mDefaultName = wxEmptyString;
+        wxFileName fname (m_filename);
+        InitializePrefs (DeterminePrefs (fname.GetFullName()));
     }
 
     // save file

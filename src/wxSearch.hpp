@@ -39,8 +39,12 @@ private:
 class wxSearchHandler
 {
 public:
+    // when user select onte item in the search result, this function will be called.
     virtual void OnSelect(wxSearchResult &result, bool bActive) = 0;
+    // before StartSearch, will call this function to prepare some long term result.
     virtual void OnPrepareResult(const wxString &input, std::vector<wxSearchResult *> &results){};
+    // before UpdateSearchList, will call this function to add some temp result, which will only valid for this match.
+    virtual void OnUpdateSearchResultAfter(const wxString &input, std::vector<wxSearchResult *> &results, int match){}
 };
     
 class wxSearch: public wxPanel
@@ -54,6 +58,7 @@ public:
     // the following function will be called when receive a backend message.
     void AddSearchResult(wxSearchResult *pResult);// add a item
     void Reset();
+    void ClearTempResult();
     void OnDelItem(uint8_t index);   // delete a item
     void OnPercent(uint8_t percent); // update the search percent, when the percent is 100, mean the search is finished.
                                      // when the percent is 255, mean the percent is unknown
@@ -81,6 +86,7 @@ protected:
     wxSearchListCtrl *mpList;
     wxStaticText *mpStatus;
     std::vector<wxSearchResult*> mResults;
+    std::vector<wxSearchResult*> mTempResults;
     std::vector<wxSearchHandler*> mHandlers;
     std::vector<wxString> mKeys;
     int mCurrentLine;
