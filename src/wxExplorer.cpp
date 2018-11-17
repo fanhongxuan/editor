@@ -97,6 +97,7 @@ EVT_TREE_ITEM_ACTIVATED(wxID_ANY, wxExplorer::OnItemActivated)
 EVT_TREE_SEL_CHANGED(wxID_ANY, wxExplorer::OnSelectionChanged)
 EVT_TREE_ITEM_EXPANDING(wxID_ANY, wxExplorer::OnItemExpanding)
 EVT_KEY_DOWN(wxExplorer::OnKeyDown)
+EVT_SET_FOCUS(wxExplorer::OnFocus)
 wxEND_EVENT_TABLE()
 
 wxExplorer::wxExplorer(wxWindow *parent)
@@ -143,6 +144,12 @@ wxExplorer::~wxExplorer()
 {
     wxConfig config("CE");
     config.Write("/Config/CurrentWorkingDirectory", wxGetCwd());
+}
+
+void wxExplorer::OnFocus(wxFocusEvent &evt)
+{
+    wxGetApp().frame().DoUpdate();
+    evt.Skip();
 }
 
 void wxExplorer::OnKeyDown(wxKeyEvent &evt)

@@ -40,6 +40,7 @@
 #include "wxEdit.hpp"        // edit module
 
 #include "wxAutoComp.hpp"
+#include "ce.hpp"
 
 //----------------------------------------------------------------------------
 // resources
@@ -115,6 +116,7 @@ wxBEGIN_EVENT_TABLE (Edit, wxStyledTextCtrl)
     EVT_MENU(myID_MULTI_PASTE,                  Edit::OnMultiPaste)
     EVT_MENU(myID_MULTIPLE_SELECTIONS_TYPING,   Edit::OnMultipleSelectionsTyping)
     EVT_MENU(myID_CUSTOM_POPUP,                 Edit::OnCustomPopup)
+    EVT_SET_FOCUS(Edit::OnFocus)
     // stc
     EVT_STC_MARGINCLICK (wxID_ANY,     Edit::OnMarginClick)
     EVT_STC_CHARADDED (wxID_ANY,       Edit::OnCharAdded)
@@ -177,6 +179,7 @@ Edit::Edit (wxWindow *parent,
     m_LineNrMargin = TextWidth (wxSTC_STYLE_LINENUMBER, wxT("_09999"));
     m_FoldingMargin = 16;
 
+    
     SetCaretLineBackground(wxColour(193, 213, 255));
     SetCaretLineVisible(true);
     SetCaretLineVisibleAlways(true);
@@ -234,6 +237,13 @@ wxString Edit::GetCurrentWord(const wxString &validCharList)
 
 //----------------------------------------------------------------------------
 // common event handlers
+
+void Edit::OnFocus(wxFocusEvent &evt)
+{
+    wxGetApp().frame().DoUpdate();
+    wxGetApp().frame().SetActiveEdit(this);
+    evt.Skip();
+}
 
 void Edit::OnModified(wxStyledTextEvent &evt)
 {

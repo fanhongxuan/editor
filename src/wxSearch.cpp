@@ -17,6 +17,7 @@
 #include <sys/time.h>
 #endif
 #include "wxSearch.hpp"
+#include "ce.hpp"
 
 #include <stdio.h>
 
@@ -159,6 +160,9 @@ public:
             if (NULL != mpList && NULL != pEvt){
                 mpList->ScrollLines(-pEvt->GetWheelDelta()/pEvt->GetWheelRotation());
             }
+        }
+        else if (wxEVT_SET_FOCUS == evt.GetEventType()){
+            wxGetApp().frame().DoUpdate();
         }
         return wxSearchCtrl::ProcessEvent(evt);
     }
@@ -721,7 +725,7 @@ static bool IsTempFile(const wxString &file)
     if (file[file.size() - 1] == '~'){
         return true;
     }
-    if (file[file.size() -1] == '#'){
+    if (file[file.size() - 1] == '#'){
         return true;
     }
     return false;
@@ -731,7 +735,7 @@ static bool IsBinaryFile(const wxString &file)
 {
     wxString ext;
     wxFileName::SplitPath(file, NULL, NULL, NULL, &ext);
-    if (ext == "obj" || ext == "o" || ext == "pdb" || ext == "exe"){
+    if (ext == "obj" || ext == "o" || ext == "pdb" || ext == "exe" || ext == "d"){
         return true;
     }
     return false;

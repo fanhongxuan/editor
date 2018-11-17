@@ -23,6 +23,7 @@ public:
     void OnItemExpanding(wxTreeEvent &evt);
     void OnKeyDown(wxKeyEvent &evt);
     void OnRightDown(wxMouseEvent &evt);
+    void OnFocus(wxFocusEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
                                

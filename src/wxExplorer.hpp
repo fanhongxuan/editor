@@ -19,6 +19,7 @@ public:
     void OnSelectionChanged(wxTreeEvent &evt);
     void OnItemExpanding(wxTreeEvent &evt);
     void OnKeyDown(wxKeyEvent &evt);
+    void OnFocus(wxFocusEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
 private:

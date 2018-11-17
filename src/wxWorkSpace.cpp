@@ -112,6 +112,7 @@ EVT_MENU(workspace_id_add_dir, wxWorkSpace::OnAddDirToWorkSpace)
 EVT_MENU(workspace_id_del_dir, wxWorkSpace::OnDelDirFromWorkSpace)
 EVT_RIGHT_DOWN(wxWorkSpace::OnRightDown)
 EVT_KEY_DOWN(wxWorkSpace::OnKeyDown)
+EVT_SET_FOCUS(wxWorkSpace::OnFocus)
 wxEND_EVENT_TABLE()
 
 wxWorkSpace::wxWorkSpace(wxWindow *parent)
@@ -163,6 +164,12 @@ wxWorkSpace::~wxWorkSpace()
         }
         id = GetNextChild(root, cookie);
     }
+}
+
+void wxWorkSpace::OnFocus(wxFocusEvent &evt)
+{
+    wxGetApp().frame().DoUpdate();
+    evt.Skip();
 }
 
 // todo:fanhongxuan@gmail.com

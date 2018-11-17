@@ -65,22 +65,7 @@ bool MyApp::OnInit()
     return true;
 }
 
-void MyFrame::QueueFocusEvent()
-{
-    QueueEvent(new wxFocusEvent(wxEVT_KILL_FOCUS));
-}
-
-int MyApp::FilterEvent(wxEvent& evt){
-    // if (evt.GetEventType() == wxEVT_SET_FOCUS && NULL != mpFrame && mpFrame != dynamic_cast<MyFrame*>(evt.GetEventObject())){
-    if (NULL != mpFrame && evt.GetEventType() == wxEVT_SET_FOCUS){
-        mpFrame->QueueFocusEvent();
-    }
-    return -1;
-}
-
 wxBEGIN_EVENT_TABLE(MyFrame, wxFrame)
-EVT_SET_FOCUS(MyFrame::OnFocus)
-EVT_KILL_FOCUS(MyFrame::OnFocus)
 EVT_STC_SAVEPOINTREACHED(wxID_ANY, MyFrame::OnFileSaved)
 EVT_STC_SAVEPOINTLEFT(wxID_ANY, MyFrame::OnFileModified)
 EVT_CLOSE(MyFrame::OnClose)
@@ -125,6 +110,7 @@ MyFrame::MyFrame(wxWindow* parent,
     mpSearch = NULL;
     mpBufferList = NULL;
     mpBufferSelect = NULL;
+    mpSearchHandler = NULL;
     mpCmd = NULL;
     // tell wxAuiManager to manage this frame
     m_mgr.SetArtProvider(new wxMyDockArt);
@@ -370,6 +356,14 @@ void MyFrame::LoadInfo()
     SwitchFocus();
 }
 
+void MyFrame::SetActiveEdit(Edit *pEdit)
+{
+    if (NULL != mpSearch && NULL != pEdit){
+        mpSearch->SetFileName(pEdit->GetFilename());
+        mpSearch->SetEdit(pEdit);
+    }
+}
+
 void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results)
 {
     // note:fanhongxuan@gmail.com
@@ -431,12 +425,6 @@ void MyFrame::OnPaneClose(wxAuiManagerEvent &evt)
 void MyFrame::OnFileClosed(wxAuiNotebookEvent &evt)
 {
     SwitchFocus();
-}
-
-void MyFrame::OnFocus(wxFocusEvent &evt)
-{
-    // wxPrintf("OnFocus\n");
-    m_mgr.Update();
 }
 
 void MyFrame::OnFileSaved(wxStyledTextEvent &evt)
@@ -515,8 +503,10 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
     else{
         // add file search
         mpSearch = new wxSearchFile(this);
-        MySearchHandler *pSearchHandler = new MySearchHandler(this);
-        mpSearch->AddHandler(pSearchHandler);
+        if (NULL == mpSearchHandler){
+            mpSearchHandler = new MySearchHandler(this);
+        }
+        mpSearch->AddHandler(mpSearchHandler);
         mpSearch->SetMinStartLen(3);
         m_mgr.AddPane(mpSearch, wxAuiPaneInfo().Name(wxT("Find")).Caption(wxT("Find..."))
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));

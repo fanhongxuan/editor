@@ -14,7 +14,6 @@ public:
     MyApp():mpFrame(NULL){}
     MyFrame &frame(){return *mpFrame;}
     bool OnInit() wxOVERRIDE;
-    int FilterEvent(wxEvent& evt);
 };
 
 wxDECLARE_APP(MyApp);
@@ -62,11 +61,11 @@ public:
     ~MyFrame();
 
     wxAuiDockArt* GetDockArt();
+    void SetActiveEdit(Edit *pEdit);
     void DoUpdate();
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
     void ChangeToBuffer(Edit *pEdit, int pos);
     void OpenFile(const wxString &name, const wxString &path, bool bActive);
-    void QueueFocusEvent();
     
     void OnShowSearch(wxCommandEvent &evt);
     void OnShowFindFiles(wxCommandEvent &evt);
@@ -82,7 +81,6 @@ public:
     void OnClose(wxCloseEvent &evt);
     void OnFileSaved(wxStyledTextEvent &evt);
     void OnFileModified(wxStyledTextEvent &evt);
-    void OnFocus(wxFocusEvent &evt);
 private:
     void CreateAcceTable();
     void SwitchFocus();
@@ -92,6 +90,7 @@ private:
     bool mbLoadFinish;
     wxAuiNotebook *mpBufferList;
     wxSearchFile *mpSearch;
+    MySearchHandler *mpSearchHandler;
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
     wxExplorer *mpExplorer;
