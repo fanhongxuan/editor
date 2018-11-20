@@ -27,7 +27,6 @@
 // todo:fanhongxuan@gmail.com
 // in some case the need to display the search result in some different group.
 // maybe later we can use stc instread of wxTextEntry to show the search result.
-
 class wxMyTimeTrace
 {
 public:
@@ -124,15 +123,17 @@ public:
     }
 };
 
-class wxSearchInputCtrl: public wxSearchCtrl
+#define wxSearchInputCtrlBase wxSearchCtrl
+class wxSearchInputCtrl: public wxSearchInputCtrlBase
 {
 private:
     wxSearch *mpParent;
     wxSearchListCtrl *mpList;
 public:
     wxSearchInputCtrl(wxSearch *parent)
-        :wxSearchCtrl(parent, wxID_ANY), mpParent(parent), mpList(NULL){}
+        :wxSearchInputCtrlBase(parent, wxID_ANY), mpParent(parent), mpList(NULL){}
     void SetList(wxSearchListCtrl *pList){mpList = pList;}
+    
     virtual bool ProcessEvent(wxEvent &evt)
     {
         // note:fanhongxuan@gmail.com
@@ -152,6 +153,14 @@ public:
                 }
             }
         }
+        else if (wxEVT_TEXT_CUT == evt.GetEventType() || wxEVT_TEXT_PASTE == evt.GetEventType()){
+            bool ret = wxSearchInputCtrlBase::ProcessEvent(evt);
+            if (NULL != mpParent){
+                mpParent->Reset();
+                mpParent->UpdateSearchList(GetValue());
+            }
+            return ret;
+        }
         else if (wxEVT_TEXT == evt.GetEventType()){
             mpParent->UpdateSearchList(GetValue());
         }
@@ -164,10 +173,9 @@ public:
         else if (wxEVT_SET_FOCUS == evt.GetEventType()){
             wxGetApp().frame().DoUpdate();
         }
-        return wxSearchCtrl::ProcessEvent(evt);
+        return wxSearchInputCtrlBase::ProcessEvent(evt);
     }
 };
-
 
 wxSearchResult::wxSearchResult(const wxString &content, const wxString &target, void *pCustomData)
     :mContent(content), mTarget(target), mpCustomData(pCustomData)

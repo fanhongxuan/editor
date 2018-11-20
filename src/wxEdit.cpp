@@ -792,13 +792,15 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetMarginType (m_LineNrID, wxSTC_MARGIN_NUMBER);
     StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("DARK GREY")));
     StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxWHITE);
-    SetMarginWidth (m_LineNrID, 0); // start out not visible
+    // SetMarginWidth (m_LineNrID, 0); // start out not visible
 
+#if 0    
     // annotations style
     StyleSetBackground(ANNOTATION_STYLE, wxColour(244, 220, 220));
     StyleSetForeground(ANNOTATION_STYLE, *wxBLACK);
     StyleSetSizeFractional(ANNOTATION_STYLE,
             (StyleGetSizeFractional(wxSTC_STYLE_DEFAULT)*4)/5);
+#endif
 
     // default fonts for all styles!
     int Nr;
@@ -808,7 +810,7 @@ bool Edit::InitializePrefs (const wxString &name) {
     }
 
     // set common styles
-    StyleSetForeground (wxSTC_STYLE_DEFAULT, wxColour (wxT("DARK GREY")));
+    StyleSetForeground (wxSTC_STYLE_DEFAULT, wxColour (wxT("BLACK")));
     StyleSetForeground (wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("DARK GREY")));
 
     // initialize settings
