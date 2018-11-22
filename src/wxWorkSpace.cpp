@@ -168,7 +168,9 @@ wxWorkSpace::~wxWorkSpace()
 
 void wxWorkSpace::OnFocus(wxFocusEvent &evt)
 {
-    wxGetApp().frame().DoUpdate();
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->DoUpdate();
+    }
     evt.Skip();
 }
 
@@ -205,10 +207,20 @@ bool wxWorkSpace::AddDirToWorkSpace(const wxString &dir)
     if (name.empty()){
         return false;
     }
+    
+    std::set<wxString>::iterator it = mDirs.find(dir);
+    if (it != mDirs.end()){
+        wxMessageBox(wxString::Format(wxT("%s already add to the WorkSpace"), dir), "Error", wxOK, this);
+        return false;
+    }
+    
+    mDirs.insert(dir);
+    
     wxTreeItemId root = GetRootItem();
     wxTreeItemIdValue cookie = root;
     wxTreeItemId id = GetFirstChild(root, cookie);
     
+    /*
     while(id.IsOk()){
         wxTreeItemData *pItem = GetItemData(id);
         if (NULL != pItem){
@@ -220,6 +232,7 @@ bool wxWorkSpace::AddDirToWorkSpace(const wxString &dir)
         }
         id = GetNextChild(id, cookie);
     }
+    */
     
     cookie = root;
     id = GetFirstChild(root, cookie);
@@ -251,6 +264,13 @@ void wxWorkSpace::OnDelDirFromWorkSpace(wxCommandEvent &evt)
     wxTreeItemId id = GetFocusedItem();
     if (!id.IsOk()){
         return;
+    }
+    wxTreeItemData *pItem = GetItemData(id);
+    if (NULL != pItem){
+        wxWorkSpaceItemInfo *pInfo = dynamic_cast<wxWorkSpaceItemInfo *>(pItem);
+        if (NULL != pInfo){
+            mDirs.erase(pInfo->mPath);
+        }
     }
     Delete(id);
 }
@@ -378,7 +398,9 @@ void wxWorkSpace::OnItemActivated(wxTreeEvent &evt)
         }
     }
     else{
-        wxGetApp().frame().OpenFile(pItem->mPath, pItem->mPath, true);
+        if (NULL != wxGetApp().frame()){
+            wxGetApp().frame()->OpenFile(pItem->mPath, pItem->mPath, true);
+        }
     }
 }
 

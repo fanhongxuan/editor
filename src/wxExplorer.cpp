@@ -148,7 +148,9 @@ wxExplorer::~wxExplorer()
 
 void wxExplorer::OnFocus(wxFocusEvent &evt)
 {
-    wxGetApp().frame().DoUpdate();
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->DoUpdate();
+    }
     evt.Skip();
 }
 
@@ -262,7 +264,9 @@ void wxExplorer::OnItemActivated(wxTreeEvent &evt)
         }
     }
     else{
-        wxGetApp().frame().OpenFile(pItem->mPath, pItem->mPath, true);
+        if (NULL != wxGetApp().frame()){
+            wxGetApp().frame()->OpenFile(pItem->mPath, pItem->mPath, true);
+        }
     }
 }
 

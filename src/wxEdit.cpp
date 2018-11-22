@@ -240,8 +240,10 @@ wxString Edit::GetCurrentWord(const wxString &validCharList)
 
 void Edit::OnFocus(wxFocusEvent &evt)
 {
-    wxGetApp().frame().DoUpdate();
-    wxGetApp().frame().SetActiveEdit(this);
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->DoUpdate();
+        wxGetApp().frame()->SetActiveEdit(this);
+    }
     evt.Skip();
 }
 

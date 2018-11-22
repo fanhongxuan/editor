@@ -12,18 +12,20 @@ private:
     MyFrame *mpFrame;
 public:
     MyApp():mpFrame(NULL){}
-    MyFrame &frame(){return *mpFrame;}
+    MyFrame *frame(){return mpFrame;}
     bool OnInit() wxOVERRIDE;
 };
 
 wxDECLARE_APP(MyApp);
 
 class MySearchHandler;
+class MyAgSearchHandler;
 class wxSearchResult;
 class Edit;
 class wxStyledTextEvent;
 class wxSearchFile;
 class wxSearchDir;
+class wxAgSearch;
 class wxBufferSelect;
 class wxExplorer;
 class wxWorkSpace;
@@ -46,6 +48,7 @@ class MyFrame : public wxFrame
         ID_TriggerComment,
         ID_ShowExplorer,
         ID_ShowWorkSpace,
+        ID_ShowAgSearch,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -65,7 +68,7 @@ public:
     void DoUpdate();
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
     void ChangeToBuffer(Edit *pEdit, int pos);
-    void OpenFile(const wxString &name, const wxString &path, bool bActive);
+    void OpenFile(const wxString &name, const wxString &path, bool bActive, int line = -1);
     
     void OnShowSearch(wxCommandEvent &evt);
     void OnShowFindFiles(wxCommandEvent &evt);
@@ -74,6 +77,7 @@ public:
     void OnShowBufferSelect(wxCommandEvent &evt);
     void OnShowExplorer(wxCommandEvent &evt);
     void OnShowWorkSpace(wxCommandEvent &evt);
+    void OnShowAgSearch(wxCommandEvent &evt);
     void OnSaveCurrentBuffer(wxCommandEvent &evt);
     void OnFileClose(wxAuiNotebookEvent &evt);
     void OnFileClosed(wxAuiNotebookEvent &evt);
@@ -91,8 +95,10 @@ private:
     wxAuiNotebook *mpBufferList;
     wxSearchFile *mpSearch;
     MySearchHandler *mpSearchHandler;
+    MyAgSearchHandler *mpAgSearchHandler;
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
+    wxAgSearch *mpAgSearch;
     wxExplorer *mpExplorer;
     wxWorkSpace *mpWorkSpace;
     wxAuiManager m_mgr;

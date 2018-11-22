@@ -171,7 +171,9 @@ public:
             }
         }
         else if (wxEVT_SET_FOCUS == evt.GetEventType()){
-            wxGetApp().frame().DoUpdate();
+            if (NULL != wxGetApp().frame()){
+                wxGetApp().frame()->DoUpdate();
+            }
         }
         return wxSearchInputCtrlBase::ProcessEvent(evt);
     }
@@ -217,6 +219,8 @@ int wxSearchResult::IsMatch(int pos, const std::map<int, int> &match) const
 
 bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector<wxString> &rets, bool bEnableHighlight)
 {
+    // todo:fanhongxuan@gmail.com
+    // make sure we only highlight the real content, not a ext info
     std::map<int, int> match;
     bool isNormal = true;
     wxString result;
@@ -235,6 +239,7 @@ bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector
         mRange.SetEnd(rich.GetLastPosition());
         return true;
     }
+    
     mbMatch = false;
     for (i = 0; i < rets.size(); i++){
         wxString low = rets[i].Lower();
@@ -257,26 +262,40 @@ bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector
                     return false;
                 }
             }
-            else{
-                isMatched = true;
-                if (minMatch > pos){
-                    minMatch = pos;
-                }
-                if (maxMatch < (pos + rets[i].length())){
-                    maxMatch = pos + rets[i].length();
-                }
-                // note:fanhongxuan@gmail.com
-                // incase one pos has two match, we use the max one.
-                if (match[pos] < rets[i].size()){
-                    match[pos] = rets[i].size();
+            
+            isMatched = true;
+            if (minMatch > pos){
+                minMatch = pos;
+            }
+            if (maxMatch < (pos + rets[i].length())){
+                maxMatch = pos + rets[i].length();
+            }
+            // note:fanhongxuan@gmail.com
+            // incase one pos has two match, we use the max one.
+            std::map<int, int>::iterator it = match.find(pos);
+            if (it != match.end()){
+                if (it->second < rets[i].size()){
+                    it->second = rets[i].size();
                 }
             }
-            start += (pos+1);
+            else{
+                match[pos] = rets[i].size();
+            }
+            start += (rets[i].size());
         }
     }
 
     mbMatch = true;
-    // wxPrintf("match(%d<-->%d)\n", minMatch, maxMatch);
+    /*
+    {
+        wxPrintf("match(%d<-->%d)\n", minMatch, maxMatch);
+        // dump all the match
+        std::map<int, int>::iterator it = match.begin();
+        while(it != match.end()){
+            wxPrintf("%d-%d\n", it->first, it->second);
+            it++;
+        }
+    }*/
     if (rich.GetLastPosition() != 0){
         rich.WriteText("\n");
     }
@@ -289,9 +308,6 @@ bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector
         // note:fanhongxuan@gmail.com
         // WriteText use mostly time, need to call it less.
         rich.WriteText(value.substr(0, minMatch));
-        // wxPrintf("<%s><%s><%s>\n", value.substr(0, minMatch),
-        //          value.substr(minMatch, (maxMatch-minMatch)),
-        //          value.substr(maxMatch));
         
         value = value.substr(minMatch, (maxMatch-minMatch));
         wxString miss;
@@ -522,11 +538,39 @@ void wxSearch::Reset()
             delete pRet;
         }
     }
+    mInput = wxEmptyString;
+    mCount = 0;
     mpStatus->SetLabel(GetShortHelp());
     mKeys.clear();
     mResults.clear();
     mpList->Clear();
     mbStartSearch = false;
+}
+
+void wxSearch::AsyncAddSearchResult(wxSearchResult *pResult)
+{
+    if (NULL == pResult){
+        return;
+    }
+    mResults.push_back(pResult);
+    if (mCount >= mMaxCandidate){
+        return;
+    }
+    mpList->SetInsertionPointEnd();
+    if (pResult->ConvertToRichText(*mpList, mKeys, mCount <= mMaxCandidate)){
+        // wxPrintf("AsyncAddSearchResult:<%s>\n", pResult->Content());
+        mCount++;
+    }
+    mpList->SetInsertionPoint(0);
+    mpStatus->SetLabel(GetSummary(mInput, mCount));
+
+    if (mCurrentLine < 0){
+        int prefer = GetPreferedLine(mInput);
+        if (prefer >= 0){
+            SelectLine(prefer, true, true);
+        }
+        // no selection, getPreferedSelection
+    }
 }
 
 void wxSearch::AddSearchResult(wxSearchResult *pResult)
@@ -610,13 +654,6 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             return false;
         }
     }
-    
-    if (!mbStartSearch){
-        Reset(); // make sure the status has been reset.
-        mbStartSearch = true;
-        DoStartSearch(input);
-    }
-    
     std::vector<wxString> rets;
     ParseString(input, rets, ' ');
 
@@ -634,13 +671,28 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             return false;
         }
     }
+    
+    if (mMinStartLen != 0 && rets.size() > 0 && mKeys.size() > 0){
+        if (mKeys[0].substr(0, mMinStartLen) != rets[0].substr(0, mMinStartLen)){
+            wxPrintf("Trigger search\n");
+            mbStartSearch = false;
+        }
+    }
+    // if the input.substr(0, mMinStartLen) != 
+    
+    if (!mbStartSearch){
+        Reset(); // make sure the status has been reset.
+        mbStartSearch = true;
+        DoStartSearch(input);
+    }    
+    
     mKeys = rets;
-
+    
     // here, we start update the list
     // wxMyTimeTrace trace("UpdateSearchList");
     mpList->Clear();
     mCurrentLine = -1;
-    
+    mInput = input;
     for (i = 0; i < mResults.size(); i++){
         // todo:fanhongxuan@gmail.com
         // currently, if the match count is bigger than mMaxCandidate
@@ -667,11 +719,12 @@ bool wxSearch::UpdateSearchList(const wxString &input)
         mTempResults[i]->ConvertToRichText(*mpList, rets, true);
     }
     
+    mCount = count;
     mpList->SetInsertionPoint(0);
-    mpStatus->SetLabel(GetSummary(input, count));
+    mpStatus->SetLabel(GetSummary(mInput, mCount));
 
     if (mCurrentLine < 0){
-        int prefer = GetPreferedLine(input);
+        int prefer = GetPreferedLine(mInput);
         if (prefer >= 0){
             SelectLine(prefer, true, true);
         }
@@ -722,7 +775,7 @@ wxString wxSearchDir::GetHelp() const
     return ret;
 }
 
-static bool IsTempFile(const wxString &file)
+bool wxSearch::IsTempFile(const wxString &file)
 {
     if (file.empty()){
         return true;
@@ -739,7 +792,7 @@ static bool IsTempFile(const wxString &file)
     return false;
 }
 
-static bool IsBinaryFile(const wxString &file)
+bool wxSearch::IsBinaryFile(const wxString &file)
 {
     wxString ext;
     wxFileName::SplitPath(file, NULL, NULL, NULL, &ext);
@@ -771,7 +824,7 @@ static void FindFiles(const wxString &dir, std::vector<wxString> &output)
         // skip the edit temp file like:
         // test~ (emacs auto save)
         // #test# (emacs auto save)
-        if ((!IsTempFile(filename)) && (!IsBinaryFile(filename))){
+        if ((!wxSearch::IsTempFile(filename)) && (!wxSearch::IsBinaryFile(filename))){
             output.push_back(cwd.GetNameWithSep() + filename);
         }
         cont = cwd.GetNext(&filename);
@@ -902,7 +955,7 @@ bool wxSearchFile::StartSearch(const wxString &input)
             }
             int offset = value.find(niddle);
             if (offset != wxString::npos){
-                AddSearchResult(new wxSearchFileResult(wxString::Format("%d\t%s", i+1, text), text, i, pos + offset));
+                AddSearchResult(new wxSearchFileResult(wxString::Format("%d\t%s", i+1, text), "", i, pos + offset));
             }
             pos += 1; // this is the newline
             pos += text.Length();

@@ -48,7 +48,7 @@
 #include "wxExplorer.hpp"
 #include "wxWorkSpace.hpp"
 #include "wxDockArt.hpp"
-
+#include "wxAgSearch.hpp"
 wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
 {
@@ -78,6 +78,7 @@ EVT_MENU(ID_ShowBufferSelect, MyFrame::OnShowBufferSelect)
 EVT_MENU(ID_SaveCurrentBuffer, MyFrame::OnSaveCurrentBuffer)
 EVT_MENU(ID_ShowExplorer, MyFrame::OnShowExplorer)
 EVT_MENU(ID_ShowWorkSpace, MyFrame::OnShowWorkSpace)
+EVT_MENU(ID_ShowAgSearch, MyFrame::OnShowAgSearch)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
 wxEND_EVENT_TABLE()
@@ -111,6 +112,10 @@ MyFrame::MyFrame(wxWindow* parent,
     mpBufferList = NULL;
     mpBufferSelect = NULL;
     mpSearchHandler = NULL;
+    mpAgSearchHandler = NULL;
+	mpExplorer = NULL;
+	mpWorkSpace = NULL;
+	mpAgSearch = NULL;
     mpCmd = NULL;
     // tell wxAuiManager to manage this frame
     m_mgr.SetArtProvider(new wxMyDockArt);
@@ -149,7 +154,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  9  
+#define ACCE_COUNT  10  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[1].Set(wxACCEL_CTRL, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -160,6 +165,7 @@ void MyFrame::CreateAcceTable()
     e[6].Set(wxACCEL_ALT,  (int)';', ID_TriggerComment);// ALT+; to comments/uncomments a block or current line
     e[7].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
     e[8].Set(wxACCEL_CTRL, (int)'W', ID_ShowWorkSpace); // CTRL+W show WorkSpace
+    e[9].Set(wxACCEL_ALT,  (int)'F', ID_ShowAgSearch); // ALT+F to find in dir/workspace
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -173,8 +179,42 @@ wxAuiDockArt* MyFrame::GetDockArt()
 
 void MyFrame::DoUpdate()
 {
+    /**
+     * fixme:fanhongxuan@gmail.com
+     */
+    // update the current dir of wxAgSearch according the current status.
+    if (NULL != mpAgSearch){
+        std::set<wxString> dirs;
+        std::set<wxString> files;
+        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
+        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
+            mpWorkSpace->GetDirs(dirs);
+            mpWorkSpace->GetFiles(files);
+        }
+        mpAgSearch->SetSearchDirs(dirs);
+        mpAgSearch->SetSearchFiles(files);
+    }        
     m_mgr.Update();
 }
+
+class MyAgSearchHandler: public wxSearchHandler
+{
+private:
+    MyFrame *mpFrame;
+public:
+    MyAgSearchHandler(MyFrame *frame){mpFrame = frame;}
+    void OnSelect(wxSearchResult &ret, bool bActive){
+        wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(&ret);
+        if (NULL != pRet){
+            wxPrintf("MyAgSearchHandler::OnSelect:%s\n", pRet->Target());
+            int line = pRet->GetLine();
+            // if the target is not open, first open it.
+            if (!pRet->Target().empty()){
+                mpFrame->OpenFile(pRet->Target(), pRet->Target(), true, line);
+            }
+        }
+    }
+};
 
 class MySearchHandler: public wxSearchHandler
 {
@@ -188,8 +228,10 @@ public:
         wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(&ret);
         if (NULL != pRet){
             int line = pRet->GetLine();
-            mpFrame->ChangeToBuffer(mpEdit, line);
-            // mpEdit->ScrollToLine(line);
+            mpFrame->ChangeToBuffer(mpEdit, -1/*currently not used*/);
+            if (line >= 10){
+                mpEdit->ScrollToLine(line-10); // make sure the line is in the middle
+            }
             mpEdit->GotoLine(line);
             int lineStart = mpEdit->PositionFromLine (line);
             int lineEnd = mpEdit->PositionFromLine (line + 1);
@@ -208,7 +250,7 @@ public:
     }
 };
 
-void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bActive)
+void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bActive, int line)
 {
     if (NULL == mpBufferList){
         return;
@@ -243,9 +285,17 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
             mpBufferSelect->AddBuffer(name, path);
         }
     }
+    if (line > 0){
+        if (line >= 10){
+            pEdit->ScrollToLine(line-10); // make sure the line is in the middle
+        }
+        pEdit->GotoLine(line);
+    }
+    
     if (bActive && NULL != pEdit){
         pEdit->SetFocus();
     }
+    m_mgr.Update();
 }
 
 void MyFrame::ChangeToBuffer(Edit *pEdit, int pos)
@@ -334,12 +384,15 @@ void MyFrame::LoadInfo()
     wxString perspective;
     config.Read("/Config/LastPerspective", &perspective);
     if (!perspective.empty()){
-            wxCommandEvent evt;
-            OnShowSearch(evt);
-            OnShowExplorer(evt);
-            OnShowWorkSpace(evt);
-            OnShowFindFiles(evt);
-            OnShowBufferSelect(evt);
+        wxCommandEvent evt;
+        // note:fanhongxuan@gmail.com
+        // make sure all the mini-frame is create before load m_perspectives
+        OnShowSearch(evt);
+        OnShowExplorer(evt);
+        OnShowWorkSpace(evt);
+        OnShowFindFiles(evt);
+        OnShowAgSearch(evt);
+        OnShowBufferSelect(evt);
         m_mgr.LoadPerspective(perspective);
     }
     else{
@@ -496,6 +549,7 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
             line = pEdit->GetCurrentLine();
         }
     }
+    
     wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("Find"));
     if (pane.IsOk()){
         pane.Show();
@@ -511,15 +565,15 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
         m_mgr.AddPane(mpSearch, wxAuiPaneInfo().Name(wxT("Find")).Caption(wxT("Find..."))
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
-    if (!value.empty()){
-        if (line >= 0){
-            mpSearch->SetCurrentLine(line);
-        }
-        // note:fanhongxuan@gmail.com
-        // select the candidate by the current position
-        mpSearch->SetInput(value);
-    }
     if (NULL != mpSearch){
+        if (!value.empty()){
+            if (line >= 0){
+                mpSearch->SetCurrentLine(line);
+            }
+            // note:fanhongxuan@gmail.com
+            // select the candidate by the current position
+            mpSearch->SetInput(value);
+        }
         mpSearch->SetFocus();
     }
     m_mgr.Update();
@@ -551,10 +605,10 @@ void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
 
     }
     
-    if (!value.empty()){
-        mpSearchDir->SetInput(value);
-    }
     if (NULL != mpSearchDir){
+        if (!value.empty()){
+            mpSearchDir->SetInput(value);
+        }
         mpSearchDir->SetFocus();
     }
     m_mgr.Update();
@@ -623,6 +677,56 @@ void MyFrame::OnSaveCurrentBuffer(wxCommandEvent &evt)
     }
 }
 
+void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
+{
+    // todo:fanhongxuan@gmail.com
+    // how to monitor the status after load persistive
+#define VALID_CHAR_WHEN_SEARCH_FILE "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"    
+    wxString value;
+    int line = -1;
+    int select = mpBufferList->GetSelection();
+    if (wxNOT_FOUND != select && mbLoadFinish){
+        Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        if (NULL != pEdit){
+            value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_FILE);
+            line = pEdit->GetCurrentLine();
+        }
+    }
+    
+    wxAuiPaneInfo &ag = m_mgr.GetPane(wxT("AGSearch"));
+    if (ag.IsOk()){
+        ag.Show();
+    }
+    else{
+        mpAgSearch = new wxAgSearch(this);
+        mpAgSearch->SetMinStartLen(3);
+        if (NULL == mpAgSearchHandler){
+            mpAgSearchHandler = new MyAgSearchHandler(this);
+        }
+        mpAgSearch->AddHandler(mpAgSearchHandler);
+        mpAgSearch->SetMinStartLen(3);
+        m_mgr.AddPane(mpAgSearch, wxAuiPaneInfo().Name(wxT("AGSearch")).Caption(wxT("Search In Dir")).
+                      Bottom().CloseButton(false).Row(1).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
+    }
+    if (NULL != mpAgSearch){
+        if (!value.empty()){
+            mpAgSearch->SetInput(value);
+        }
+        std::set<wxString> dirs;
+        std::set<wxString> files;
+        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
+        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
+            mpWorkSpace->GetDirs(dirs);
+            mpWorkSpace->GetFiles(files);
+        }
+        mpAgSearch->SetSearchDirs(dirs);
+        mpAgSearch->SetSearchFiles(files);
+        mpAgSearch->SetFocus();
+    }
+     
+    m_mgr.Update();
+}
+
 void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
 {
     wxAuiPaneInfo &explorer = m_mgr.GetPane(wxT("Explorer"));
@@ -639,6 +743,14 @@ void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
                       Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
     if (NULL != mpWorkSpace){
+        if (NULL != mpAgSearch){
+            std::set<wxString> dirs;
+            std::set<wxString> files;
+            mpWorkSpace->GetDirs(dirs);
+            mpWorkSpace->GetFiles(files);
+            mpAgSearch->SetSearchDirs(dirs);
+            mpAgSearch->SetSearchFiles(files);
+        }
         mpWorkSpace->SetFocus();
     }
     m_mgr.Update();
@@ -662,6 +774,11 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
                       Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
     if (NULL != mpExplorer){
+        if (NULL != mpAgSearch){
+            std::set<wxString> empty;
+            mpAgSearch->SetSearchDirs(empty);
+            mpAgSearch->SetSearchFiles(empty);
+        }
         mpExplorer->SetFocus();
     }
     m_mgr.Update();
@@ -718,7 +835,6 @@ void MyFrame::OnShowOneWindow(wxCommandEvent &evt)
             info.Hide();
         }
     }
-    
     if (NULL != mpExplorer){
         wxAuiPaneInfo &info = m_mgr.GetPane(mpExplorer);
         if (info.IsOk()){
@@ -728,6 +844,13 @@ void MyFrame::OnShowOneWindow(wxCommandEvent &evt)
     }
     if (NULL != mpWorkSpace){
         wxAuiPaneInfo &info = m_mgr.GetPane(mpWorkSpace);
+        if (info.IsOk()){
+            bUpdate = true;
+            info.Hide();
+        }
+    }
+    if (NULL != mpAgSearch){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpAgSearch);
         if (info.IsOk()){
             bUpdate = true;
             info.Hide();
@@ -752,6 +875,20 @@ void MyFrame::OnKillCurrentBuffer(wxCommandEvent &evt)
     else if (NULL != mpBufferSelect && mpBufferSelect->IsDescendant(window)){
         window = mpBufferSelect;
     }
+    else if (NULL != mpWorkSpace && mpWorkSpace->IsDescendant(window)){
+        window = mpWorkSpace;
+    }
+    else if (NULL != mpExplorer && mpExplorer->IsDescendant(window)){
+        window = mpExplorer;
+    }
+    else if (NULL != mpAgSearch && mpAgSearch->IsDescendant(window)){
+        window = mpAgSearch;
+    }
+    else if (NULL != mpCmd && mpCmd->IsDescendant(window)){
+        // note:fanhongxuan@gmail.com
+        // the cmd window can not be killed.
+        return;
+    }
     else if (NULL != mpBufferList && mpBufferList->IsDescendant(window)){
         int id = mpBufferList->GetSelection();
         if (id != wxNOT_FOUND){    
@@ -764,6 +901,7 @@ void MyFrame::OnKillCurrentBuffer(wxCommandEvent &evt)
             }
         }
     }
+    
     wxAuiPaneInfo &info = m_mgr.GetPane(window);
     if (info.IsOk()){
         bUpdate = true;

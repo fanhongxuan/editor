@@ -2,7 +2,7 @@
 #define __WX_WORKSPACE_HPP__
 #include <wx/treectrl.h>
 
-#include <vector>
+#include <set>
 
 class wxWorkSpace: public wxTreeCtrl
 {
@@ -11,8 +11,9 @@ public:
     wxWorkSpace(wxWindow *parent);
     ~wxWorkSpace();
     
-    bool GetDirs(std::vector<wxString> &dirs);
-
+    bool GetDirs(std::set<wxString> &dirs) const {dirs = mDirs; return true;}
+    bool GetFiles(std::set<wxString> &files) const {files = mFiles; return true;}
+    
     bool AddDirToWorkSpace(const wxString &dir);
     
     void OnAddDirToWorkSpace(wxCommandEvent &evt);
@@ -29,7 +30,8 @@ public:
                                
 private:
     void CreateImageList();
-    std::vector<wxString> mDirs;
+    std::set<wxString> mDirs;
+    std::set<wxString> mFiles;
     wxDECLARE_EVENT_TABLE();
 };
 

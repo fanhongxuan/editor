@@ -25,7 +25,6 @@ public:
     const wxString &Target() const{return mTarget;}
     void *CustomData() const{return mpCustomData;}
 private:
-    // void ParseString(const wxString &input, std::vector<wxString> &output, char sep) const;
     int IsMatch(int pos, const std::map<int, int> &match) const;
 private:
     void *mpCustomData;
@@ -56,6 +55,7 @@ public:
     // void OnChangeCWD(const int8_t* pCwd); // change Current Working Directory(CWD)
     
     // the following function will be called when receive a backend message.
+    void AsyncAddSearchResult(wxSearchResult *pResult); // add a item and update the status immed
     void AddSearchResult(wxSearchResult *pResult);// add a item
     void Reset();
     void ClearTempResult();
@@ -67,6 +67,9 @@ public:
     bool AddHandler(wxSearchHandler *pHandler);
     bool DelHandler(wxSearchHandler *pHandler);
     bool SetInput(const wxString &input); // set the default input value.
+    
+    static bool IsTempFile(const wxString &file);    
+    static bool IsBinaryFile(const wxString &file);
     
     virtual bool OnKey(wxKeyEvent &evt); // when a key is input, call this function to handle it.
     virtual bool SelectLine(int line, bool bActive, bool bRequestFocus = true);
@@ -89,6 +92,8 @@ protected:
     std::vector<wxSearchResult*> mTempResults;
     std::vector<wxSearchHandler*> mHandlers;
     std::vector<wxString> mKeys;
+    wxString mInput;
+    int mCount;
     int mCurrentLine;
     int mMinStartLen;
     int mMaxCandidate;
