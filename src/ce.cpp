@@ -49,6 +49,8 @@
 #include "wxWorkSpace.hpp"
 #include "wxDockArt.hpp"
 #include "wxAgSearch.hpp"
+#include "wxSymbolSearch.hpp"
+
 wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
 {
@@ -79,6 +81,7 @@ EVT_MENU(ID_SaveCurrentBuffer, MyFrame::OnSaveCurrentBuffer)
 EVT_MENU(ID_ShowExplorer, MyFrame::OnShowExplorer)
 EVT_MENU(ID_ShowWorkSpace, MyFrame::OnShowWorkSpace)
 EVT_MENU(ID_ShowAgSearch, MyFrame::OnShowAgSearch)
+EVT_MENU(ID_ShowSymbolList, MyFrame::OnShowSymbolList)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
 wxEND_EVENT_TABLE()
@@ -109,6 +112,7 @@ MyFrame::MyFrame(wxWindow* parent,
     mbLoadFinish = false;
     mpSearchDir = NULL;
     mpSearch = NULL;
+    mpSymbolSearch = NULL;
     mpBufferList = NULL;
     mpBufferSelect = NULL;
     mpSearchHandler = NULL;
@@ -154,18 +158,19 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  10  
+#define ACCE_COUNT  11  
     wxAcceleratorEntry e[ACCE_COUNT];
-    e[0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
-    e[1].Set(wxACCEL_CTRL, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
-    e[2].Set(wxACCEL_CTRL, (int)'K', ID_KillCurrentBuffer); // CTRL+K (Hide Current Pane, If in buffer list, mean kill that buffer)
-    e[3].Set(wxACCEL_CTRL, (int)'1', ID_ShowOneWindow); // CTRL+1 (Hide all the pane except BufferList)
-    e[4].Set(wxACCEL_CTRL, (int)'B', ID_ShowBufferSelect); // CTRL+B (SwitchBuffer)
-    e[5].Set(wxACCEL_CTRL, (int)'S', ID_SaveCurrentBuffer); // CTRL+S (Save Current Buffer)
-    e[6].Set(wxACCEL_ALT,  (int)';', ID_TriggerComment);// ALT+; to comments/uncomments a block or current line
-    e[7].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
-    e[8].Set(wxACCEL_CTRL, (int)'W', ID_ShowWorkSpace); // CTRL+W show WorkSpace
-    e[9].Set(wxACCEL_ALT,  (int)'F', ID_ShowAgSearch); // ALT+F to find in dir/workspace
+    e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
+    e[ 1].Set(wxACCEL_CTRL, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
+    e[ 2].Set(wxACCEL_CTRL, (int)'K', ID_KillCurrentBuffer); // CTRL+K (Hide Current Pane, If in buffer list, mean kill that buffer)
+    e[ 3].Set(wxACCEL_CTRL, (int)'1', ID_ShowOneWindow); // CTRL+1 (Hide all the pane except BufferList)
+    e[ 4].Set(wxACCEL_CTRL, (int)'B', ID_ShowBufferSelect); // CTRL+B (SwitchBuffer)
+    e[ 5].Set(wxACCEL_CTRL, (int)'S', ID_SaveCurrentBuffer); // CTRL+S (Save Current Buffer)
+    e[ 6].Set(wxACCEL_ALT,  (int)';', ID_TriggerComment);// ALT+; to comments/uncomments a block or current line
+    e[ 7].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
+    e[ 8].Set(wxACCEL_CTRL, (int)'W', ID_ShowWorkSpace); // CTRL+W show WorkSpace
+    e[ 9].Set(wxACCEL_ALT,  (int)'F', ID_ShowAgSearch); // ALT+F to find in dir/workspace
+    e[10].Set(wxACCEL_ALT,  (int)'S', ID_ShowSymbolList); // ALT+S to show the symbol list
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -415,6 +420,9 @@ void MyFrame::SetActiveEdit(Edit *pEdit)
         mpSearch->SetFileName(pEdit->GetFilename());
         mpSearch->SetEdit(pEdit);
     }
+    if (NULL != mpSymbolSearch && NULL != pEdit){
+        mpSymbolSearch->SetFileName(pEdit->GetFilename());
+    }
 }
 
 void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results)
@@ -534,6 +542,52 @@ void MyFrame::OnFileClose(wxAuiNotebookEvent &evt)
             mpBufferSelect->DelBuffer(name, pEdit->GetFilename());
         }
     }
+}
+
+void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
+{
+#define VALID_CHAR_WHEN_SEARCH_SYMBOL "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"    
+    int line = -1;
+    int select = mpBufferList->GetSelection();
+    wxString value;
+    if (wxNOT_FOUND == select || (!mbLoadFinish)){
+        return;
+    }
+    Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+    if (NULL != pEdit){
+        value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_SYMBOL);
+        line = pEdit->GetCurrentLine();
+    }
+    
+    wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("Find Symbol"));
+    if (pane.IsOk()){
+        pane.Show();
+    }
+    else{
+        // add file search
+        mpSymbolSearch = new wxSymbolSearch(this);
+        if (NULL == mpSearchHandler){
+            mpSearchHandler = new MySearchHandler(this);
+        }
+        mpSymbolSearch->AddHandler(mpSearchHandler);
+        m_mgr.AddPane(mpSymbolSearch, wxAuiPaneInfo().Name(wxT("Find Symbol")).Caption(wxT("Find Symbol..."))
+                      .Right().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
+    }
+    if (NULL != mpSymbolSearch){
+        if (NULL != pEdit){
+            mpSymbolSearch->SetFileName(pEdit->GetFilename());
+        }
+        if (!value.empty()){
+            if (line >= 0){
+                mpSymbolSearch->SetCurrentLine(line);
+            }
+            // note:fanhongxuan@gmail.com
+            // select the candidate by the current position
+            mpSymbolSearch->SetInput(value);
+        }
+        mpSymbolSearch->SetFocus();
+    }
+    m_mgr.Update();    
 }
 
 void MyFrame::OnShowSearch(wxCommandEvent &evt)

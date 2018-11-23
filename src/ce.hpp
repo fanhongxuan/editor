@@ -26,6 +26,7 @@ class wxStyledTextEvent;
 class wxSearchFile;
 class wxSearchDir;
 class wxAgSearch;
+class wxSymbolSearch;
 class wxBufferSelect;
 class wxExplorer;
 class wxWorkSpace;
@@ -49,6 +50,7 @@ class MyFrame : public wxFrame
         ID_ShowExplorer,
         ID_ShowWorkSpace,
         ID_ShowAgSearch,
+        ID_ShowSymbolList,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -69,7 +71,8 @@ public:
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
     void ChangeToBuffer(Edit *pEdit, int pos);
     void OpenFile(const wxString &name, const wxString &path, bool bActive, int line = -1);
-    
+
+    void OnShowSymbolList(wxCommandEvent &evt);
     void OnShowSearch(wxCommandEvent &evt);
     void OnShowFindFiles(wxCommandEvent &evt);
     void OnKillCurrentBuffer(wxCommandEvent &evt);
@@ -99,6 +102,7 @@ private:
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
     wxAgSearch *mpAgSearch;
+    wxSymbolSearch *mpSymbolSearch;
     wxExplorer *mpExplorer;
     wxWorkSpace *mpWorkSpace;
     wxAuiManager m_mgr;

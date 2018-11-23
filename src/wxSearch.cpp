@@ -449,7 +449,7 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
         }
     }
     if ((!mpInput->HasFocus()) && bRequestFocus){
-        mpInput->SetFocus();
+        mpInput->SetFocus(); // this maybe generate a text-update event
         int len = mpInput->GetValue().Length();
         // note:fanhongxuan@gmail.com
         // this will cause the mpInput change it's size a little.
@@ -641,6 +641,7 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     }
 
     if (input.length() < mMinStartLen){
+        // wxPrintf("input is two short:%d, %d\n", (int)input.length(), mMinStartLen);
         Reset();
         return false;
     }
@@ -651,7 +652,11 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     if (input.find_first_not_of("\r\n\t ") == wxString::npos){
         Reset();
         if (mMinStartLen != 0){
+            //wxPrintf("mMinStartLen:%d\n", mMinStartLen);
             return false;
+        }
+        else{
+            //wxPrintf("UpdateSearchList when mMinStartlen is 0\n");
         }
     }
     std::vector<wxString> rets;
@@ -678,7 +683,6 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             mbStartSearch = false;
         }
     }
-    // if the input.substr(0, mMinStartLen) != 
     
     if (!mbStartSearch){
         Reset(); // make sure the status has been reset.
@@ -722,8 +726,8 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     mCount = count;
     mpList->SetInsertionPoint(0);
     mpStatus->SetLabel(GetSummary(mInput, mCount));
-
-    if (mCurrentLine < 0){
+    
+    if (mCurrentLine < 0 && (input.find_first_not_of("\r\n\t ") != wxString::npos)){
         int prefer = GetPreferedLine(mInput);
         if (prefer >= 0){
             SelectLine(prefer, true, true);
