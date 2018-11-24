@@ -5,7 +5,7 @@
 #define popen _popen
 #define pclose _pclose
 #endif
-#define CTAGS_EXEC "/home/hq/fanhongxuan/editor/import/ctags/ctags/ctags"
+#define CTAGS_EXEC "/home/fhx/code/editor/import/ctags/ctags/ctags -f - -n "
 
 wxSymbolSearch::wxSymbolSearch(wxWindow *parent)
 :wxSearchFile(parent)
@@ -15,6 +15,27 @@ wxSymbolSearch::wxSymbolSearch(wxWindow *parent)
 
 wxSymbolSearch::~wxSymbolSearch()
 {
+}
+
+
+static const wxString &getFullTypeName(const wxString &input)
+{
+    static std::map<wxString, wxString> theTypeMaps;
+    if (theTypeMaps.size() == 0){
+        theTypeMaps["f"] = "Function";
+        theTypeMaps["v"] = "Variable";
+        theTypeMaps["d"] = "Define";
+        theTypeMaps["m"] = "Member";
+        theTypeMaps["c"] = "Class";
+        theTypeMaps["e"] = "Enum";
+    }
+    std::map<wxString, wxString>::iterator it = theTypeMaps.find(input);
+    if (it != theTypeMaps.end()){
+        return it->second;
+    }
+    else{
+        return input;
+    }
 }
 
 bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
@@ -31,7 +52,15 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
         wxPrintf("Invalid outputs size():%ld<%s>\n", outputs.size(), value);
         return false;
     }
-    ret = outputs[0];
+    wxString symbol = outputs[0]; // symbol name
+    wxString lineNumber = outputs[outputs.size() - 1]; // last is linenumber
+    lineNumber = lineNumber.substr(0, lineNumber.size() - 1); // remove the last ';'
+    long iLineNumber = 0;
+    lineNumber.ToLong(&iLineNumber);
+    if (iLineNumber > 0){
+        iLineNumber--;
+    }
+    
     outputs.clear();
     value = line.substr(pos+1);
     ceSplitString(value, outputs, '\t', false);
@@ -39,8 +68,15 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
         wxPrintf("Invalid outputs size()%ld<%s>\n", outputs.size(), value);
         return false;
     }
-    ret += "(" + outputs[0] + ")";
-    AddSearchResult(new wxSearchFileResult(ret, ret, 0, 0));
+    wxString type = getFullTypeName(outputs[0]);
+    pos = outputs[1].find("class:");
+    if (pos != wxString::npos){
+        symbol = outputs[1].substr(pos + strlen("class:")) + "::" + symbol;
+    }
+    ret = symbol + "(" + type + ")";
+    // todo:fanhongxuan@gmail.com
+    // sort all the symbol according the value of ret.
+    AddSearchResult(new wxSearchFileResult(ret, ret, iLineNumber, 0));
     return true;
 }
 
@@ -52,7 +88,7 @@ bool wxSymbolSearch::StartSearch(const wxString &input)
         return false;
     }
     wxString cmd = CTAGS_EXEC;
-    cmd += " -f - " + mFileName;
+    cmd += mFileName;
     std::vector<wxString> outputs;
     ceSyncExec(cmd, outputs);
     int i = 0;

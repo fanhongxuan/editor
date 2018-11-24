@@ -910,6 +910,13 @@ void MyFrame::OnShowOneWindow(wxCommandEvent &evt)
             info.Hide();
         }
     }
+    if (NULL != mpSymbolSearch){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpSymbolSearch);
+        if (info.IsOk()){
+            bUpdate = true;
+            info.Hide();
+        }
+    }
     if (bUpdate){
         m_mgr.Update();
         SwitchFocus();
@@ -937,6 +944,9 @@ void MyFrame::OnKillCurrentBuffer(wxCommandEvent &evt)
     }
     else if (NULL != mpAgSearch && mpAgSearch->IsDescendant(window)){
         window = mpAgSearch;
+    }
+    else if (NULL != mpSymbolSearch && mpSymbolSearch->IsDescendant(window)){
+        window = mpSymbolSearch;
     }
     else if (NULL != mpCmd && mpCmd->IsDescendant(window)){
         // note:fanhongxuan@gmail.com
