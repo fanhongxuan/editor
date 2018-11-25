@@ -426,6 +426,7 @@ void MyFrame::SetActiveEdit(Edit *pEdit)
         if (pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
             // wxPrintf("edit:%s, search:%s\n", pEdit->GetFilename(), mpSymbolSearch->GetFileName());
             mpSymbolSearch->SetFileName(pEdit->GetFilename());
+            mpSymbolSearch->SetInput("");
             mpSymbolSearch->UpdateSearchList("", false);
         }
     }
@@ -590,6 +591,7 @@ void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
         // select the candidate by the current position
         // wxPrintf("SetInput:%s\n", value);
         // mpSymbolSearch->SetInput(value);
+        mpSymbolSearch->SetInput("");
 		mpSymbolSearch->UpdateSearchList("");
         mpSymbolSearch->SetFocus();
     }
