@@ -42,6 +42,12 @@ static void AddDir(const wxString &dir, wxExplorer &explorer, wxTreeItemId paren
     cont = cwd.GetFirst(&filename, "*", wxDIR_DIRS|wxDIR_HIDDEN);
     while(cont){
         wxString child_dir = cwd.GetNameWithSep() + filename;
+        if (child_dir.find("System Volume Information") != child_dir.npos ||
+            child_dir.find("Documents and Settings") != child_dir.npos ||
+            child_dir.find("$Recycle.Bin") != child_dir.npos){
+            cont = cwd.GetNext(&filename);
+            continue;
+        }
         wxExplorerItemInfo *pInfo =
             new wxExplorerItemInfo(child_dir, false);
         wxTreeItemId child_id = explorer.AppendItem(parent,
@@ -104,9 +110,7 @@ wxExplorer::wxExplorer(wxWindow *parent)
     :wxTreeCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                 wxTR_HAS_BUTTONS |
                 wxTR_EDIT_LABELS |
-#ifndef WIN32                
-                wxTR_HIDE_ROOT |  /*On linux all the file system is mounted at the root, so we hide it.*/
-#endif                
+                wxTR_HIDE_ROOT   | 
                 wxTR_LINES_AT_ROOT |
 #ifdef WIN32
                 wxTR_NO_LINES |
@@ -136,8 +140,29 @@ wxExplorer::wxExplorer(wxWindow *parent)
     else{
         volume += ":/";
     }
+#ifdef WIN32
+    wxTreeItemId root = AddRoot(wxT("FileSystem"), explorer_harddisk);
+    
+    // on win32, try other disk
+    // from A-Z
+    for (char i = 'A'; i < 'Z'; i++){
+        wxString vol = i;
+        vol += ":/";
+        wxString target;
+        if (vol == volume){
+            target = cwd;
+        }
+        wxDir dir(vol);
+        if (!dir.IsOpened()){
+            continue;
+        }
+        wxTreeItemId data = AppendItem(root, vol, explorer_harddisk);
+        AddDir(vol, *this, data, target);
+    }
+#else
     wxTreeItemId root = AddRoot(volume, explorer_harddisk);
     AddDir(volume, *this, root, cwd);
+#endif    
 }
 
 wxExplorer::~wxExplorer()
@@ -150,7 +175,7 @@ void wxExplorer::OnFocus(wxFocusEvent &evt)
 {
     if (NULL != wxGetApp().frame()){
         wxGetApp().frame()->DoUpdate();
-    }
+    }    
     evt.Skip();
 }
 

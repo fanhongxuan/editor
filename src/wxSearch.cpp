@@ -16,6 +16,7 @@
 #ifndef WIN32
 #include <sys/time.h>
 #endif
+#include <wx/timer.h>
 #include "wxSearch.hpp"
 #include "ce.hpp"
 
@@ -129,10 +130,31 @@ class wxSearchInputCtrl: public wxSearchInputCtrlBase
 private:
     wxSearch *mpParent;
     wxSearchListCtrl *mpList;
+    wxTimer *mpTimer;
+    wxString mPrevValue;
+    bool mbEmptyUpdate;
+	bool mbSetFocus;
 public:
     wxSearchInputCtrl(wxSearch *parent)
-        :wxSearchInputCtrlBase(parent, wxID_ANY), mpParent(parent), mpList(NULL){}
+        :wxSearchInputCtrlBase(parent, wxID_ANY), 
+		mpParent(parent), mpList(NULL), mpTimer(NULL), mbEmptyUpdate(false), mbSetFocus(false){}
     void SetList(wxSearchListCtrl *pList){mpList = pList;}
+    /*
+    virtual void SetFocus()
+    {
+		bool hasFocus = HasFocus();
+        wxSearchInputCtrlBase::SetFocus();
+        wxPrintf("wxSearchInputCtrl SetFocus\n");
+#ifdef WIN32
+        if ((!hasFocus) && NULL != mpParent){
+			if (mbSetFocus == false){
+				mbSetFocus = true;
+				mpParent->UpdateSearchList(GetValue());
+				mbSetFocus = false;
+			}
+        }
+#endif        
+    }*/
     
     virtual bool ProcessEvent(wxEvent &evt)
     {
@@ -161,8 +183,28 @@ public:
             }
             return ret;
         }
+        else if (wxEVT_TIMER == evt.GetEventType()){
+            if (NULL != mpParent){
+                //wxPrintf("Timer out:<%s>\n", GetValue());
+                mpParent->UpdateSearchList(GetValue());
+            }
+        }
         else if (wxEVT_TEXT == evt.GetEventType()){
-            mpParent->UpdateSearchList(GetValue());
+            // note:fanhongxuan@gmail.com
+            // the UpdateSearchList is started after user stop type 100 ms.
+            // if the GetValue() && mPrevValue is both empty, let it do one
+            if ((GetValue() != mPrevValue) || (GetValue().IsEmpty() && mbEmptyUpdate == false)){
+                mPrevValue = GetValue();
+                mbEmptyUpdate = mPrevValue.IsEmpty();
+                if (NULL == mpTimer){
+                    mpTimer = new wxTimer(this, wxID_ANY);
+                }
+                else{
+                    mpTimer->Stop();
+                }
+                mpTimer->StartOnce(300);
+            }
+            //mpParent->UpdateSearchList(GetValue());
         }
         else if (wxEVT_MOUSEWHEEL == evt.GetEventType()){
             wxMouseEvent *pEvt = dynamic_cast<wxMouseEvent*>(&evt);
@@ -172,6 +214,8 @@ public:
         }
         else if (wxEVT_SET_FOCUS == evt.GetEventType()){
             if (NULL != wxGetApp().frame()){
+                // note:fanhongxuan@gmail.com
+                // every setfocus call in wxSearchInputCtrl will call this.
                 wxGetApp().frame()->DoUpdate();
             }
         }
@@ -351,7 +395,8 @@ bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector
 }
 
 wxSearch::wxSearch(wxWindow *pParent)
-    :wxPanel(pParent), mCurrentLine(-1), mMinStartLen(1), mMaxCandidate(100), mbStartSearch(false)
+    :wxPanel(pParent), mCurrentLine(-1), mMinStartLen(1), mMaxCandidate(100),
+     mbStartSearch(false)
 {
     wxSizer *pSizer = new wxBoxSizer(wxVERTICAL);
     mpInput = new wxSearchInputCtrl(this);
@@ -420,7 +465,11 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
     int pos = mpList->XYToPosition(0, mCurrentLine);
 
     mpList->SetSelection(pos, pos + length);
+#ifndef WIN32
+    // note:fanhongxuan@gmail.com
+    // on gtk, need to call this to make sure the invisable item show. but on msw, dont need.
     mpList->ShowPosition(pos);
+#endif    
     int i = 0;
     if (bActive){
         for (i = 0; i < mResults.size(); i++){
@@ -449,7 +498,7 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
         }
     }
     if ((!mpInput->HasFocus()) && bRequestFocus){
-        mpInput->SetFocus(); // this maybe generate a text-update event
+        mpInput->SetFocus(); // this maybe generate a text-update event on gtk
         int len = mpInput->GetValue().Length();
         // note:fanhongxuan@gmail.com
         // this will cause the mpInput change it's size a little.
@@ -630,7 +679,7 @@ bool wxSearch::DoStartSearch(const wxString &input)
     return true;
 }
 
-bool wxSearch::UpdateSearchList(const wxString &input)
+bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
 {
     // fixme:fanhongxuan@gmail.com
     // on windows, then the edit is empty, will not call UpdateSearch list
@@ -639,9 +688,9 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     if (NULL == mpList){
         return false;
     }
-
+    
     if (input.length() < mMinStartLen){
-        // wxPrintf("input is two short:%d, %d\n", (int)input.length(), mMinStartLen);
+        wxPrintf("input is two short:%d, %d\n", (int)input.length(), mMinStartLen);
         Reset();
         return false;
     }
@@ -652,11 +701,11 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     if (input.find_first_not_of("\r\n\t ") == wxString::npos){
         Reset();
         if (mMinStartLen != 0){
-            //wxPrintf("mMinStartLen:%d\n", mMinStartLen);
+            wxPrintf("mMinStartLen:%d\n", mMinStartLen);
             return false;
         }
         else{
-            //wxPrintf("UpdateSearchList when mMinStartlen is 0\n");
+            wxPrintf("UpdateSearchList when mMinStartlen is 0\n");
         }
     }
     std::vector<wxString> rets;
@@ -673,6 +722,7 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             }
         }
         if (!bDiff){
+            wxPrintf("Same key\n");
             return false;
         }
     }
@@ -708,7 +758,8 @@ bool wxSearch::UpdateSearchList(const wxString &input)
             count++;
         }
     }
-
+    
+    // wxPrintf("UpdateSearchList:<%s>\n", input);
     // can add some temp result here.
     // for example:
     // when switch buffer
@@ -727,10 +778,10 @@ bool wxSearch::UpdateSearchList(const wxString &input)
     mpList->SetInsertionPoint(0);
     mpStatus->SetLabel(GetSummary(mInput, mCount));
     
-    if (mCurrentLine < 0 && (input.find_first_not_of("\r\n\t ") != wxString::npos)){
+    if (mCurrentLine < 0){
         int prefer = GetPreferedLine(mInput);
         if (prefer >= 0){
-            SelectLine(prefer, true, true);
+            SelectLine(prefer, true, bRequestFocus);
         }
         // no selection, getPreferedSelection
     }
@@ -879,7 +930,7 @@ bool wxSearchDir::StopSearch()
 }
 
 wxSearchFile::wxSearchFile(wxWindow *parent)
-    :wxSearch(parent), mTotalLine(0), mCurLine(0), mpEdit(NULL)
+    :wxSearch(parent), mCurLine(0), mpEdit(NULL)
 {
 }
 
@@ -889,9 +940,12 @@ int wxSearchFile::GetPreferedLine(const wxString &input)
     int dis = 0;
     int line = 0;
     int bestLine = 0;
-    int distance = mTotalLine;
+    int distance = 0;
+    if (NULL != mpEdit){
+        distance = mpEdit->GetLineCount();
+    }
     for (i = 0; i < mResults.size(); i++){
-        if (mResults[i]->IsMatch()){
+        if (mResults[i]->IsMatch() || (mKeys.empty())){
             wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(mResults[i]);
             if (NULL != pRet){
                 // if this is near to the mCurLine, store it
@@ -905,6 +959,7 @@ int wxSearchFile::GetPreferedLine(const wxString &input)
             line++;
         }
     }
+    wxPrintf("GetPreferedLine:%d\n", bestLine);
     return bestLine;
 }
 
@@ -950,8 +1005,8 @@ bool wxSearchFile::StartSearch(const wxString &input)
     if (NULL != mpEdit){
         int i = 0;
         int pos = 0;
-        mTotalLine = mpEdit->GetLineCount();
-        for (i = 0; i < mTotalLine; i++){
+        int totalLine = mpEdit->GetLineCount();
+        for (i = 0; i < totalLine; i++){
             wxString text = mpEdit->GetLineText(i);
             wxString value = text;
             if (!bCaseSenstive){
@@ -966,51 +1021,6 @@ bool wxSearchFile::StartSearch(const wxString &input)
         }
     }
     
-    // int pos = 0;
-    // int line = 0;
-    // int i = 0;
-    // wxString value;
-    // int size = mBuffer.size();
-    // for (i = 0; i < size; i++){
-    //     int chr= mBuffer[i].GetValue();
-    //     if (chr != '\n'){
-    //         value += chr;
-    //         continue;
-    //     }
-    //     if (!bCaseSenstive){
-    //         value.MakeLower();
-    //     }
-    //     int offset = value.find(niddle);
-    //     if (offset != wxString::npos){
-    //         AddSearchResult(new wxSearchFileResult(value, value, line, pos + offset));
-    //     }
-    //     pos += 1; // this is the newline
-    //     pos += value.size();
-    //     line++;
-    //     value.Clear();
-    // }
-
-    // std::vector<wxString> rets;
-    // ParseString(mBuffer, rets, '\n', true);
-    // int pos = 0;
-    // int line = 0;
-    // int i = 0;
-    // for (i = 0; i < rets.size(); i++){
-    //     wxString value = rets[i];
-    //     if (!bCaseSenstive){
-    //         value.MakeLower();
-    //     }
-    //     int offset = value.find(niddle);
-    //     if (offset != wxString::npos){
-    //         AddSearchResult(new wxSearchFileResult(rets[i], rets[i], line, pos + offset));
-    //     }
-    //     pos += 1; // this is the newline
-    //     pos += strlen(rets[i]);
-    //     line ++;
-    // }
-    
-    // mTotalLine = line;
-    // update mCurrentLine according the position
     return true;
 }
 

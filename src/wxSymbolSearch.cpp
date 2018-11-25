@@ -1,10 +1,6 @@
 #include "wxSymbolSearch.hpp"
 #include "ceUtils.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
-#ifdef WIN32
-#define popen _popen
-#define pclose _pclose
-#endif
 #define CTAGS_EXEC "/home/fhx/code/editor/import/ctags/ctags/ctags -f - -n "
 
 wxSymbolSearch::wxSymbolSearch(wxWindow *parent)
@@ -64,14 +60,16 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
     outputs.clear();
     value = line.substr(pos+1);
     ceSplitString(value, outputs, '\t', false);
-    if (outputs.size() < 2){
-        wxPrintf("Invalid outputs size()%ld<%s>\n", outputs.size(), value);
+    if (outputs.size() < 1){
+        wxPrintf("Invalid outputs size()%ld<%s><%s>\n", outputs.size(), line, value);
         return false;
     }
     wxString type = getFullTypeName(outputs[0]);
-    pos = outputs[1].find("class:");
-    if (pos != wxString::npos){
-        symbol = outputs[1].substr(pos + strlen("class:")) + "::" + symbol;
+    if (outputs.size() >= 2){
+        pos = outputs[1].find("class:");
+        if (pos != wxString::npos){
+            symbol = outputs[1].substr(pos + strlen("class:")) + "::" + symbol;
+        }
     }
     ret = symbol + "(" + type + ")";
     // todo:fanhongxuan@gmail.com
@@ -80,15 +78,30 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
     return true;
 }
 
+static wxString findCtags()
+{
+    wxString ret = ceGetExecPath();
+#ifdef WIN32
+	ret += "\\ext\\ctags -f - -n ";
+#else
+    ret += "/ext/ctags -f - -n ";
+#endif
+    return ret;
+}
+
 bool wxSymbolSearch::StartSearch(const wxString &input)
 {
     // call ctags to generate the tags info and store it.
     wxPrintf("wxSymbolSearch:StartSearch<%s>\n", input);
-    if (mFileName.empty()){
+    if (GetFileName().empty()){
         return false;
     }
-    wxString cmd = CTAGS_EXEC;
-    cmd += mFileName;
+    static wxString ctags_exec;
+    if (ctags_exec.empty()){
+        ctags_exec = findCtags();
+    }
+    wxString cmd = ctags_exec + GetFileName();
+    
     std::vector<wxString> outputs;
     ceSyncExec(cmd, outputs);
     int i = 0;

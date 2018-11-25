@@ -66,15 +66,15 @@ public:
     bool SetMaxCandidate(int maxCandidate); // if the candidate count is more than maxCandidate, only display maxCandidate.
     bool AddHandler(wxSearchHandler *pHandler);
     bool DelHandler(wxSearchHandler *pHandler);
-    bool SetInput(const wxString &input); // set the default input value.
-    
+    bool SetInput(const wxString &input); // set the default input value.    
+
     static bool IsTempFile(const wxString &file);    
     static bool IsBinaryFile(const wxString &file);
     
     virtual bool OnKey(wxKeyEvent &evt); // when a key is input, call this function to handle it.
     virtual bool SelectLine(int line, bool bActive, bool bRequestFocus = true);
     virtual bool ProcessEvent(wxEvent &event);
-    virtual bool UpdateSearchList(const wxString &input);
+    virtual bool UpdateSearchList(const wxString &input, bool bRequestFocus = true);
     virtual bool DoStartSearch(const wxString &input);
 
     // the following function need to be impl.
@@ -84,6 +84,7 @@ public:
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
     virtual int GetPreferedLine(const wxString &input){return -1;};
+    
 protected:
     wxSearchInputCtrl *mpInput;
     wxSearchListCtrl *mpList;
@@ -132,6 +133,7 @@ class wxSearchFile: public wxSearch
 public:
     wxSearchFile(wxWindow *parent);
     void SetFileName(const wxString &fileName);
+    wxString GetFileName() const {return mFileName;}
     void SetEdit(Edit *pEdit);
     void SetBuffer(const wxString &buffer);
     void SetCurrentLine(int line);
@@ -142,7 +144,6 @@ public:
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual int GetPreferedLine(const wxString &input);
 private:
-    int mTotalLine;
     int mCurLine;
     wxString mFileName;
     wxString mBuffer;

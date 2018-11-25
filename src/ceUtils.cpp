@@ -1,6 +1,10 @@
 #include "ceUtils.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
-
+#ifdef WIN32
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
 #ifdef WIN32
 #define popen _popen
 #define pclose _pclose
@@ -49,7 +53,7 @@ BOOL system_hide(const wchar_t* CommandLine, std::vector<wxString> &output)
 		outputBuffer += buffer;
 		//Sleep(100);     
 	} 
-	ceSplitString(outputBuffer, output, '\n');
+	ceSplitString(outputBuffer, output, "\r\n");
 	return   TRUE;   
 }   
 #endif
@@ -81,12 +85,12 @@ int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
     return 0;
 }
 
-int ceSplitString(const wxString &input, std::vector<wxString> &output, char sep, bool allowEmpty)
+int ceSplitString(const wxString &input, std::vector<wxString> &output, const wxString &sep, bool allowEmpty)
 {
     size_t begin = 0;
     size_t end = 0;
     while(begin != input.npos && begin < input.length()){
-        end = input.find_first_of(sep, begin);
+        end = input.find(sep, begin);
         if (end == input.npos){
             output.push_back(input.substr(begin));
             break;
@@ -95,8 +99,28 @@ int ceSplitString(const wxString &input, std::vector<wxString> &output, char sep
             if (begin != end || allowEmpty){
                 output.push_back(input.substr(begin, (end - begin)));
             }
-            begin = end + 1;
+			begin = end + sep.length();
         }
     }
 	return output.size();
+}
+
+wxString ceGetExecPath()
+{
+    char buffer[1024+1] = {0};
+	wxString path;
+	int pos = 0;
+#ifdef WIN32
+	// GetModuleFileName(NULL, (LPWSTR)buffer, 1024);
+	path = _pgmptr;
+	pos = path.find_last_of("\\");
+#else
+	int ret = readlink("/proc/self/exe", buffer, 1024);
+	path = buffer;
+    pos = path.find_last_of("/");
+#endif
+	if (pos != path.npos){
+        path = path.substr(0, pos);
+    }
+    return path;
 }

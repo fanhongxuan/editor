@@ -65,16 +65,33 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
     }
     std::vector<wxString> rets;
     ParseString(result, rets, ':');
-    if (rets.size() < 3){
+#ifdef WIN32
+#define RESULT_COUNT 4
+#define FILE_NAME_INDEX 1
+#define LINE_INDEX 2
+#else
+#define RESULT_COUNT 3
+#define FILE_NAME_INDEX 0
+#define LINE_INDEX 1
+#endif
+    if (rets.size() < RESULT_COUNT){
         return false;
     }
     
-    wxString filename = rets[0];
+    wxString filename = rets[FILE_NAME_INDEX];
+    if (FILE_NAME_INDEX > 0){
+        filename = rets[0] + ":" + filename;
+    }
     if (IsTempFile(filename) || IsBinaryFile(filename)){
         return false;
     }
-    wxString line = rets[1];
-    wxString value = result.substr(rets[0].size() + rets[1].size() + 2 /*two : */);
+    wxString line = rets[LINE_INDEX];
+	int len = 0;
+	for (int i = 0; i <= LINE_INDEX; i++){
+		len += rets[i].size();
+		len++;
+	}
+    wxString value = result.substr(len);
     if (!value.empty() && value[value.size() -1] == '\n'){
         value = value.substr(0, value.size()-1);
     }
@@ -131,16 +148,21 @@ bool wxAgSearch::StartSearch(const wxString &input)
     }
     
     it = mTargetDirs.begin();
+    static wxString ag_exec;
+    if (ag_exec.empty()){
+        ag_exec = ceGetExecPath();
+        // note:fanhongxuan@gmail.com
+        // only with --ackmate the ag output can be all captured by the pipe
+#ifdef WIN32
+        ag_exec += "\\ext\\ag.exe --ackmate --noheading --depth=-1 ";
+#else
+        ag_exec += "/ext/ag --ackmate --noheading --depth=-1 ";
+#endif
+    }
     while(it != mTargetDirs.end()){
         // wxPrintf("Search <%s> in dir:<%s>\n", input, (*it));
-        // note:fanhongxuan@gmail.com
-        // only with --ackmate the ag output can be all captured by the pipe.
-#ifdef WIN32            
-        wxString cmd = "f:\\editor\\import\\ag\\ag.exe --ackmate --noheading --depth=-1 ";
-#else
-        wxString cmd = "ag --ackmate --noheading --depth=-1 ";
-#endif    
-        cmd += input; cmd += " \""; cmd += (*it); cmd += "\"";
+        wxString cmd = ag_exec + input;
+        cmd += " \""; cmd += (*it); cmd += "\"";
         mCmds.insert(cmd);
         //MyProcess *process = new MyProcess(this, cmd);
         //long ret = wxExecute(cmd, wxEXEC_ASYNC, process);

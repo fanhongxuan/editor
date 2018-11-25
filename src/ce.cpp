@@ -397,6 +397,7 @@ void MyFrame::LoadInfo()
         OnShowWorkSpace(evt);
         OnShowFindFiles(evt);
         OnShowAgSearch(evt);
+        OnShowSymbolList(evt);
         OnShowBufferSelect(evt);
         m_mgr.LoadPerspective(perspective);
     }
@@ -421,7 +422,12 @@ void MyFrame::SetActiveEdit(Edit *pEdit)
         mpSearch->SetEdit(pEdit);
     }
     if (NULL != mpSymbolSearch && NULL != pEdit){
-        mpSymbolSearch->SetFileName(pEdit->GetFilename());
+        mpSymbolSearch->SetEdit(pEdit);
+        if (pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
+            // wxPrintf("edit:%s, search:%s\n", pEdit->GetFilename(), mpSymbolSearch->GetFileName());
+            mpSymbolSearch->SetFileName(pEdit->GetFilename());
+            mpSymbolSearch->UpdateSearchList("", false);
+        }
     }
 }
 
@@ -546,17 +552,14 @@ void MyFrame::OnFileClose(wxAuiNotebookEvent &evt)
 
 void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
 {
-#define VALID_CHAR_WHEN_SEARCH_SYMBOL "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"    
     int line = -1;
     int select = mpBufferList->GetSelection();
-    wxString value;
-    if (wxNOT_FOUND == select || (!mbLoadFinish)){
-        return;
-    }
-    Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
-    if (NULL != pEdit){
-        value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_SYMBOL);
-        line = pEdit->GetCurrentLine();
+    Edit *pEdit = NULL;
+    if (wxNOT_FOUND != select || (mbLoadFinish)){
+        pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        if (NULL != pEdit){
+            line = pEdit->GetCurrentLine();
+        }
     }
     
     wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("Find Symbol"));
@@ -573,21 +576,23 @@ void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
         m_mgr.AddPane(mpSymbolSearch, wxAuiPaneInfo().Name(wxT("Find Symbol")).Caption(wxT("Find Symbol..."))
                       .Right().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
+    m_mgr.Update();
     if (NULL != mpSymbolSearch){
+        mpSymbolSearch->Reset();
         if (NULL != pEdit){
             mpSymbolSearch->SetFileName(pEdit->GetFilename());
         }
-        if (!value.empty()){
-            if (line >= 0){
-                mpSymbolSearch->SetCurrentLine(line);
-            }
-            // note:fanhongxuan@gmail.com
-            // select the candidate by the current position
-            mpSymbolSearch->SetInput(value);
+        if (line >= 0){
+            mpSymbolSearch->SetCurrentLine(line);
         }
+        mpSymbolSearch->SetEdit(pEdit);
+        // note:fanhongxuan@gmail.com
+        // select the candidate by the current position
+        // wxPrintf("SetInput:%s\n", value);
+        // mpSymbolSearch->SetInput(value);
+		mpSymbolSearch->UpdateSearchList("");
         mpSymbolSearch->SetFocus();
     }
-    m_mgr.Update();    
 }
 
 void MyFrame::OnShowSearch(wxCommandEvent &evt)
@@ -596,8 +601,9 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
     wxString value;
     int line = -1;
     int select = mpBufferList->GetSelection();
+    Edit *pEdit = NULL;
     if (wxNOT_FOUND != select && mbLoadFinish){
-        Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
             value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_FILE);
             line = pEdit->GetCurrentLine();
@@ -619,18 +625,19 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
         m_mgr.AddPane(mpSearch, wxAuiPaneInfo().Name(wxT("Find")).Caption(wxT("Find..."))
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
-    if (NULL != mpSearch){
+    m_mgr.Update();
+	if (NULL != mpSearch){
         if (!value.empty()){
             if (line >= 0){
                 mpSearch->SetCurrentLine(line);
             }
             // note:fanhongxuan@gmail.com
             // select the candidate by the current position
+            mpSearch->SetEdit(pEdit);
             mpSearch->SetInput(value);
         }
         mpSearch->SetFocus();
     }
-    m_mgr.Update();
 }
 
 void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
@@ -658,14 +665,13 @@ void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300, 100)));
 
     }
-    
+    m_mgr.Update();
     if (NULL != mpSearchDir){
         if (!value.empty()){
             mpSearchDir->SetInput(value);
         }
         mpSearchDir->SetFocus();
     }
-    m_mgr.Update();
 }
 
 class MyBufferSelectHandler: public wxSearchHandler
@@ -762,6 +768,7 @@ void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
         m_mgr.AddPane(mpAgSearch, wxAuiPaneInfo().Name(wxT("AGSearch")).Caption(wxT("Search In Dir")).
                       Bottom().CloseButton(false).Row(1).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
+    m_mgr.Update();    
     if (NULL != mpAgSearch){
         if (!value.empty()){
             mpAgSearch->SetInput(value);
@@ -777,8 +784,6 @@ void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
         mpAgSearch->SetSearchFiles(files);
         mpAgSearch->SetFocus();
     }
-     
-    m_mgr.Update();
 }
 
 void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
@@ -796,6 +801,7 @@ void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
         m_mgr.AddPane(mpWorkSpace, wxAuiPaneInfo().Name(wxT("WorkSpace")).Caption(wxT("WorkSpace")).
                       Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
+    m_mgr.Update();
     if (NULL != mpWorkSpace){
         if (NULL != mpAgSearch){
             std::set<wxString> dirs;
@@ -807,7 +813,6 @@ void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
         }
         mpWorkSpace->SetFocus();
     }
-    m_mgr.Update();
 }
 
 void MyFrame::OnShowExplorer(wxCommandEvent &evt)
@@ -827,6 +832,7 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
         m_mgr.AddPane(mpExplorer, wxAuiPaneInfo().Name(wxT("Explorer")).Caption(wxT("Explorer")).
                       Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
+    m_mgr.Update();
     if (NULL != mpExplorer){
         if (NULL != mpAgSearch){
             std::set<wxString> empty;
@@ -835,7 +841,6 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
         }
         mpExplorer->SetFocus();
     }
-    m_mgr.Update();
 }
 
 void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
@@ -859,10 +864,16 @@ void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
         m_mgr.AddPane(mpBufferSelect, wxAuiPaneInfo().Name(wxT("BufferSelect")).Caption(wxT("Select buffers..."))
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
+    m_mgr.Update();    
     if (NULL != mpBufferSelect){
+        #ifdef WIN32
+		// note:fanhongxuan@gmail.com
+		// on gtk, when the input first get the focus, will generate a wxevt_text event which will call UpdateSearchList
+		// on msw, we need to do it here to make sure will show all the candidate of buffer select.
+        mpBufferSelect->UpdateSearchList("", false);
+        #endif
         mpBufferSelect->SetFocus();
     }
-    m_mgr.Update();
 }
 
 void MyFrame::OnShowOneWindow(wxCommandEvent &evt)
