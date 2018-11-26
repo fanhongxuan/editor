@@ -96,6 +96,9 @@ public:
     }
     void OnSelect(wxSearchResult &ret, bool bActive){
         if (NULL != mpMain){
+            if (bActive){
+                mpMain->ShowMiniBuffer("FindFiles", true);
+            }
             mpMain->OpenFile(ret.Content(), ret.Target(), bActive);
         }
     }
@@ -116,6 +119,7 @@ MyFrame::MyFrame(wxWindow* parent,
     mpBufferList = NULL;
     mpBufferSelect = NULL;
     mpSearchHandler = NULL;
+    mpSymbolSearchHandler = NULL;
     mpAgSearchHandler = NULL;
 	mpExplorer = NULL;
 	mpWorkSpace = NULL;
@@ -221,27 +225,50 @@ public:
     }
 };
 
-class MySearchHandler: public wxSearchHandler
+class MySymbolSearchHandler: public wxSearchHandler
 {
 private:
     Edit *mpEdit;
     MyFrame *mpFrame;
 public:
-    MySearchHandler(MyFrame *frame){mpFrame = frame;}
+    MySymbolSearchHandler(MyFrame *frame){mpFrame = frame; mpEdit = NULL;}
     void SetEdit(Edit *pEdit){mpEdit = pEdit;}
     void OnSelect(wxSearchResult &ret, bool bActive){
         wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(&ret);
-        if (NULL != pRet){
+        if (NULL != pRet && NULL != mpEdit){
             int line = pRet->GetLine();
             mpFrame->ChangeToBuffer(mpEdit, -1/*currently not used*/);
             if (line >= 10){
                 mpEdit->ScrollToLine(line-10); // make sure the line is in the middle
             }
             mpEdit->GotoLine(line);
-            int lineStart = mpEdit->PositionFromLine (line);
-            int lineEnd = mpEdit->PositionFromLine (line + 1);
-            // mpEdit->SetSelection(pRet->GetPos(), pRet->GetPos());
-            // mpEdit->GotoPos(pRet->GetPos());
+            if (bActive){
+                mpEdit->SetFocus();
+            }
+        }
+    }    
+};
+
+class MySearchHandler: public wxSearchHandler
+{
+private:
+    Edit *mpEdit;
+    MyFrame *mpFrame;
+public:
+    MySearchHandler(MyFrame *frame){mpFrame = frame; mpEdit = NULL;}
+    void SetEdit(Edit *pEdit){mpEdit = pEdit;}
+    void OnSelect(wxSearchResult &ret, bool bActive){
+        wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(&ret);
+        if (NULL != pRet && NULL != mpEdit){
+            if (bActive){
+                mpFrame->ShowMiniBuffer("Find", true);
+            }
+            int line = pRet->GetLine();
+            mpFrame->ChangeToBuffer(mpEdit, -1/*currently not used*/);
+            if (line >= 10){
+                mpEdit->ScrollToLine(line-10); // make sure the line is in the middle
+            }
+            mpEdit->GotoLine(line);
             if (bActive){
                 mpEdit->SetFocus();
             }
@@ -422,6 +449,9 @@ void MyFrame::SetActiveEdit(Edit *pEdit)
         mpSearch->SetEdit(pEdit);
     }
     if (NULL != mpSymbolSearch && NULL != pEdit){
+        if (NULL != mpSymbolSearchHandler){
+            mpSymbolSearchHandler->SetEdit(pEdit);
+        }
         mpSymbolSearch->SetEdit(pEdit);
         if (pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
             // wxPrintf("edit:%s, search:%s\n", pEdit->GetFilename(), mpSymbolSearch->GetFileName());
@@ -551,6 +581,25 @@ void MyFrame::OnFileClose(wxAuiNotebookEvent &evt)
     }
 }
 
+bool MyFrame::ShowMiniBuffer(const wxString &name, bool bHide)
+{
+    wxAuiPaneInfo &info = m_mgr.GetPane(name);
+    if (!info.IsOk()){
+        return false;
+    }
+    if (info.IsShown() && bHide){
+        info.Hide();
+        m_mgr.Update();
+        return true;
+    }
+    else if ((!info.IsShown()) && (!bHide)){
+        info.Show();
+        m_mgr.Update();
+        return true;
+    }
+    return false;
+}
+
 void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
 {
     int line = -1;
@@ -570,10 +619,10 @@ void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
     else{
         // add file search
         mpSymbolSearch = new wxSymbolSearch(this);
-        if (NULL == mpSearchHandler){
-            mpSearchHandler = new MySearchHandler(this);
+        if (NULL == mpSymbolSearchHandler){
+            mpSymbolSearchHandler = new MySymbolSearchHandler(this);
         }
-        mpSymbolSearch->AddHandler(mpSearchHandler);
+        mpSymbolSearch->AddHandler(mpSymbolSearchHandler);
         m_mgr.AddPane(mpSymbolSearch, wxAuiPaneInfo().Name(wxT("Find Symbol")).Caption(wxT("Find Symbol..."))
                       .Right().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
@@ -687,19 +736,15 @@ public:
         // if name is *FindFile* show mpSearchDir
         // if name is *Find* show mpSearch
         if (NULL != mpFrame){
-            wxPrintf("content:%s\n", ret.Content());
+            if (bActive){
+                mpFrame->ShowMiniBuffer("BufferSelect", true);
+            }
             if (ret.Content() == wxString::Format(wxT("New %s"), ret.Target())){
                 if (bActive){
-                    wxCommandEvent evt;
-                    mpFrame->OnKillCurrentBuffer(evt);
                     mpFrame->OpenFile(ret.Target(), "", bActive);
                 }
             }
             else{
-                if (bActive){
-                    wxCommandEvent evt;
-                    mpFrame->OnKillCurrentBuffer(evt);
-                }
                 mpFrame->OpenFile(ret.Content(), ret.Target(), bActive);
             }
         }

@@ -1,7 +1,6 @@
 #include "wxSymbolSearch.hpp"
 #include "ceUtils.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
-#define CTAGS_EXEC "/home/fhx/code/editor/import/ctags/ctags/ctags -f - -n "
 
 wxSymbolSearch::wxSymbolSearch(wxWindow *parent)
 :wxSearchFile(parent)
@@ -20,10 +19,11 @@ static const wxString &getFullTypeName(const wxString &input)
     if (theTypeMaps.size() == 0){
         theTypeMaps["f"] = "Function";
         theTypeMaps["v"] = "Variable";
-        theTypeMaps["d"] = "Define";
+        theTypeMaps["d"] = "Micro";
         theTypeMaps["m"] = "Member";
         theTypeMaps["c"] = "Class";
         theTypeMaps["e"] = "Enum";
+        theTypeMaps["n"] = "Namespace";
     }
     std::map<wxString, wxString>::iterator it = theTypeMaps.find(input);
     if (it != theTypeMaps.end()){

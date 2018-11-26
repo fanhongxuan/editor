@@ -498,12 +498,17 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
         }
     }
     if ((!mpInput->HasFocus()) && bRequestFocus){
+        long start, end;
+        // note:fanhongxuan@gmail.com
+        // SetFocus will cause the content select all, so first save the selection and then restore.
+        mpInput->GetSelection(&start, &end);
         mpInput->SetFocus(); // this maybe generate a text-update event on gtk
-        int len = mpInput->GetValue().Length();
+        mpInput->SetSelection(start, end);
+        // int len = mpInput->GetValue().Length();
         // note:fanhongxuan@gmail.com
         // this will cause the mpInput change it's size a little.
         // mpInput->SetPosition(wxPoint(0, len));
-        mpInput->SetSelection(len, len);
+        // mpInput->SetSelection(len, len);
     }
     return true;
 }

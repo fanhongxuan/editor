@@ -20,6 +20,7 @@ wxDECLARE_APP(MyApp);
 
 class MySearchHandler;
 class MyAgSearchHandler;
+class MySymbolSearchHandler;
 class wxSearchResult;
 class Edit;
 class wxStyledTextEvent;
@@ -72,6 +73,8 @@ public:
     void ChangeToBuffer(Edit *pEdit, int pos);
     void OpenFile(const wxString &name, const wxString &path, bool bActive, int line = -1);
 
+    bool ShowMiniBuffer(const wxString &name, bool bHide = false);
+    
     void OnShowSymbolList(wxCommandEvent &evt);
     void OnShowSearch(wxCommandEvent &evt);
     void OnShowFindFiles(wxCommandEvent &evt);
@@ -99,6 +102,7 @@ private:
     wxSearchFile *mpSearch;
     MySearchHandler *mpSearchHandler;
     MyAgSearchHandler *mpAgSearchHandler;
+    MySymbolSearchHandler *mpSymbolSearchHandler;
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
     wxAgSearch *mpAgSearch;
