@@ -17,7 +17,7 @@ wxBufferSelect::~wxBufferSelect()
     
 }
 
-bool wxBufferSelect::StartSearch(const wxString &input)
+bool wxBufferSelect::StartSearch(const wxString &input, const wxString &fullInput)
 {
     std::map<wxString, wxString>::iterator it = mBufferList.begin();
     while(it != mBufferList.end()){

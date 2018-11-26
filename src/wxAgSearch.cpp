@@ -126,7 +126,7 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
     return true;
 }
 
-bool wxAgSearch::StartSearch(const wxString &input)
+bool wxAgSearch::StartSearch(const wxString &input, const wxString &fullInput)
 {
     // here call ag to search the targe dirs and prepare the result.
     if (mTargetDirs.empty()){

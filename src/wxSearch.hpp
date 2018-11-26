@@ -78,7 +78,7 @@ public:
     virtual bool DoStartSearch(const wxString &input);
 
     // the following function need to be impl.
-    virtual bool StartSearch(const wxString &input) = 0;
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput) = 0;
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual wxString GetShortHelp() const;
@@ -107,7 +107,7 @@ class wxSearchDir: public wxSearch
 public:
     wxSearchDir(wxWindow *parent);
     void SetDir(const wxString &dir){mDir = dir;}
-    virtual bool StartSearch(const wxString &input);
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual wxString GetShortHelp() const;
@@ -139,7 +139,7 @@ public:
     void SetCurrentLine(int line);
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
-    virtual bool StartSearch(const wxString &input);
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual int GetPreferedLine(const wxString &input);
@@ -155,7 +155,7 @@ private:
 class wxSearchProject: public wxSearch
 {
 public:
-    virtual bool StartSearch(const wxString &input);
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput);
 };
 
 #endif

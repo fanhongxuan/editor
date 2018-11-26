@@ -19,7 +19,7 @@
 #include <wx/timer.h>
 #include "wxSearch.hpp"
 #include "ce.hpp"
-
+#include "ceUtils.hpp"
 #include <stdio.h>
 
 #include <map>
@@ -139,6 +139,11 @@ public:
         :wxSearchInputCtrlBase(parent, wxID_ANY), 
 		mpParent(parent), mpList(NULL), mpTimer(NULL), mbEmptyUpdate(false), mbSetFocus(false){}
     void SetList(wxSearchListCtrl *pList){mpList = pList;}
+    void Reset()
+    {
+        //mbEmptyUpdate = false;
+        mPrevValue = wxEmptyString;
+    }
     /*
     virtual void SetFocus()
     {
@@ -529,7 +534,7 @@ bool wxSearch::OnKey(wxKeyEvent &evt)
         if (mCurrentLine < 0){
             mCurrentLine = mpList->GetNumberOfLines() - 1;
         }
-        SelectLine(mCurrentLine, key != WXK_UP);
+        SelectLine(mCurrentLine, evt.ControlDown());
         return true;
     }
     else if (key == WXK_DOWN || (key == WXK_RETURN && evt.AltDown())){
@@ -537,7 +542,7 @@ bool wxSearch::OnKey(wxKeyEvent &evt)
         if (mCurrentLine >= mpList->GetNumberOfLines()){
             mCurrentLine = 0;
         }
-        SelectLine(mCurrentLine, key != WXK_DOWN);
+        SelectLine(mCurrentLine, (key == WXK_RETURN && evt.AltDown()) || (key == WXK_DOWN &&evt.ControlDown()));
         return true;
     }
     else if (key == WXK_RETURN && (!evt.ControlDown()) && (!evt.AltDown())){
@@ -592,6 +597,7 @@ void wxSearch::Reset()
             delete pRet;
         }
     }
+    mpInput->Reset();
     mInput = wxEmptyString;
     mCount = 0;
     mpStatus->SetLabel(GetShortHelp());
@@ -680,7 +686,7 @@ bool wxSearch::DoStartSearch(const wxString &input)
     // wxPrintf("DoStartSearch %s\n", input);
     // note:fanhongxuan@gmail.com
     // when call StartSearch we only use the first minStartLen char.
-    StartSearch(input.substr(0, mMinStartLen));
+    StartSearch(input.substr(0, mMinStartLen), input);
     return true;
 }
 
@@ -862,36 +868,7 @@ bool wxSearch::IsBinaryFile(const wxString &file)
     return false;
 }
 
-static void FindFiles(const wxString &dir, std::vector<wxString> &output)
-{
-    wxDir cwd(dir);
-    if (!cwd.IsOpened()){
-        return;
-    }
-    wxString filename;
-    bool cont = false;
-    cont = cwd.GetFirst(&filename, "*", wxDIR_DIRS | wxDIR_HIDDEN);
-    while(cont){
-        wxString child_dir = cwd.GetNameWithSep() + filename;
-        if (filename != ".git"){
-            FindFiles(child_dir, output);
-        }
-        cont = cwd.GetNext(&filename);
-    }
-
-    cont = cwd.GetFirst(&filename, "*", wxDIR_FILES | wxDIR_HIDDEN);
-    while(cont){
-        // skip the edit temp file like:
-        // test~ (emacs auto save)
-        // #test# (emacs auto save)
-        if ((!wxSearch::IsTempFile(filename)) && (!wxSearch::IsBinaryFile(filename))){
-            output.push_back(cwd.GetNameWithSep() + filename);
-        }
-        cont = cwd.GetNext(&filename);
-    }
-}
-
-bool wxSearchDir::StartSearch(const wxString &input)
+bool wxSearchDir::StartSearch(const wxString &input, const wxString &fullInput)
 {
     // todo:fanhongxuan@gmail.com
     // skip some dir, like the .git
@@ -911,7 +888,7 @@ bool wxSearchDir::StartSearch(const wxString &input)
     // skip the .git dir
     // wxDir::GetAllFiles(cwd, &files, filter);
     std::vector<wxString> files;
-    FindFiles(cwd, files);
+    ceFindFiles(cwd, files);
     
     for (i = 0; i < files.size(); i++){
         path = files[i];
@@ -999,7 +976,7 @@ wxSearchFileResult::wxSearchFileResult(const wxString &content, const wxString &
 {
 }
 
-bool wxSearchFile::StartSearch(const wxString &input)
+bool wxSearchFile::StartSearch(const wxString &input, const wxString &fullInput)
 {
     wxMyTimeTrace trace("wxSearchFile::StartSearch");
     wxString niddle = input.Lower();

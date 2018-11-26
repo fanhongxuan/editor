@@ -7,7 +7,7 @@ class wxAgSearch: public wxSearchFile
 public:
     wxAgSearch(wxWindow *pSearch);
     ~wxAgSearch();
-    virtual bool StartSearch(const wxString &input);
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
     
     bool SetSearchDirs(const std::set<wxString> &input);

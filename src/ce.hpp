@@ -21,6 +21,7 @@ wxDECLARE_APP(MyApp);
 class MySearchHandler;
 class MyAgSearchHandler;
 class MySymbolSearchHandler;
+class MyRefSearchHandler;
 class wxSearchResult;
 class Edit;
 class wxStyledTextEvent;
@@ -28,6 +29,7 @@ class wxSearchFile;
 class wxSearchDir;
 class wxAgSearch;
 class wxSymbolSearch;
+class ceRefSearch;
 class wxBufferSelect;
 class wxExplorer;
 class wxWorkSpace;
@@ -52,6 +54,8 @@ class MyFrame : public wxFrame
         ID_ShowWorkSpace,
         ID_ShowAgSearch,
         ID_ShowSymbolList,
+        ID_ShowReference,
+        ID_GotoDefine,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -75,6 +79,8 @@ public:
 
     bool ShowMiniBuffer(const wxString &name, bool bHide = false);
     
+    void OnGotoDefine(wxCommandEvent &evt);
+    void OnShowReference(wxCommandEvent &evt);
     void OnShowSymbolList(wxCommandEvent &evt);
     void OnShowSearch(wxCommandEvent &evt);
     void OnShowFindFiles(wxCommandEvent &evt);
@@ -103,6 +109,8 @@ private:
     MySearchHandler *mpSearchHandler;
     MyAgSearchHandler *mpAgSearchHandler;
     MySymbolSearchHandler *mpSymbolSearchHandler;
+    MyRefSearchHandler *mpRefSearchHandler;
+    ceRefSearch *mpRefSearch;
     wxSearchDir *mpSearchDir;
     wxBufferSelect *mpBufferSelect;
     wxAgSearch *mpAgSearch;

@@ -10,7 +10,7 @@ class wxBufferSelect: public wxSearch
 public:
     wxBufferSelect(wxWindow *pParent);
     virtual ~wxBufferSelect();
-    virtual bool StartSearch(const wxString &input);
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
 
     bool AddBuffer(const wxString &name, const wxString &path);

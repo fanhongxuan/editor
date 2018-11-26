@@ -9,7 +9,7 @@ public:
     wxSymbolSearch(wxWindow *parent);
     ~wxSymbolSearch();
     
-    virtual bool StartSearch(const wxString &input);
+    virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
 private:
     bool OnResult(const wxString &cmd, const wxString &line);

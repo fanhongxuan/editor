@@ -354,7 +354,7 @@ const StyleInfo g_StylePrefs [] = {
 
     // mySTC_TYPE_PREPROCESSOR
     {wxT("Preprocessor"),
-     wxT("GREY"), wxT("WHITE"),
+     wxT("BLUE"), wxT("WHITE"),
      wxT(""), 10, 0, 0},
 
     // mySTC_TYPE_SCRIPT

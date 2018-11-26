@@ -4,5 +4,6 @@
 #include <vector>
 int ceSyncExec(const wxString &input, std::vector<wxString> &line);
 int ceSplitString(const wxString &input, std::vector<wxString> &output, const wxString& sep = " ", bool allowempty = false);
+void ceFindFiles(const wxString &dir, std::vector<wxString> &output);
 wxString ceGetExecPath();
 #endif

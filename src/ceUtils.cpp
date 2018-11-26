@@ -1,5 +1,7 @@
 #include "ceUtils.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
+#include <wx/dir.h>
+#include "wxSearch.hpp"
 #ifdef WIN32
 #include <Windows.h>
 #else
@@ -123,4 +125,33 @@ wxString ceGetExecPath()
         path = path.substr(0, pos);
     }
     return path;
+}
+
+void ceFindFiles(const wxString &dir, std::vector<wxString> &output)
+{
+    wxDir cwd(dir);
+    if (!cwd.IsOpened()){
+        return;
+    }
+    wxString filename;
+    bool cont = false;
+    cont = cwd.GetFirst(&filename, "*", wxDIR_DIRS | wxDIR_HIDDEN);
+    while(cont){
+        wxString child_dir = cwd.GetNameWithSep() + filename;
+        if (filename != ".git"){
+            ceFindFiles(child_dir, output);
+        }
+        cont = cwd.GetNext(&filename);
+    }
+
+    cont = cwd.GetFirst(&filename, "*", wxDIR_FILES | wxDIR_HIDDEN);
+    while(cont){
+        // skip the edit temp file like:
+        // test~ (emacs auto save)
+        // #test# (emacs auto save)
+        if ((!wxSearch::IsTempFile(filename)) && (!wxSearch::IsBinaryFile(filename))){
+            output.push_back(cwd.GetNameWithSep() + filename);
+        }
+        cont = cwd.GetNext(&filename);
+    }
 }

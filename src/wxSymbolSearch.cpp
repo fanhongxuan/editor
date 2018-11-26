@@ -24,6 +24,9 @@ static const wxString &getFullTypeName(const wxString &input)
         theTypeMaps["c"] = "Class";
         theTypeMaps["e"] = "Enum";
         theTypeMaps["n"] = "Namespace";
+        theTypeMaps["s"] = "Struct";
+        theTypeMaps["t"] = "Typedef";
+        theTypeMaps["g"] = "Global";
     }
     std::map<wxString, wxString>::iterator it = theTypeMaps.find(input);
     if (it != theTypeMaps.end()){
@@ -89,7 +92,7 @@ static wxString findCtags()
     return ret;
 }
 
-bool wxSymbolSearch::StartSearch(const wxString &input)
+bool wxSymbolSearch::StartSearch(const wxString &input, const wxString &fullInput)
 {
     // call ctags to generate the tags info and store it.
     wxPrintf("wxSymbolSearch:StartSearch<%s>\n", input);
