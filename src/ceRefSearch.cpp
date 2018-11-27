@@ -3,13 +3,13 @@
 #include <wx/filename.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 ceRefSearch::ceRefSearch(wxWindow *parent)
-:wxSearchFile(parent), mbHasRef(true)
+:wxSearchFile(parent), mbHasRef(true), mbGrep(false)
 {
     SetMaxCandidate(10000);
 }
 
 #ifdef WIN32
-static wxString buildGlobalCmdMSW(const wxString &input, const wxString &dir, bool hasRef)
+static wxString buildGlobalCmd(const wxString &input, const wxString &dir, const wxString &opt)
 {
     wxString ret, volume;
     wxFileName::SplitPath(dir, &volume, NULL, NULL, NULL);
@@ -21,17 +21,14 @@ static wxString buildGlobalCmdMSW(const wxString &input, const wxString &dir, bo
     ret += ": && ";
     ret += ceGetExecPath();
     ret += "\\ext\\global.exe -x ";
-    if (hasRef){
-        ret += " -r ";
-    }
-    else{
-        ret += " -d ";
-    }
+    ret += " ";
+    ret += opt;
+    ret += " ";
     ret += input;
     return ret;
 }
 #else
-static wxString buildGlobalCmd(const wxString &input, const wxString &dir, bool hasRef)
+static wxString buildGlobalCmd(const wxString &input, const wxString &dir, const wxString &opt)
 {
     wxString ret = "cd ";
     ret += dir;
@@ -39,12 +36,9 @@ static wxString buildGlobalCmd(const wxString &input, const wxString &dir, bool 
     ret += ceGetExecPath();
     ret += "/ext/global";
     ret += " -x ";
-    if (hasRef){
-        ret += " -r ";
-    }
-    else{
-        ret += " -d ";
-    }
+    ret += " ";
+    ret += opt;
+    ret += " ";
     ret += input; 
     return ret;
 }
@@ -58,11 +52,14 @@ wxString ceRefSearch::GetSummary(const wxString &input, int matchCount)
         dir += *(mTagDir.begin());
         dir += "\'";
     }
-    if (mbHasRef){
-        return wxString::Format(wxT("Find \'%s\' in %s, %d match"), input, dir, matchCount);
+    if (mbGrep){
+        return wxString::Format(wxT("Grep '%s' in %s, %d match"), input, dir, matchCount);
+    }
+    else if (mbHasRef){
+        return wxString::Format(wxT("Find '%s' in %s, %d match"), input, dir, matchCount);
     }
     else{
-        return wxString::Format(wxT("Find defination of \'%s\' in %s, %d match"), input, dir, matchCount);
+        return wxString::Format(wxT("Find defination of '%s' in %s, %d match"), input, dir, matchCount);
     }
 }
 
@@ -79,21 +76,18 @@ bool ceRefSearch::StartSearch(const wxString &input, const wxString &fullInput)
     while(it != mTagDir.end()){
         std::vector<wxString> outputs;
         wxString cmd;
-#ifdef WIN32
-        cmd = buildGlobalCmdMSW(fullInput, (*it), false);
-#else
-        cmd = buildGlobalCmd(fullInput, (*it), false);
-#endif
+        if (mbGrep){
+            cmd = buildGlobalCmd(fullInput, (*it), "-g");
+        }
+        else{
+            cmd = buildGlobalCmd(fullInput, (*it), "-d");
+        }
         ceSyncExec(cmd, outputs);
         for (int i = 0; i < outputs.size(); i++){
             ParseLine(outputs[i], (*it));
         }
-        if (mbHasRef){
-#ifdef WIN32
-            cmd = buildGlobalCmdMSW(fullInput, (*it), true);
-#else
-            cmd = buildGlobalCmd(fullInput, (*it), true);
-#endif            
+        if ((!mbGrep) && mbHasRef){
+            cmd = buildGlobalCmd(fullInput, (*it), "-r");
             outputs.clear();
             ceSyncExec(cmd, outputs);
             for (int i = 0; i < outputs.size(); i++){
@@ -112,7 +106,7 @@ bool ceRefSearch::StopSearch()
 
 int ceRefSearch::GetPreferedLine(const wxString &input)
 {
-    if (mbHasRef){
+    if (mbHasRef || mbGrep){
         return -1;
     }
     return wxSearchFile::GetPreferedLine(input);

@@ -15,10 +15,12 @@ public:
     virtual int GetPreferedLine(const wxString &input);
     void SetTagDir(const std::set<wxString> &tagDir){mTagDir = tagDir;}
     void SetHasRef(bool bHasRef){mbHasRef = bHasRef;}
+    void SetGrep(bool bGrep){mbGrep = bGrep;}
 private:
     bool ParseLine(const wxString &line, const wxString &path);
 private:
     bool mbHasRef;
+    bool mbGrep;
     std::set<wxString> mTagDir;
 };
 

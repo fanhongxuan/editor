@@ -56,6 +56,7 @@ class MyFrame : public wxFrame
         ID_ShowSymbolList,
         ID_ShowReference,
         ID_GotoDefine,
+        ID_ShowGrepText,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -81,6 +82,7 @@ public:
     
     void OnGotoDefine(wxCommandEvent &evt);
     void OnShowReference(wxCommandEvent &evt);
+    void OnShowGrepText(wxCommandEvent &evt);
     void OnShowSymbolList(wxCommandEvent &evt);
     void OnShowSearch(wxCommandEvent &evt);
     void OnShowFindFiles(wxCommandEvent &evt);
@@ -99,7 +101,7 @@ public:
     void OnFileModified(wxStyledTextEvent &evt);
     
 private:
-    void ShowReference(bool hasRef);
+    void ShowReference(int type);
     void CreateAcceTable();
     void SwitchFocus();
     void SaveInfo();

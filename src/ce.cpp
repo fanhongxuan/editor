@@ -84,6 +84,7 @@ EVT_MENU(ID_ShowWorkSpace, MyFrame::OnShowWorkSpace)
 EVT_MENU(ID_ShowAgSearch, MyFrame::OnShowAgSearch)
 EVT_MENU(ID_ShowSymbolList, MyFrame::OnShowSymbolList)
 EVT_MENU(ID_ShowReference, MyFrame::OnShowReference)
+EVT_MENU(ID_ShowGrepText, MyFrame::OnShowGrepText)
 EVT_MENU(ID_GotoDefine, MyFrame::OnGotoDefine)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
@@ -167,7 +168,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  13  
+#define ACCE_COUNT  14  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[ 1].Set(wxACCEL_CTRL, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -182,6 +183,7 @@ void MyFrame::CreateAcceTable()
     e[10].Set(wxACCEL_ALT,  (int)'S', ID_ShowSymbolList); // ALT+S to show the symbol list
     e[11].Set(wxACCEL_ALT,  (int)'R', ID_ShowReference); // ALT+R to show reference of current symbol
     e[12].Set(wxACCEL_ALT,  (int)'.', ID_GotoDefine); // ALT+. to show the define of current symbol
+    e[13].Set(wxACCEL_ALT,  (int)'T', ID_ShowGrepText); // ALT+T to grep the currenty symbol
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -843,15 +845,20 @@ void MyFrame::OnSaveCurrentBuffer(wxCommandEvent &evt)
 
 void MyFrame::OnGotoDefine(wxCommandEvent &evt)
 {
-    ShowReference(false);
+    ShowReference(0);
 }
 
 void MyFrame::OnShowReference(wxCommandEvent &evt)
 {
-    ShowReference(true);
+    ShowReference(1);
 }
 
-void MyFrame::ShowReference(bool hasRef)
+void MyFrame::OnShowGrepText(wxCommandEvent &evt)
+{
+    ShowReference(2);
+}
+
+void MyFrame::ShowReference(int type)
 {
 #define VALID_CHAR_WHEN_SEARCH_REF "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"        
     wxString value;
@@ -887,7 +894,18 @@ void MyFrame::ShowReference(bool hasRef)
         if (NULL != mpWorkSpace){
             std::set<wxString> dirs;
             mpWorkSpace->GetDirs(dirs);
-            mpRefSearch->SetHasRef(hasRef);
+            if (type == 0){ // define
+                mpRefSearch->SetGrep(false);
+                mpRefSearch->SetHasRef(false);
+            }
+            else if (type == 1){ // ref
+                mpRefSearch->SetGrep(false);
+                mpRefSearch->SetHasRef(true);
+            }
+            else{
+                mpRefSearch->SetGrep(true);
+                mpRefSearch->SetHasRef(false);
+            }
             mpRefSearch->SetTagDir(dirs);
         }
         if (!value.empty()){
