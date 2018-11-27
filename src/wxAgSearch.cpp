@@ -132,6 +132,9 @@ wxString wxAgSearch::GetSummary(const wxString &input, int matchCount)
     if (mTargetDirs.size() == 1){
         dir = "'" + *mTargetDirs.begin() + "'";
     }
+    else if (mTargetDirs.empty()){
+        dir = "'" + wxGetCwd() + "'";
+    }
     return wxString::Format(wxT("Find '%s' in %s, %d%s match"), input, dir, matchCount,
                             matchCount >= GetMaxCandidate() ? "+" : "");
 }

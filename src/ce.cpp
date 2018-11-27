@@ -171,7 +171,7 @@ void MyFrame::CreateAcceTable()
 #define ACCE_COUNT  14  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
-    e[ 1].Set(wxACCEL_CTRL, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
+    e[ 1].Set(wxACCEL_ALT, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
     e[ 2].Set(wxACCEL_CTRL, (int)'K', ID_KillCurrentBuffer); // CTRL+K (Hide Current Pane, If in buffer list, mean kill that buffer)
     e[ 3].Set(wxACCEL_CTRL, (int)'1', ID_ShowOneWindow); // CTRL+1 (Hide all the pane except BufferList)
     e[ 4].Set(wxACCEL_CTRL, (int)'B', ID_ShowBufferSelect); // CTRL+B (SwitchBuffer)

@@ -133,11 +133,10 @@ private:
     wxTimer *mpTimer;
     wxString mPrevValue;
     bool mbEmptyUpdate;
-	bool mbSetFocus;
 public:
     wxSearchInputCtrl(wxSearch *parent)
         :wxSearchInputCtrlBase(parent, wxID_ANY), 
-		mpParent(parent), mpList(NULL), mpTimer(NULL), mbEmptyUpdate(false), mbSetFocus(false){}
+		mpParent(parent), mpList(NULL), mpTimer(NULL), mbEmptyUpdate(false){}
     void SetList(wxSearchListCtrl *pList){mpList = pList;}
     void Reset()
     {
