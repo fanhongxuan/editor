@@ -9,6 +9,7 @@
 #include <wx/config.h>
 #include <wx/dirdlg.h>
 #include <wx/msgdlg.h>
+#include <wx/busyinfo.h>
 #include "ceUtils.hpp"
 #include "ce.hpp"
 
@@ -102,10 +103,6 @@ static void AddDir(const wxString &dir, wxWorkSpace &workspace, wxTreeItemId par
     }
 }
 
-// todo:fanhongxuan@gmail.com
-// handle the active event to open related dir
-// right key to select the parent and collapse it
-// left key to expand the select one
 wxBEGIN_EVENT_TABLE(wxWorkSpace, wxTreeCtrl)
 EVT_TREE_ITEM_ACTIVATED(wxID_ANY, wxWorkSpace::OnItemActivated)
 EVT_TREE_SEL_CHANGED(wxID_ANY, wxWorkSpace::OnSelectionChanged)
@@ -132,13 +129,6 @@ wxWorkSpace::wxWorkSpace(wxWindow *parent)
     CreateImageList();
     wxConfig config("CE");
     wxTreeItemId root = AddRoot(wxT("WorkSpace"));
-    
-    mTagDir = ceGetExecPath();
-#ifdef WIN32
-    mTagDir += "\\tags\\";
-#else
-    mTagDir += "/tags/";
-#endif
     
     int i = 0;
     while(1){
@@ -181,60 +171,74 @@ bool wxWorkSpace::UpdateTagForFile(const wxString &file)
 {
     // first check if this file is belong to current workspace.
     // use gtags --single-update file to update the current file.
+    std::set<wxString>::iterator it = mDirs.begin();
+    while(it != mDirs.end()){
+        if (file.find(*it) == 0){
+            // belong to this dir.
+            wxString cmd;
+#ifdef WIN32
+            cmd = "cmd.exe /c \" cd ";
+            cmd += (*it);
+            cmd += " && ";
+            wxString volume;
+            wxFileName::SplitPath((*it), &volume, NULL, NULL, NULL);
+            cmd += volume;
+            cmd += ": && ";
+            cmd += ceGetExecPath();
+            cmd += "\\ext\\gtags.exe --single-update ";
+            cmd += file;
+            cmd += "\"";
+#else
+            cmd += "cd ";
+            cmd += (*it);
+            cmd += " && ";
+            cmd += ceGetExecPath();
+            cmd += "/ext/gtags --single-update ";
+            cmd += file;
+#endif
+            std::vector<wxString> outputs;
+            ceSyncExec(cmd, outputs);
+        }
+        it++;
+    }
     return true;
+}
+
+void wxWorkSpace::GenerateGTagFile(const wxString &dir)
+{
+    wxString msg = wxString::Format(wxT("Generate tag file for %s, please waiting..."), dir);
+    wxBusyInfo busy(msg);
+    wxString cmd;
+#ifdef WIN32
+    cmd = "cmd.exe /c \" cd ";
+    cmd += dir;
+    cmd += " && ";
+    wxString volume;
+    wxFileName::SplitPath(dir, &volume, NULL, NULL, NULL);
+    cmd += volume;
+    cmd += ": && ";
+    cmd += ceGetExecPath();
+    cmd += "\\ext\\gtags.exe\"";
+#else
+    cmd = "cd ";
+    cmd += dir;
+    cmd += " && ";
+    cmd += ceGetExecPath();
+    cmd += "/ext/gtags";
+#endif
+    wxPrintf("exec:<%s>\n", cmd);
+    std::vector<wxString> outputs;
+    ceSyncExec(cmd, outputs);
+    
 }
 
 bool wxWorkSpace::GenerateTagFile()
 {
-    // call gtags to generate the tags file.
-    // 1, first, iterator all the file add append to the /tags/filelist, must be full path
-    std::vector<wxString> fileList;
-    int i = 0;
     std::set<wxString>::iterator it = mDirs.begin();
     while (it != mDirs.end()){
-        ceFindFiles(*it, fileList);
+        GenerateGTagFile(*it);
         it++;
     }
-    
-    it = mFiles.begin();
-    while (it != mFiles.end()){
-        fileList.push_back(*it);
-        it++;
-    }
-    
-    wxString fileListName;
-    wxString gtags_exec;
-    wxString outputDir;
-    
-    fileListName = ceGetExecPath();
-    gtags_exec = fileListName;
-    outputDir = fileListName;
-#ifdef WIN32
-    gtags_exec += "\\ext\\gtags.exe";
-    outputDir += "\\tags\\";
-    fileListName += "\\tags\\filelist.txt";
-#else
-    gtags_exec += "/ext/gtags";
-    outputDir += "/tags/";
-    fileListName += "/tags/filelist.txt";
-#endif
-
-    wxFile list(fileListName, wxFile::write);
-    if (!list.IsOpened()){
-        return false;
-    }
-    char newline = '\n';
-    for (i = 0; i < fileList.size(); i++){
-        list.Write(fileList[i]);
-        list.Write(&newline, 1);
-    }
-    list.Close();
-    // 2, use gtags -O to generate the tags
-    wxString cmd = "cd / && ";
-    cmd += gtags_exec + " -O " + outputDir + " -f " + fileListName;
-    wxPrintf("exec:<%s>\n", cmd);
-    std::vector<wxString> outputs;
-    ceSyncExec(cmd, outputs);
     return true;
 }
     
@@ -262,6 +266,7 @@ void wxWorkSpace::OnAddDirToWorkSpace(wxCommandEvent &evt)
         return;
     }
     AddDirToWorkSpace(dir);
+    GenerateGTagFile(dir);
 }
 
 void wxWorkSpace::OnGenerateTag(wxCommandEvent &evt)
@@ -358,12 +363,12 @@ void wxWorkSpace::OnRightDown(wxMouseEvent &evt)
     wxMenu menu;
     wxTreeItemId id = GetFocusedItem();
     menu.Append(workspace_id_add_dir, wxT("Add Dir"));
-    menu.Append(workspace_id_generate_tag, wxT("Generate Tag Database"));
     if (id.IsOk() && GetItemParent(id) == GetRootItem()){
         // note:fanhongxuan@gmail.com
         // only the children of root can be delete
         menu.Append(workspace_id_del_dir, wxT("Del Dir"));
     }
+    menu.Append(workspace_id_generate_tag, wxT("Update Database"));
     PopupMenu(&menu);
 }
 

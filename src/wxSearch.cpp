@@ -144,22 +144,6 @@ public:
         //mbEmptyUpdate = false;
         mPrevValue = wxEmptyString;
     }
-    /*
-    virtual void SetFocus()
-    {
-		bool hasFocus = HasFocus();
-        wxSearchInputCtrlBase::SetFocus();
-        wxPrintf("wxSearchInputCtrl SetFocus\n");
-#ifdef WIN32
-        if ((!hasFocus) && NULL != mpParent){
-			if (mbSetFocus == false){
-				mbSetFocus = true;
-				mpParent->UpdateSearchList(GetValue());
-				mbSetFocus = false;
-			}
-        }
-#endif        
-    }*/
     
     virtual bool ProcessEvent(wxEvent &evt)
     {
@@ -557,7 +541,7 @@ bool wxSearch::OnKey(wxKeyEvent &evt)
 
 wxString wxSearch::GetSummary(const wxString &input, int matchCount)
 {
-    return wxString::Format("Search %s, total %d match", input, matchCount);
+    return wxString::Format("Find '%s', %d match", input, matchCount);
 }
 
 wxString wxSearch::GetShortHelp() const
@@ -683,6 +667,7 @@ bool wxSearch::DoStartSearch(const wxString &input)
             mHandlers[i]->OnPrepareResult(input, mResults);
         }
     }
+    mpStatus->SetLabel(wxT("Searching...."));
     // wxPrintf("DoStartSearch %s\n", input);
     // note:fanhongxuan@gmail.com
     // when call StartSearch we only use the first minStartLen char.
@@ -716,7 +701,7 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
             return false;
         }
         else{
-            wxPrintf("UpdateSearchList when mMinStartlen is 0\n");
+            wxPrintf("UpdateSearchList when mMinStartLen is 0\n");
         }
     }
     std::vector<wxString> rets;
@@ -745,7 +730,7 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
         }
     }
     
-    if (!mbStartSearch){
+    if (!mbStartSearch || mResults.empty()){
         Reset(); // make sure the status has been reset.
         mbStartSearch = true;
         DoStartSearch(input);
@@ -825,8 +810,15 @@ wxSearchDir::wxSearchDir(wxWindow *parent)
 
 wxString wxSearchDir::GetSummary(const wxString &input, int matchCount)
 {
-    wxString cwd = wxGetCwd();
-    wxString ret = wxString::Format("Search '%s' in '%s', total %d match", input, cwd, matchCount);
+    wxString cwd;
+    if (!mDirs.empty()){
+        cwd = "'" + *mDirs.begin() + "'";
+    }
+    if (mDirs.size() > 1){
+        cwd += "...";
+    }
+    wxString ret = wxString::Format("Find '%s' in %s, %d%s match", input, cwd, matchCount, 
+                                    matchCount >= GetMaxCandidate() ? "+" :"");
     return ret;
 }
 
@@ -871,35 +863,49 @@ bool wxSearch::IsBinaryFile(const wxString &file)
 bool wxSearchDir::StartSearch(const wxString &input, const wxString &fullInput)
 {
     // todo:fanhongxuan@gmail.com
-    // skip some dir, like the .git
     // skip all the file and dir list in a file named .ignore
-
-    // wxMyTimeTrace trace("StartSearch");
-    // wxArrayString files;
-    // note:fanhongxuan@gmail.com
-    // wxDir::GetAllFiles default is casesensitive
-    wxString filter = "*.*";
-    wxString path, name, cwd = wxGetCwd();
     int i = 0;
-    if (cwd.length()!= 0 && cwd[cwd.length()-1] != '/'){
-        cwd += "/";
-    }
-    // todo:fanhongxuan@gmail.com
-    // skip the .git dir
-    // wxDir::GetAllFiles(cwd, &files, filter);
     std::vector<wxString> files;
-    ceFindFiles(cwd, files);
-    
-    for (i = 0; i < files.size(); i++){
-        path = files[i];
-        int pos = path.Find(cwd);
-        if (path.npos != pos){
-            name = path.substr(pos + cwd.length());
+    if (mDirs.empty()){
+        mDirs.insert(wxGetCwd());
+    }
+    std::set<wxString>::iterator it = mDirs.begin();
+    while(it != mDirs.end()){
+        files.clear();
+        wxString path, name, cwd = *it;
+        if (cwd.empty()){
+            continue;
         }
-        else{
-            name = path;
+        ceFindFiles(cwd, files);
+        
+        if (mDirs.size() > 1){
+            int pos = cwd.find_last_of("/\\");
+            if (pos != cwd.npos){
+                cwd = cwd.substr(0, pos);
+            }
         }
-        AddSearchResult(new wxSearchResult(name, path));
+#ifdef WIN32
+        if (cwd[cwd.size() - 1] != '\\'){
+            cwd += "\\";
+        }
+#else
+        if (cwd[cwd.size() - 1] != '/'){
+            cwd += "/";
+        }
+#endif
+        
+        for (i = 0; i < files.size(); i++){
+            path = files[i];
+            int pos = path.Find(cwd);
+            if (path.npos != pos){
+                name = path.substr(pos + cwd.length());
+            }
+            else{
+                name = path;
+            }
+            AddSearchResult(new wxSearchResult(name, path));
+        }
+        it++;
     }
     return true;
 }
@@ -912,7 +918,7 @@ bool wxSearchDir::StopSearch()
 }
 
 wxSearchFile::wxSearchFile(wxWindow *parent)
-    :wxSearch(parent), mCurLine(0), mpEdit(NULL)
+    :wxSearch(parent), mpEdit(NULL)
 {
 }
 
@@ -926,12 +932,16 @@ int wxSearchFile::GetPreferedLine(const wxString &input)
     if (NULL != mpEdit){
         distance = mpEdit->GetLineCount();
     }
+	int CurLine = 0;
+	if (NULL != mpEdit){
+		CurLine = mpEdit->GetCurrentLine();
+	}
     for (i = 0; i < mResults.size(); i++){
         if (mResults[i]->IsMatch() || (mKeys.empty())){
             wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(mResults[i]);
             if (NULL != pRet){
                 // if this is near to the mCurLine, store it
-                int curDist = pRet->GetLine() - mCurLine;
+                int curDist = pRet->GetLine() - CurLine;
                 if (curDist < 0){ curDist = -curDist;}
                 if (curDist < distance){
                     distance = curDist;
@@ -943,18 +953,6 @@ int wxSearchFile::GetPreferedLine(const wxString &input)
     }
     wxPrintf("GetPreferedLine:%d\n", bestLine);
     return bestLine;
-}
-
-void wxSearchFile::SetCurrentLine(int line)
-{
-    mCurLine = line;
-    // int i = 0;
-    // for (i = 0; i < mResults.size(); i++){
-    //     // todo:fanhongxuan@gmail.com
-    //     // update the mCurentLine of wxSearch
-    //     // find the respond mResults according the line.
-    //     // but the mResults maybe filted again
-    // }
 }
 
 void wxSearchFile::SetFileName(const wxString &fileName)
@@ -1013,7 +1011,8 @@ bool wxSearchFile::StopSearch()
 
 wxString wxSearchFile::GetSummary(const wxString &input, int matchCount)
 {
-    wxString ret = wxString::Format("Search %s in %s, total %d match", input, mFileName, matchCount);
+    wxString ret = wxString::Format("Find '%s' in '%s', %d%s match", input, mFileName, matchCount, 
+                                    matchCount >= GetMaxCandidate() ? "+" : "");
     return ret;
 }
 

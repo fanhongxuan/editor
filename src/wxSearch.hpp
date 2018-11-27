@@ -5,6 +5,7 @@
 #include <wx/panel.h>
 #include <wx/richtext/richtextctrl.h>
 #include <map>
+#include <set>
 class wxStaticText;
 class wxSearchResult;
 class wxKeyEvent;
@@ -63,7 +64,9 @@ public:
     void OnPercent(uint8_t percent); // update the search percent, when the percent is 100, mean the search is finished.
                                      // when the percent is 255, mean the percent is unknown
     bool SetMinStartLen(int minStartLen);// if the input len is less than the minStartLen, will not trigger the search
+    int GetMinStartLen() const{return mMinStartLen;}
     bool SetMaxCandidate(int maxCandidate); // if the candidate count is more than maxCandidate, only display maxCandidate.
+    int GetMaxCandidate() const{return mMaxCandidate;}
     bool AddHandler(wxSearchHandler *pHandler);
     bool DelHandler(wxSearchHandler *pHandler);
     bool SetInput(const wxString &input); // set the default input value.    
@@ -106,14 +109,14 @@ class wxSearchDir: public wxSearch
 {
 public:
     wxSearchDir(wxWindow *parent);
-    void SetDir(const wxString &dir){mDir = dir;}
+    void SetDirs(const std::set<wxString> &dirs){mDirs = dirs;}
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual wxString GetShortHelp() const;
-    virtual wxString GetHelp() const;
+    virtual wxString GetHelp() const;    
 private:
-    wxString mDir;
+    std::set<wxString> mDirs;
 };
 
 // search in a local file
@@ -136,7 +139,6 @@ public:
     wxString GetFileName() const {return mFileName;}
     void SetEdit(Edit *pEdit);
     void SetBuffer(const wxString &buffer);
-    void SetCurrentLine(int line);
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);

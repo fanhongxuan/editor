@@ -10,11 +10,20 @@ wxBufferSelect::wxBufferSelect(wxWindow *pParent)
     :wxSearch(pParent),mMaxRecentFileCounts(100)
 {
     SetMinStartLen(0);
+    SetMaxCandidate(1000);
 }
 
 wxBufferSelect::~wxBufferSelect()
 {
     
+}
+
+wxString wxBufferSelect::GetSummary(const wxString &input, int matchCount)
+{
+    if (input.find_first_not_of("\r\n\t ") == input.npos){
+        return wxString::Format(wxT("Total open %ld files"), mBufferList.size());
+    }
+    return wxString::Format(wxT("Find '%s', %d%s match"), input, matchCount, matchCount >= GetMaxCandidate() ? "+":"");
 }
 
 bool wxBufferSelect::StartSearch(const wxString &input, const wxString &fullInput)
@@ -29,6 +38,12 @@ bool wxBufferSelect::StartSearch(const wxString &input, const wxString &fullInpu
 
 bool wxBufferSelect::StopSearch()
 {
+    return true;
+}
+
+bool wxBufferSelect::ClearBuffer()
+{
+    mBufferList.clear();
     return true;
 }
 

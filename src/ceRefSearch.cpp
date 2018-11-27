@@ -1,39 +1,106 @@
 #include "ceRefSearch.hpp"
 #include "ceUtils.hpp"
+#include <wx/filename.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 ceRefSearch::ceRefSearch(wxWindow *parent)
-:wxSearchFile(parent)
+:wxSearchFile(parent), mbHasRef(true)
 {
+    SetMaxCandidate(10000);
 }
 
-// note:fanhongxuan@gmail.com
-// need to support more than one tag dir
+#ifdef WIN32
+static wxString buildGlobalCmdMSW(const wxString &input, const wxString &dir, bool hasRef)
+{
+    wxString ret, volume;
+    wxFileName::SplitPath(dir, &volume, NULL, NULL, NULL);
+    ret = "cmd /c \"";
+    ret += " cd ";
+    ret += dir;
+    ret += " && ";
+    ret += volume; 
+    ret += ": && ";
+    ret += ceGetExecPath();
+    ret += "\\ext\\global.exe -x ";
+    if (hasRef){
+        ret += " -r ";
+    }
+    else{
+        ret += " -d ";
+    }
+    ret += input;
+    return ret;
+}
+#else
+static wxString buildGlobalCmd(const wxString &input, const wxString &dir, bool hasRef)
+{
+    wxString ret = "cd ";
+    ret += dir;
+    ret += " && ";
+    ret += ceGetExecPath();
+    ret += "/ext/global";
+    ret += " -x ";
+    if (hasRef){
+        ret += " -r ";
+    }
+    else{
+        ret += " -d ";
+    }
+    ret += input; 
+    return ret;
+}
+#endif
+
+wxString ceRefSearch::GetSummary(const wxString &input, int matchCount)
+{
+    wxString dir = "workspace";
+    if (mTagDir.size() == 1){
+        dir = "\'";
+        dir += *(mTagDir.begin());
+        dir += "\'";
+    }
+    if (mbHasRef){
+        return wxString::Format(wxT("Find \'%s\' in %s, %d match"), input, dir, matchCount);
+    }
+    else{
+        return wxString::Format(wxT("Find defination of \'%s\' in %s, %d match"), input, dir, matchCount);
+    }
+}
+
 bool ceRefSearch::StartSearch(const wxString &input, const wxString &fullInput)
 {
     if (mTagDir.empty()){
         wxPrintf("Empty tag file\n");
         return false;
     }
-    static wxString global_exec;
-    if (global_exec.empty()){
-        global_exec = ceGetExecPath();
-#ifdef WIN32
-        global_exec += "\\ext\\global.exe";
-#else
-        global_exec += "/ext/global";
-#endif
+
+    // todo:fanhongxuan@gmail.com
+    // if the current has no GTAGS, generate it first.
+    std::set<wxString>::iterator it = mTagDir.begin();
+    while(it != mTagDir.end()){
         std::vector<wxString> outputs;
-        wxString cmd = "GTAGSROOT=\"";
-        cmd += mTagDir + "\" ";
-        cmd += global_exec;
-        cmd += " -x ";
-        cmd += fullInput;
-        wxPrintf("Exec:<%s>\n", cmd);
+        wxString cmd;
+#ifdef WIN32
+        cmd = buildGlobalCmdMSW(fullInput, (*it), false);
+#else
+        cmd = buildGlobalCmd(fullInput, (*it), false);
+#endif
         ceSyncExec(cmd, outputs);
         for (int i = 0; i < outputs.size(); i++){
-            //wxPrintf("outputs[%d]=<%s>\n", i, outputs[i]);
-            ParseLine(outputs[i]);
+            ParseLine(outputs[i], (*it));
         }
+        if (mbHasRef){
+#ifdef WIN32
+            cmd = buildGlobalCmdMSW(fullInput, (*it), true);
+#else
+            cmd = buildGlobalCmd(fullInput, (*it), true);
+#endif            
+            outputs.clear();
+            ceSyncExec(cmd, outputs);
+            for (int i = 0; i < outputs.size(); i++){
+                ParseLine(outputs[i], (*it));
+            }
+        }
+        it++;
     }
     return true;
 }
@@ -43,8 +110,17 @@ bool ceRefSearch::StopSearch()
     return true;
 }
 
-bool ceRefSearch::ParseLine(const wxString &line)
+int ceRefSearch::GetPreferedLine(const wxString &input)
 {
+    if (mbHasRef){
+        return -1;
+    }
+    return wxSearchFile::GetPreferedLine(input);
+}
+
+bool ceRefSearch::ParseLine(const wxString &line, const wxString &path)
+{
+    //wxPrintf("ParseLine:<%s>\n", line);
     std::vector<wxString> outputs;
     ceSplitString(line, outputs, " ");
     if (outputs.size() < 4){
@@ -63,7 +139,7 @@ bool ceRefSearch::ParseLine(const wxString &line)
     value = filename + "(" + lineNumber + "): " + value;
     long iLen = 0;
     lineNumber.ToLong(&iLen);
-    AddSearchResult(new wxSearchFileResult(value, filename, iLen, 0));
+    AddSearchResult(new wxSearchFileResult(value, path + "/"+ filename, --iLen, 0));
     return true;
 }
 

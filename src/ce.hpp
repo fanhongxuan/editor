@@ -97,7 +97,9 @@ public:
     void OnClose(wxCloseEvent &evt);
     void OnFileSaved(wxStyledTextEvent &evt);
     void OnFileModified(wxStyledTextEvent &evt);
+    
 private:
+    void ShowReference(bool hasRef);
     void CreateAcceTable();
     void SwitchFocus();
     void SaveInfo();

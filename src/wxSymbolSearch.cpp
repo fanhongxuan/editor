@@ -6,6 +6,7 @@ wxSymbolSearch::wxSymbolSearch(wxWindow *parent)
 :wxSearchFile(parent)
 {
     SetMinStartLen(0);
+    SetMaxCandidate(1000);
 }
 
 wxSymbolSearch::~wxSymbolSearch()
@@ -90,6 +91,14 @@ static wxString findCtags()
     ret += "/ext/ctags -f - -n ";
 #endif
     return ret;
+}
+
+wxString wxSymbolSearch::GetSummary(const wxString &input, int matchCount)
+{
+    if (input.find_first_not_of("\r\n\t ") == input.npos){
+        return wxString::Format(wxT("Total %d symbols"), matchCount);
+    }
+    return wxSearchFile::GetSummary(input, matchCount);
 }
 
 bool wxSymbolSearch::StartSearch(const wxString &input, const wxString &fullInput)

@@ -2,7 +2,7 @@
 #define __CE_REF_SEARCH_HPP__
 
 #include "wxSearch.hpp"
-
+#include <set>
 class ceRefSearch: public wxSearchFile
 {
 public:
@@ -11,11 +11,15 @@ public:
     
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
-    void SetTagDir(const wxString &tagDir){mTagDir = tagDir;}
+    virtual wxString GetSummary(const wxString &input, int matchCount);
+    virtual int GetPreferedLine(const wxString &input);
+    void SetTagDir(const std::set<wxString> &tagDir){mTagDir = tagDir;}
+    void SetHasRef(bool bHasRef){mbHasRef = bHasRef;}
 private:
-    bool ParseLine(const wxString &line);
+    bool ParseLine(const wxString &line, const wxString &path);
 private:
-    wxString mTagDir;
+    bool mbHasRef;
+    std::set<wxString> mTagDir;
 };
 
 #endif

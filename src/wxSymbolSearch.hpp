@@ -11,6 +11,7 @@ public:
     
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
+    virtual wxString GetSummary(const wxString &input, int matchCount);
 private:
     bool OnResult(const wxString &cmd, const wxString &line);
 };

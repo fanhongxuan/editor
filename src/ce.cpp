@@ -84,6 +84,7 @@ EVT_MENU(ID_ShowWorkSpace, MyFrame::OnShowWorkSpace)
 EVT_MENU(ID_ShowAgSearch, MyFrame::OnShowAgSearch)
 EVT_MENU(ID_ShowSymbolList, MyFrame::OnShowSymbolList)
 EVT_MENU(ID_ShowReference, MyFrame::OnShowReference)
+EVT_MENU(ID_GotoDefine, MyFrame::OnGotoDefine)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
 wxEND_EVENT_TABLE()
@@ -208,7 +209,15 @@ void MyFrame::DoUpdate()
         }
         mpAgSearch->SetSearchDirs(dirs);
         mpAgSearch->SetSearchFiles(files);
-    }        
+    }
+    if (NULL != mpSearchDir){
+        std::set<wxString> dirs;
+        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
+        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
+            mpWorkSpace->GetDirs(dirs);
+        }
+        mpSearchDir->SetDirs(dirs);
+    }
     m_mgr.Update();
 }
 
@@ -239,7 +248,10 @@ public:
     MyRefSearchHandler(MyFrame *frame){mpFrame = frame;}
     void OnSelect(wxSearchResult &ret, bool bActive){
         wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult *>(&ret);
-        if (NULL != pRet){
+        if (NULL != pRet && NULL != mpFrame){
+            if (bActive){
+                mpFrame->ShowMiniBuffer("Reference", true);
+            }
             int line = pRet->GetLine();
             if (!pRet->Target().empty()){
                 mpFrame->OpenFile(pRet->Target(), pRet->Target(), true, line);
@@ -336,6 +348,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
         }
         pEdit->SelectNone();
         mpBufferList->AddPage(pEdit, name, true);
+        mpBufferList->SetPageToolTip(i, path);
         if (NULL != mpBufferSelect){
             mpBufferSelect->AddBuffer(name, path);
         }
@@ -451,6 +464,7 @@ void MyFrame::LoadInfo()
         OnShowAgSearch(evt);
         OnShowSymbolList(evt);
         OnShowBufferSelect(evt);
+        OnShowReference(evt);
         m_mgr.LoadPerspective(perspective);
     }
     else{
@@ -473,12 +487,14 @@ void MyFrame::SetActiveEdit(Edit *pEdit)
         mpSearch->SetFileName(pEdit->GetFilename());
         mpSearch->SetEdit(pEdit);
     }
+    
     if (NULL != mpSymbolSearch && NULL != pEdit){
         if (NULL != mpSymbolSearchHandler){
             mpSymbolSearchHandler->SetEdit(pEdit);
         }
         mpSymbolSearch->SetEdit(pEdit);
-        if (pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
+        wxAuiPaneInfo &info = m_mgr.GetPane(wxT("Find Symbol"));
+        if (info.IsOk() && info.IsShown() && pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
             // wxPrintf("edit:%s, search:%s\n", pEdit->GetFilename(), mpSymbolSearch->GetFileName());
             mpSymbolSearch->SetFileName(pEdit->GetFilename());
             mpSymbolSearch->SetInput("");
@@ -555,13 +571,38 @@ void MyFrame::OnFileSaved(wxStyledTextEvent &evt)
     if (NULL == mpBufferList){
         return;
     }
-    int id = mpBufferList->GetPageIndex(dynamic_cast<wxWindow*>(evt.GetEventObject()));
+    Edit *pEdit = dynamic_cast<Edit*>(evt.GetEventObject());
+    if (pEdit == NULL){
+        return ;
+    }
+    int id = mpBufferList->GetPageIndex(pEdit);
     if (id == wxNOT_FOUND){
         return;
     }
-    wxString title = mpBufferList->GetPageText(id);
-    title = title.substr(1);
-    mpBufferList->SetPageText(id, title);
+
+    wxString filename = pEdit->GetFilename();
+    if (!filename.empty()){
+        wxString name, ext;
+        wxFileName::SplitPath(filename, NULL, NULL, &name, &ext);
+        if (!ext.empty()){
+            name += ".";
+            name += ext;
+        }
+        mpBufferList->SetPageText(id, name);
+        mpBufferList->SetPageToolTip(id, filename);
+        // update the workspace
+        if (NULL != mpWorkSpace){
+            mpWorkSpace->UpdateTagForFile(filename);
+        }
+        mpBufferSelect->ClearBuffer();
+        for (int i = 0; i < mpBufferList->GetPageCount(); i++){
+            name = mpBufferList->GetPageText(i);
+            pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+            if (NULL != pEdit){
+                mpBufferSelect->AddBuffer(name, pEdit->GetFilename());
+            }
+        }
+    }   
 }
 
 void MyFrame::OnFileModified(wxStyledTextEvent &evt)
@@ -652,13 +693,10 @@ void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
                       .Right().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
     m_mgr.Update();
-    if (NULL != mpSymbolSearch){
+    if (NULL != mpSymbolSearch && mbLoadFinish){
         mpSymbolSearch->Reset();
         if (NULL != pEdit){
             mpSymbolSearch->SetFileName(pEdit->GetFilename());
-        }
-        if (line >= 0){
-            mpSymbolSearch->SetCurrentLine(line);
         }
         mpSymbolSearch->SetEdit(pEdit);
         // note:fanhongxuan@gmail.com
@@ -702,11 +740,8 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
     m_mgr.Update();
-	if (NULL != mpSearch){
+	if (NULL != mpSearch && mbLoadFinish){
         if (!value.empty()){
-            if (line >= 0){
-                mpSearch->SetCurrentLine(line);
-            }
             // note:fanhongxuan@gmail.com
             // select the candidate by the current position
             mpSearch->SetEdit(pEdit);
@@ -742,7 +777,14 @@ void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
 
     }
     m_mgr.Update();
-    if (NULL != mpSearchDir){
+    if (NULL != mpSearchDir && mbLoadFinish){
+        // update the dirs according the display
+        std::set<wxString> dirs;
+        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
+        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
+            mpWorkSpace->GetDirs(dirs);
+        }
+        mpSearchDir->SetDirs(dirs);
         if (!value.empty()){
             mpSearchDir->SetInput(value);
         }
@@ -796,20 +838,20 @@ void MyFrame::OnSaveCurrentBuffer(wxCommandEvent &evt)
         // if (!pEdit->Getfilename().empty()){
         // }
         pEdit->SaveFile(false);
-        wxString filename = pEdit->GetFilename();
-        if (!filename.empty()){
-            wxString name, ext;
-            wxFileName::SplitPath(filename, NULL, NULL, &name, &ext);
-            if (!ext.empty()){
-                name += ".";
-                name += ext;
-            }
-            mpBufferList->SetPageText(select, name);
-        }
     }
 }
 
+void MyFrame::OnGotoDefine(wxCommandEvent &evt)
+{
+    ShowReference(false);
+}
+
 void MyFrame::OnShowReference(wxCommandEvent &evt)
+{
+    ShowReference(true);
+}
+
+void MyFrame::ShowReference(bool hasRef)
 {
 #define VALID_CHAR_WHEN_SEARCH_REF "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"        
     wxString value;
@@ -841,9 +883,12 @@ void MyFrame::OnShowReference(wxCommandEvent &evt)
         m_mgr.AddPane(mpRefSearch, wxAuiPaneInfo().Name(wxT("Reference")).Caption(wxT("Find Ref in WorkSpace")).
                       Bottom().CloseButton(false).Row(1).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
-    if (NULL != mpRefSearch){
+    if (NULL != mpRefSearch && mbLoadFinish){
         if (NULL != mpWorkSpace){
-            mpRefSearch->SetTagDir(mpWorkSpace->GetTagDir());
+            std::set<wxString> dirs;
+            mpWorkSpace->GetDirs(dirs);
+            mpRefSearch->SetHasRef(hasRef);
+            mpRefSearch->SetTagDir(dirs);
         }
         if (!value.empty()){
             mpRefSearch->SetInput(value);
@@ -883,7 +928,7 @@ void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
                       Bottom().CloseButton(false).Row(1).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
     m_mgr.Update();    
-    if (NULL != mpAgSearch){
+    if (NULL != mpAgSearch && mbLoadFinish){
         if (!value.empty()){
             mpAgSearch->SetInput(value);
         }
@@ -916,7 +961,7 @@ void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
                       Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
     m_mgr.Update();
-    if (NULL != mpWorkSpace){
+    if (NULL != mpWorkSpace && mbLoadFinish){
         if (NULL != mpAgSearch){
             std::set<wxString> dirs;
             std::set<wxString> files;
@@ -947,7 +992,7 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
                       Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
     }
     m_mgr.Update();
-    if (NULL != mpExplorer){
+    if (NULL != mpExplorer && mbLoadFinish){
         if (NULL != mpAgSearch){
             std::set<wxString> empty;
             mpAgSearch->SetSearchDirs(empty);
@@ -979,7 +1024,7 @@ void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
                       .Bottom().CloseButton(false).Row(1).BestSize(wxSize(300,200)).PaneBorder(false).MinSize(wxSize(300,100)));
     }
     m_mgr.Update();    
-    if (NULL != mpBufferSelect){
+    if (NULL != mpBufferSelect && mbLoadFinish){
         #ifdef WIN32
 		// note:fanhongxuan@gmail.com
 		// on gtk, when the input first get the focus, will generate a wxevt_text event which will call UpdateSearchList
@@ -1031,6 +1076,9 @@ void MyFrame::OnKillCurrentBuffer(wxCommandEvent &evt)
     }
     else if (NULL != mpSymbolSearch && mpSymbolSearch->IsDescendant(window)){
         window = mpSymbolSearch;
+    }
+    else if (NULL != mpRefSearch && mpRefSearch->IsDescendant(window)){
+        window = mpRefSearch;
     }
     else if (NULL != mpCmd && mpCmd->IsDescendant(window)){
         // note:fanhongxuan@gmail.com
@@ -1087,6 +1135,30 @@ void MyFrame::SwitchFocus()
         if (info.IsOk() && info.IsShown()){
             wxPrintf("Change focus to search dir\n");
             mpSearchDir->SetFocus();
+            return;
+        }
+    }
+    if (NULL != mpSymbolSearch){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpSymbolSearch);
+        if (info.IsOk() && info.IsShown()){
+            wxPrintf("Change focus to search symbol\n");
+            mpSymbolSearch->SetFocus();
+            return;
+        }
+    }
+    if (NULL != mpAgSearch){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpAgSearch);
+        if (info.IsOk() && info.IsShown()){
+            wxPrintf("Change focus to Ag Search\n");
+            mpAgSearch->SetFocus();
+            return;
+        }
+    }
+    if (NULL != mpRefSearch){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpRefSearch);
+        if (info.IsOk() && info.IsShown()){
+            wxPrintf("Change focus to ref Search\n");
+            mpRefSearch->SetFocus();
             return;
         }
     }

@@ -12,9 +12,10 @@ public:
     virtual ~wxBufferSelect();
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
-
+    virtual wxString GetSummary(const wxString &input, int matchCount);
     bool AddBuffer(const wxString &name, const wxString &path);
     bool DelBuffer(const wxString &name, const wxString &path);
+    bool ClearBuffer();
     bool SetMaxRecentFileCounts(int max); //
 private:
     int mMaxRecentFileCounts;

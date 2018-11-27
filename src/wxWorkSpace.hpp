@@ -28,11 +28,12 @@ public:
     void OnFocus(wxFocusEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
-    wxString GetTagDir(){return mTagDir;}
     bool UpdateTagForFile(const wxString &file);
-    bool GenerateTagFile();
 private:
-    wxString mTagDir;
+    bool GenerateTagFile();
+    void GenerateGTagFile(const wxString &dir);
+    
+private:
     void CreateImageList();
     std::set<wxString> mDirs;
     std::set<wxString> mFiles;
