@@ -9,9 +9,10 @@
 #include <wx/config.h>
 #include <wx/dirdlg.h>
 #include <wx/msgdlg.h>
+#include "ceUtils.hpp"
 #include "ce.hpp"
 
-enum {
+enum workspace_icon{
     workspace_harddisk,
     workspace_file,
     workspace_file_select,
@@ -20,10 +21,11 @@ enum {
     workspace_icon_count,
 };
 
-enum{
+enum workspace_id{
     workspace_id_start = 1000,
     workspace_id_add_dir,
     workspace_id_del_dir,
+    workspace_id_generate_tag,
 };
 
 // note:fanhongxuan@gmail.com
@@ -110,6 +112,7 @@ EVT_TREE_SEL_CHANGED(wxID_ANY, wxWorkSpace::OnSelectionChanged)
 EVT_TREE_ITEM_EXPANDING(wxID_ANY, wxWorkSpace::OnItemExpanding)
 EVT_MENU(workspace_id_add_dir, wxWorkSpace::OnAddDirToWorkSpace)
 EVT_MENU(workspace_id_del_dir, wxWorkSpace::OnDelDirFromWorkSpace)
+EVT_MENU(workspace_id_generate_tag, wxWorkSpace::OnGenerateTag)
 EVT_RIGHT_DOWN(wxWorkSpace::OnRightDown)
 EVT_KEY_DOWN(wxWorkSpace::OnKeyDown)
 EVT_SET_FOCUS(wxWorkSpace::OnFocus)
@@ -129,6 +132,14 @@ wxWorkSpace::wxWorkSpace(wxWindow *parent)
     CreateImageList();
     wxConfig config("CE");
     wxTreeItemId root = AddRoot(wxT("WorkSpace"));
+    
+    mTagDir = ceGetExecPath();
+#ifdef WIN32
+    mTagDir += "\\tags\\";
+#else
+    mTagDir += "/tags/";
+#endif
+    
     int i = 0;
     while(1){
         wxString dir;
@@ -166,6 +177,68 @@ wxWorkSpace::~wxWorkSpace()
     }
 }
 
+bool wxWorkSpace::UpdateTagForFile(const wxString &file)
+{
+    // first check if this file is belong to current workspace.
+    // use gtags --single-update file to update the current file.
+    return true;
+}
+
+bool wxWorkSpace::GenerateTagFile()
+{
+    // call gtags to generate the tags file.
+    // 1, first, iterator all the file add append to the /tags/filelist, must be full path
+    std::vector<wxString> fileList;
+    int i = 0;
+    std::set<wxString>::iterator it = mDirs.begin();
+    while (it != mDirs.end()){
+        ceFindFiles(*it, fileList);
+        it++;
+    }
+    
+    it = mFiles.begin();
+    while (it != mFiles.end()){
+        fileList.push_back(*it);
+        it++;
+    }
+    
+    wxString fileListName;
+    wxString gtags_exec;
+    wxString outputDir;
+    
+    fileListName = ceGetExecPath();
+    gtags_exec = fileListName;
+    outputDir = fileListName;
+#ifdef WIN32
+    gtags_exec += "\\ext\\gtags.exe";
+    outputDir += "\\tags\\";
+    fileListName += "\\tags\\filelist.txt";
+#else
+    gtags_exec += "/ext/gtags";
+    outputDir += "/tags/";
+    fileListName += "/tags/filelist.txt";
+#endif
+
+    wxFile list(fileListName, wxFile::write);
+    if (!list.IsOpened()){
+        return false;
+    }
+    char newline = '\n';
+    for (i = 0; i < fileList.size(); i++){
+        list.Write(fileList[i]);
+        list.Write(&newline, 1);
+    }
+    list.Close();
+    // 2, use gtags -O to generate the tags
+    wxString cmd = "cd / && ";
+    cmd += gtags_exec + " -O " + outputDir + " -f " + fileListName;
+    wxPrintf("exec:<%s>\n", cmd);
+    std::vector<wxString> outputs;
+    ceSyncExec(cmd, outputs);
+    return true;
+}
+    
+
 void wxWorkSpace::OnFocus(wxFocusEvent &evt)
 {
     if (NULL != wxGetApp().frame()){
@@ -189,6 +262,11 @@ void wxWorkSpace::OnAddDirToWorkSpace(wxCommandEvent &evt)
         return;
     }
     AddDirToWorkSpace(dir);
+}
+
+void wxWorkSpace::OnGenerateTag(wxCommandEvent &evt)
+{
+    GenerateTagFile();
 }
 
 bool wxWorkSpace::AddDirToWorkSpace(const wxString &dir)
@@ -280,6 +358,7 @@ void wxWorkSpace::OnRightDown(wxMouseEvent &evt)
     wxMenu menu;
     wxTreeItemId id = GetFocusedItem();
     menu.Append(workspace_id_add_dir, wxT("Add Dir"));
+    menu.Append(workspace_id_generate_tag, wxT("Generate Tag Database"));
     if (id.IsOk() && GetItemParent(id) == GetRootItem()){
         // note:fanhongxuan@gmail.com
         // only the children of root can be delete

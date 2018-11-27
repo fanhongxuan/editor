@@ -18,6 +18,7 @@ public:
     
     void OnAddDirToWorkSpace(wxCommandEvent &evt);
     void OnDelDirFromWorkSpace(wxCommandEvent &evt);
+    void OnGenerateTag(wxCommandEvent &evt);
     
     void OnItemActivated(wxTreeEvent &evt);
     void OnSelectionChanged(wxTreeEvent &evt);
@@ -27,8 +28,11 @@ public:
     void OnFocus(wxFocusEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
-                               
+    wxString GetTagDir(){return mTagDir;}
+    bool UpdateTagForFile(const wxString &file);
+    bool GenerateTagFile();
 private:
+    wxString mTagDir;
     void CreateImageList();
     std::set<wxString> mDirs;
     std::set<wxString> mFiles;
