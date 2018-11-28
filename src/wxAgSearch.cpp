@@ -122,6 +122,14 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
     wxString content = name + "(" + line + ")" + value;
     unsigned long iLen = 0;
     line.ToULong(&iLen);
+#ifdef WIN32
+    // note:fanhongxuan@gmail.com
+    for (int i = 0; i < filename.size(); i++){
+        if (filename[i] == '/'){
+            filename[i] = '\\';
+        }
+    }
+#endif
     AddSearchResult(new wxSearchFileResult(content, filename, --iLen, 0));
     return true;
 }

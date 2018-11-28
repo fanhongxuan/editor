@@ -74,6 +74,7 @@ bool ceRefSearch::StartSearch(const wxString &input, const wxString &fullInput)
     // if the current has no GTAGS, generate it first.
     std::set<wxString>::iterator it = mTagDir.begin();
     while(it != mTagDir.end()){
+        int count = 0;
         std::vector<wxString> outputs;
         wxString cmd;
         if (mbGrep){
@@ -84,6 +85,7 @@ bool ceRefSearch::StartSearch(const wxString &input, const wxString &fullInput)
         }
         ceSyncExec(cmd, outputs);
         for (int i = 0; i < outputs.size(); i++){
+            count++;
             ParseLine(outputs[i], (*it));
         }
         if ((!mbGrep) && mbHasRef){
@@ -91,7 +93,17 @@ bool ceRefSearch::StartSearch(const wxString &input, const wxString &fullInput)
             outputs.clear();
             ceSyncExec(cmd, outputs);
             for (int i = 0; i < outputs.size(); i++){
+                count++;
                 ParseLine(outputs[i], (*it));
+            }
+            if (count == 0){
+                // in this case try -s (other symbol, which mean don't find the defination.
+                cmd = buildGlobalCmd(fullInput, (*it), "-s");
+                outputs.clear();
+                ceSyncExec(cmd, outputs);
+                for (int i = 0; i < outputs.size(); i++){
+                    ParseLine(outputs[i], (*it));
+                }
             }
         }
         it++;
@@ -114,7 +126,7 @@ int ceRefSearch::GetPreferedLine(const wxString &input)
 
 bool ceRefSearch::ParseLine(const wxString &line, const wxString &path)
 {
-    //wxPrintf("ParseLine:<%s>\n", line);
+    wxPrintf("ParseLine:<%s>\n", line);
     std::vector<wxString> outputs;
     ceSplitString(line, outputs, " ");
     if (outputs.size() < 4){

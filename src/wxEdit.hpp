@@ -63,8 +63,12 @@ public:
     void UpdateLineNumberMargin();
     
     void OnReturn(int currentLine);
+    void OnColon(int currentLine);
     void OnEndBrace(int currentLine);
     void OnBeginBrace(int currentLine);
+    
+    bool GetSymbolList(std::vector<wxString> &symbol, int iBase = 0);
+    
     
     // event handlers
     // common
