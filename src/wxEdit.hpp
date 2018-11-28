@@ -65,7 +65,7 @@ public:
     void OnReturn(int currentLine);
     void OnColon(int currentLine);
     void OnEndBrace(int currentLine);
-    void OnBeginBrace(int currentLine);
+    void OnBeginBrace(int currentLine, char c = '{');
     
     bool GetSymbolList(std::vector<wxString> &symbol, int iBase = 0);
     

@@ -65,7 +65,7 @@ const int ANNOTATION_STYLE = wxSTC_STYLE_LASTPREDEFINED + 1;
 wxBEGIN_EVENT_TABLE (Edit, wxStyledTextCtrl)
     // common
     // add by fanhongxuan@gmail.com
-    EVT_STC_CHANGE(wxID_ANY,         Edit::OnModified)
+    EVT_STC_MODIFIED(wxID_ANY,         Edit::OnModified)
     EVT_SIZE (                         Edit::OnSize)
     // edit
     EVT_MENU (wxID_CLEAR,              Edit::OnEditClear)
@@ -249,12 +249,47 @@ void Edit::OnFocus(wxFocusEvent &evt)
 
 void Edit::OnModified(wxStyledTextEvent &evt)
 {
-    // todo:fanhongxuan@gmail.com
-    // when load a fille will also generate this event.
-    // if (GetModify()){
-    //     wxPrintf("The file is modified:%s\n", GetFilename());
-    // }
-    UpdateLineNumberMargin();
+    int type = evt.GetModificationType();
+    // wxPrintf("OnModified:0x%08X\n", type);
+    if (type & (wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT)){        
+        UpdateLineNumberMargin();
+    }
+    if (type & (wxSTC_MOD_CHANGEMARKER | wxSTC_MOD_CHANGEFOLD)){
+        // fold status changed.
+        // indent the line by foldlevel
+        int line = evt.GetLine();
+        int curLine = GetCurrentLine();
+        if (line > (curLine+1)){
+            //wxPrintf("skip otherline:%d\n", curLine+1);
+            return;
+        }
+        if (line >= GetLineCount() || line < 0){
+            // wxPrintf(" Skip the invalid line\n");
+            return;
+        }
+        
+        int level = evt.GetFoldLevelNow() & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
+    
+        wxString value = GetLineText(line);
+        int start = value.find_first_not_of("\r\n\t ");
+        int end = value.find_last_not_of("\r\n\t ", start);
+        if (start != value.npos && end != value.npos){
+            value = value.substr(start, end + 1-start);
+            if (value == "}" || value == "public:" || value == "protected:" || value == "private:" || value == "case:"){
+                level--;
+            }
+        }
+        SetLineIndentation(evt.GetLine(), GetIndent() * level);
+        if (line == curLine /*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
+            start = GetCurrentPos();
+            end = GetLineEndPosition(curLine);
+            start += level * GetIndent();
+            if (start >= end){
+                start = end;
+            }
+            GotoPos(start);
+        }
+    }
 }
 
 void Edit::OnSize( wxSizeEvent& event ) {
@@ -697,24 +732,31 @@ void Edit::OnColon(int currentLine)
     }
 }
 
-void Edit::OnBeginBrace(int currentLine)
+void Edit::OnBeginBrace(int currentLine, char c)
 {
     if (NULL == m_language || wxString(m_language->name) != "C++"){
         // only handle this in C/C++
         return;
     }
-    int pos = GetInsertionPoint();
+    char end = '0';
+    if (c == '{'){ end = '}';}
+    if (c == '\''){end = '\'';}
+    if (c == '\"'){end = '\"';}
+    if (c == '('){end = ')';}
+    if (c == '['){end = ']';}
+    if (c == '<'){end = '>';}
+    int pos = GetCurrentPos();
     // note:fanhongxuan@gmail.com
     // in which case we don't need to insert a } here?
     int parent = GetFoldParent(currentLine);
     if (parent >= 0){
-        InsertText(pos, "}");
+        InsertText(pos, end);
     }
     else{
         // todo:fanhongxuan@gmail.com
         // check if the {} is pair.
         // if the length is less than 10000, check if all the {} is pair
-        InsertText(pos, "}");
+        InsertText(pos, end);
     }
 }
 
@@ -783,61 +825,6 @@ void Edit::OnReturn(int currentLine)
         // todo:fanhongxuan@gmail.com
         InsertText(pos, "\n    ");
     }
-    int parent = GetFoldParent(currentLine);
-    if (parent < 0 && currentLine >= 1 && (GetFoldLevel(currentLine-1) & wxSTC_FOLDLEVELHEADERFLAG)){
-        wxPrintf("parent:%d, currentLine:%d\n", parent, currentLine);
-        parent = currentLine - 1;
-    }
-    else if (parent >= 0){
-        wxPrintf("parent:%d\n", parent);
-    }
-    else{
-        wxPrintf("OnReturn return: parent:%d, currentLine:%d\n", parent, currentLine);
-        wxPrintf("prev:<%c>,next:<%c>\n", GetPrevNoneWhiteSpaceChar(this, pos-1), 
-            GetNextNoneWhiteSpaceChar(this, pos));
-        
-        // if the last char of previous line is {
-        // increase the indent.
-        // othersize, use the same indent as the previous line.
-        return;
-    }
-    // indent according the fold level
-    int ind = GetLineIndentation(parent);
-    ind += GetIndent();
-    SetLineIndentation(currentLine, ind);
-    GotoPos(PositionFromLine(currentLine) + ind);
-
-#if 0    
-    int lineInd = 0;
-    if (currentLine > 0) {
-        lineInd = GetLineIndentation(currentLine - 1);
-    }
-    bool bNeedIncrease = false;
-    if (NULL != m_language && wxString(m_language->name) == "C++"){
-        // note:fanhongxuan@gmail.com
-        // if the previous valid char is {.:
-        // increase indentation
-        long pos = GetInsertionPoint();
-        int last = pos;
-        while(last > 0){
-            int ch = GetCharAt(last-1);
-            if (!IsWhiteSpace(ch)){
-                int line = LineFromPosition(last);
-                lineInd = GetLineIndentation(line);
-                if (IsNeedIncreaseIndentation(ch)){
-                    bNeedIncrease = true;
-                }
-                break;
-            }
-            last--;
-        }
-    }
-    if (bNeedIncrease){
-        lineInd += GetIndent();
-    }
-    SetLineIndentation(currentLine, lineInd);
-    GotoPos(PositionFromLine(currentLine) + lineInd);
-#endif    
 }
 
 void Edit::OnCharAdded (wxStyledTextEvent &event) {
@@ -880,8 +867,8 @@ void Edit::OnCharAdded (wxStyledTextEvent &event) {
         if (chr == '\n'){
             OnReturn(currentLine);
         }
-        else if (chr == '{'){
-            OnBeginBrace(currentLine);
+        else if (chr == '{' || chr == '\'' || chr == '\"' || chr == '(' || chr == '['){
+            OnBeginBrace(currentLine, chr);
         }
         else if (chr == '}'){
             OnEndBrace(currentLine);
