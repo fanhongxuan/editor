@@ -62,10 +62,11 @@ public:
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     void UpdateLineNumberMargin();
     
-    void OnReturn(int currentLine);
+    void AutoIndentWithNewline(int currentLine);
+    void MoveCharBeforeRightParentheses(int currentLine);
     void OnColon(int currentLine);
     void OnEndBrace(int currentLine);
-    void OnBeginBrace(int currentLine, char c = '{');
+    void InsertPair(int currentLine, char c = '{');
     
     bool GetSymbolList(std::vector<wxString> &symbol, int iBase = 0);
     
@@ -120,6 +121,8 @@ public:
     void OnMarginClick (wxStyledTextEvent &event);
     void OnCharAdded  (wxStyledTextEvent &event);
 
+    void OnMouseLeftUp(wxMouseEvent &evt);
+    
     void OnFocus(wxFocusEvent &evt);
     void OnKeyDown(wxKeyEvent &event);
     void OnKeyUp(wxKeyEvent &event);
@@ -141,6 +144,7 @@ public:
     void SetFilename (const wxString &filename) {m_filename = filename;};
 
 private:
+    void DoBraceMatch();
     bool LoadAutoComProvider(const wxString &filename);
     bool IsValidChar(char ch, const wxString &validCharList = wxEmptyString);
     bool GetCandidate(const wxString &input, std::set<wxString> &candidates);

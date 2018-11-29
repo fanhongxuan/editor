@@ -122,7 +122,8 @@ wxBEGIN_EVENT_TABLE (Edit, wxStyledTextCtrl)
     EVT_STC_CHARADDED (wxID_ANY,       Edit::OnCharAdded)
 
     EVT_KEY_DOWN( Edit::OnKeyDown )
-EVT_KEY_UP(Edit::OnKeyUp)
+    EVT_KEY_UP(Edit::OnKeyUp)
+    EVT_LEFT_UP(Edit::OnMouseLeftUp)
 wxEND_EVENT_TABLE()
 
 Edit::Edit (wxWindow *parent,
@@ -152,13 +153,7 @@ Edit::Edit (wxWindow *parent,
     SetReadOnly (g_CommonPrefs.readOnlyInitial);
     SetWrapMode (g_CommonPrefs.wrapModeInitial?
                  wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
-    // wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
-    // StyleSetFont (wxSTC_STYLE_DEFAULT, font);
-    StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxBLACK);
-    StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxWHITE);
-    StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("DARK GREY")));
-    StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxWHITE);
-    StyleSetForeground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("DARK GREY")));
+    
     InitializePrefs (DEFAULT_LANGUAGE);
 
     // set visibility
@@ -250,9 +245,13 @@ void Edit::OnFocus(wxFocusEvent &evt)
 void Edit::OnModified(wxStyledTextEvent &evt)
 {
     int type = evt.GetModificationType();
-    // wxPrintf("OnModified:0x%08X\n", type);
+    //wxPrintf("OnModified:0x%08X\n", type);
     if (type & (wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT)){        
         UpdateLineNumberMargin();
+    }
+    if (type & wxSTC_MOD_CHANGESTYLE){
+        // current not used.
+        // wxPrintf("Style:%d:%d\n", evt.GetPosition(), GetStyleAt(evt.GetPosition()));
     }
     if (type & (wxSTC_MOD_CHANGEMARKER | wxSTC_MOD_CHANGEFOLD)){
         // fold status changed.
@@ -275,19 +274,27 @@ void Edit::OnModified(wxStyledTextEvent &evt)
         int end = value.find_last_not_of("\r\n\t ", start);
         if (start != value.npos && end != value.npos){
             value = value.substr(start, end + 1-start);
-            if (value == "}" || value == "public:" || value == "protected:" || value == "private:" || value == "case:"){
+            if (value == "}" || 
+                value == "public:" || 
+                value == "protected:" || 
+                value == "private:" || 
+                value == "default:" ||
+                value.find("case ") == 0){
                 level--;
             }
         }
         SetLineIndentation(evt.GetLine(), GetIndent() * level);
-        if (line == curLine /*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
+        if (line == curLine && line > 0/*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
             start = GetCurrentPos();
-            end = GetLineEndPosition(curLine);
-            start += level * GetIndent();
-            if (start >= end){
-                start = end;
+			end = GetLineEndPosition(curLine-1);
+            if (GetEOLMode() == wxSTC_EOL_CRLF){
+                end++;            }
+            if (start == (end + 1)){
+                GotoPos(GetLineIndentPosition(curLine));
+                // note:fanhongxuan@gmail.com
+                // See SCI_CHOOSECARETX
+                ChooseCaretX();
             }
-            GotoPos(start);
         }
     }
 }
@@ -334,9 +341,57 @@ void Edit::OnKeyDown (wxKeyEvent &event)
     event.Skip();
 }
 
+static bool IsWhiteSpace(char ch)
+{
+    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == ' '){
+        return true;
+    }
+    return false;
+}
+
+static bool IsBraceChar(char cur){
+    if (cur == '[' || cur == ']' || cur == '(' || cur == ')' || cur == '{' || cur == '}' || cur == '\'' || cur == '\"'){
+        return true;
+    }
+    return false;
+}
+
+void Edit::DoBraceMatch()
+{
+    bool bBrace = false;
+    int min = GetCurrentPos();
+    char cur = GetCharAt(min);
+    bBrace = IsBraceChar(cur);
+    if (!bBrace /*&& IsWhiteSpace(cur) || cur == ';'*/){
+        min--;
+        cur = GetCharAt(min);
+        bBrace = IsBraceChar(cur);
+    }
+    
+    if (bBrace){
+        int max = BraceMatch (min);
+        if (max >= 0) {
+            BraceHighlight (min, max);
+        }
+        else{
+            BraceBadLight (min);
+        }    
+    }
+    else{
+        BraceHighlight(-1, -1);
+    }
+}
+
+void Edit::OnMouseLeftUp(wxMouseEvent &event)
+{
+    DoBraceMatch();
+    event.Skip();
+}
+
 void Edit::OnKeyUp(wxKeyEvent &event)
 {
-    
+    DoBraceMatch();
+    event.Skip();
 }
 
 void Edit::OnEditCut (wxCommandEvent &WXUNUSED(event)) {
@@ -634,14 +689,6 @@ bool Edit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
     return true;
 }
 
-static bool IsWhiteSpace(char ch)
-{
-    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == ' '){
-        return true;
-    }
-    return false;
-}
-
 static bool IsNeedIncreaseIndentation(char ch){
     // todo:fanhongxuan@gmail.com
     // skip the value in the comment
@@ -700,6 +747,34 @@ bool Edit::GetSymbolList(std::vector<wxString> &symbols,
     return true;
 }
 
+void Edit::MoveCharBeforeRightParentheses(int currentLine){
+    if (NULL == m_language || wxString(m_language->name) != "C++"){
+        return;
+    }
+    int pos = GetCurrentPos();
+    if (pos <= 0){
+        return;
+    }
+    wxString line = GetLineText(currentLine);
+    
+    int offset = 0;
+    int stop = GetLineEndPosition(currentLine);
+    while((pos + offset) < stop){
+        char c = GetCharAt(pos + offset);
+        if ( c != ')' && c != ']'){
+            break;
+        }
+        offset++;
+    }
+    if (offset != 0){
+        char c = GetCharAt(pos - 1);
+        InsertText(pos + offset, c);
+        DeleteRange(pos-1, 1);
+        GotoPos(pos + offset);
+        ChooseCaretX();
+    }
+}
+
 void Edit::OnColon(int currentLine)
 {
     // when user input a : in cpp mode
@@ -720,7 +795,7 @@ void Edit::OnColon(int currentLine)
         return;
     }
     line = line.substr(0, pos+1);
-    if (line == "public" || line == "private" || line == "protected" || line == "case"){
+    if (line == "public" || line == "private" || line == "protected" || line == "default" || line.find("case ") == 0){
         int parent = GetFoldParent(currentLine);
         if (parent >= 0){
             SetLineIndentation(currentLine, GetLineIndentation(parent));
@@ -732,10 +807,17 @@ void Edit::OnColon(int currentLine)
     }
 }
 
-void Edit::OnBeginBrace(int currentLine, char c)
+void Edit::InsertPair(int currentLine, char c)
 {
     if (NULL == m_language || wxString(m_language->name) != "C++"){
         // only handle this in C/C++
+        return;
+    }
+    int pos = GetCurrentPos();
+    int style = GetStyleAt(pos);
+    wxPrintf("Style:0x%08x\n", style);
+    if (style == 2 && c == '\''){
+        // skip ' in comments
         return;
     }
     char end = '0';
@@ -745,7 +827,6 @@ void Edit::OnBeginBrace(int currentLine, char c)
     if (c == '('){end = ')';}
     if (c == '['){end = ']';}
     if (c == '<'){end = '>';}
-    int pos = GetCurrentPos();
     // note:fanhongxuan@gmail.com
     // in which case we don't need to insert a } here?
     int parent = GetFoldParent(currentLine);
@@ -813,7 +894,7 @@ static char GetNextNoneWhiteSpaceChar(Edit *pEdit, int pos)
 // auto pair "", '', (), [], {},
 // when delete auto delete.
 // auto indent with endline
-void Edit::OnReturn(int currentLine)
+void Edit::AutoIndentWithNewline(int currentLine)
 {
     // note:fanhongxuan@gmail.com
     if (NULL == m_language || wxString(m_language->name) != "C++"){
@@ -821,9 +902,24 @@ void Edit::OnReturn(int currentLine)
         return;
     }
     int pos = GetInsertionPoint();
-    if (pos >= 2 && GetCharAt(pos - 2) == '{' && GetCharAt(pos) == '}'){
-        // todo:fanhongxuan@gmail.com
-        InsertText(pos, "\n    ");
+    if (pos >= 2){
+		char prev = GetCharAt(pos - 2);
+		char next =GetCharAt(pos);
+		if ( pos >= 3 && prev == '\r'){
+			prev = GetCharAt(pos-3);
+		}
+		if (prev == '{' && next == '}'){
+            int eol = GetEOLMode();
+            if (eol == wxSTC_EOL_LF){
+                InsertText(pos, "\r");
+            }
+            else if (eol == wxSTC_EOL_CRLF){
+                InsertText(pos, "\r\n");
+            }
+            else{
+                InsertText(pos, "\n");    
+            }
+        }
     }
 }
 
@@ -865,15 +961,22 @@ void Edit::OnCharAdded (wxStyledTextEvent &event) {
         int currentLine = GetCurrentLine();
         // Change this if support for mac files with \r is needed
         if (chr == '\n'){
-            OnReturn(currentLine);
+            AutoIndentWithNewline(currentLine);
         }
-        else if (chr == '{' || chr == '\'' || chr == '\"' || chr == '(' || chr == '['){
-            OnBeginBrace(currentLine, chr);
+        
+        if (chr == ';' || chr == '{'){
+            MoveCharBeforeRightParentheses(currentLine);
         }
-        else if (chr == '}'){
+        
+        if (chr == '{' || chr == '\'' || chr == '\"' || chr == '(' || chr == '['){
+            InsertPair(currentLine, chr);
+        }
+        
+        if (chr == '}'){
             OnEndBrace(currentLine);
         }
-        else if (chr == ':'){
+        
+        if (chr == ':'){
             OnColon(currentLine);
         }
         return;
@@ -925,6 +1028,30 @@ bool Edit::InitializePrefs (const wxString &name) {
 
     // initialize styles
     StyleClearAll();
+    
+    wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    StyleSetFont (wxSTC_STYLE_DEFAULT, font);
+    StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxBLACK);
+    StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxWHITE);
+    
+    // set margin type and style for line number
+    SetMarginType (m_LineNrID, wxSTC_MARGIN_NUMBER);
+    StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("GREEN")));
+    StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxBLACK);
+    
+    // set style for indentguide
+    StyleSetForeground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
+    StyleSetBackground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
+    
+    // set style for brace light and bad
+    //StyleSetForeground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("WHITE")));
+    //StyleSetBackground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("CORNFLOWER BLUE")));
+    StyleSetForeground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("BLACK")));
+    StyleSetBackground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("GREEN")));
+    
+    StyleSetForeground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("BLACK")));
+    StyleSetBackground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("RED")));
+    
     LanguageInfo const* curInfo = NULL;
 
     // determine language
@@ -942,12 +1069,6 @@ bool Edit::InitializePrefs (const wxString &name) {
     // set lexer and language
     SetLexer (curInfo->lexer);
     m_language = curInfo;
-
-    // set margin for line numbers
-    SetMarginType (m_LineNrID, wxSTC_MARGIN_NUMBER);
-    StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("DARK GREY")));
-    StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxWHITE);
-    // SetMarginWidth (m_LineNrID, 0); // start out not visible
 
 #if 0    
     // annotations style

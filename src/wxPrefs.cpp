@@ -274,12 +274,12 @@ const StyleInfo g_StylePrefs [] = {
 
     // mySTC_TYPE_CHARACTER
     {wxT("Character"),
-     wxT("KHAKI"), wxT("WHITE"),
+     wxT("BROWN"), wxT("WHITE"),
      wxT(""), 10, 0, 0},
 
     // mySTC_TYPE_CHARACTER_EOL
     {wxT("Character (EOL)"),
-     wxT("KHAKI"), wxT("WHITE"),
+     wxT("BROWN"), wxT("WHITE"),
      wxT(""), 10, 0, 0},
 
     // mySTC_TYPE_STRING
