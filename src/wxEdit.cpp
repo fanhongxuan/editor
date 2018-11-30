@@ -923,11 +923,11 @@ long Edit::GetLineStartPosition(long line)
         return 0;
     }
     long ret = GetLineEndPosition(line - 1);
-    if (GetEOLMode() == wxSTC_EOL_CRLF){
-        ret += 2;
+    if (GetCharAt(ret) == '\r'){
+        ret++;
     }
-    else{
-        ret += 1;
+    if (GetCharAt(ret) == '\n'){
+        ret++;
     }
     return ret;
 }
@@ -1102,11 +1102,6 @@ bool Edit::AutoIndentWithTab(int line)
             GotoPos(GetLineIndentPosition(line));
             ChooseCaretX();
         }
-        // wxString value = GetLineText(line);
-        // if (value.find_first_not_of("\r\n\t ") == value.npos){
-        //     GotoPos(GetLineIndentPosition(line));
-        //     ChooseCaretX();
-        // }
     }
     return true;
 }
