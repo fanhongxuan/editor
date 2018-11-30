@@ -169,7 +169,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  14  
+#define ACCE_COUNT  13  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[ 1].Set(wxACCEL_ALT, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -177,14 +177,13 @@ void MyFrame::CreateAcceTable()
     e[ 3].Set(wxACCEL_CTRL, (int)'1', ID_ShowOneWindow); // CTRL+1 (Hide all the pane except BufferList)
     e[ 4].Set(wxACCEL_CTRL, (int)'B', ID_ShowBufferSelect); // CTRL+B (SwitchBuffer)
     e[ 5].Set(wxACCEL_CTRL, (int)'S', ID_SaveCurrentBuffer); // CTRL+S (Save Current Buffer)
-    e[ 6].Set(wxACCEL_ALT,  (int)';', ID_TriggerComment);// ALT+; to comments/uncomments a block or current line
-    e[ 7].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
-    e[ 8].Set(wxACCEL_CTRL, (int)'W', ID_ShowWorkSpace); // CTRL+W show WorkSpace
-    e[ 9].Set(wxACCEL_ALT,  (int)'F', ID_ShowAgSearch); // ALT+F to find in dir/workspace
-    e[10].Set(wxACCEL_ALT,  (int)'S', ID_ShowSymbolList); // ALT+S to show the symbol list
-    e[11].Set(wxACCEL_ALT,  (int)'R', ID_ShowReference); // ALT+R to show reference of current symbol
-    e[12].Set(wxACCEL_ALT,  (int)'.', ID_GotoDefine); // ALT+. to show the define of current symbol
-    e[13].Set(wxACCEL_ALT,  (int)'T', ID_ShowGrepText); // ALT+T to grep the currenty symbol
+    e[ 6].Set(wxACCEL_CTRL, (int)'E', ID_ShowExplorer); // CTRL+E show the explorer
+    e[ 7].Set(wxACCEL_CTRL, (int)'W', ID_ShowWorkSpace); // CTRL+W show WorkSpace
+    e[ 8].Set(wxACCEL_ALT,  (int)'F', ID_ShowAgSearch); // ALT+F to find in dir/workspace
+    e[ 9].Set(wxACCEL_ALT,  (int)'S', ID_ShowSymbolList); // ALT+S to show the symbol list
+    e[10].Set(wxACCEL_ALT,  (int)'R', ID_ShowReference); // ALT+R to show reference of current symbol
+    e[11].Set(wxACCEL_ALT,  (int)'.', ID_GotoDefine); // ALT+. to show the define of current symbol
+    e[12].Set(wxACCEL_ALT,  (int)'T', ID_ShowGrepText); // ALT+T to grep the currenty symbol
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);

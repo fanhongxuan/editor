@@ -62,6 +62,8 @@ public:
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     void UpdateLineNumberMargin();
 
+    long GetLineStartPosition(long line);
+    bool TriggerCommentRange(long start, long stop);
     bool HungerBack();
     void AutoIndentWithNewline(int currentLine);
     bool AutoIndentWithTab(int currentLine);
@@ -161,6 +163,7 @@ private:
     // language properties
     LanguageInfo const* m_language;
 
+    bool mbLoadFinish;
     // margin variables
     int m_LineNrID;
     int m_LineNrMargin;

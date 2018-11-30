@@ -142,32 +142,33 @@ wxBEGIN_EVENT_TABLE (Edit, wxStyledTextCtrl)
 wxEND_EVENT_TABLE()
 
 Edit::Edit (wxWindow *parent,
-            wxWindowID id,
-            const wxPoint &pos,
-            const wxSize &size,
-            long style)
-    : wxStyledTextCtrl (parent, id, pos, size, style) {
-
+    wxWindowID id,
+    const wxPoint &pos,
+    const wxSize &size,
+    long style)
+: wxStyledTextCtrl (parent, id, pos, size, style) {
+    
+    mbLoadFinish = false;
     m_filename = wxEmptyString;
-
+    
     m_LineNrID = 0;
     m_DividerID = 1;
     m_FoldingID = 2;
-
+    
     // initialize language
     m_language = NULL;
-
+    
     // default font for all styles
     SetViewEOL (g_CommonPrefs.displayEOLEnable);
     SetIndentationGuides (g_CommonPrefs.indentGuideEnable);
     SetEdgeMode (g_CommonPrefs.longLineOnEnable?
-                 wxSTC_EDGE_LINE: wxSTC_EDGE_NONE);
+        wxSTC_EDGE_LINE: wxSTC_EDGE_NONE);
     SetViewWhiteSpace (g_CommonPrefs.whiteSpaceEnable?
-                       wxSTC_WS_VISIBLEALWAYS: wxSTC_WS_INVISIBLE);
+        wxSTC_WS_VISIBLEALWAYS: wxSTC_WS_INVISIBLE);
     SetOvertype (g_CommonPrefs.overTypeInitial);
     SetReadOnly (g_CommonPrefs.readOnlyInitial);
     SetWrapMode (g_CommonPrefs.wrapModeInitial?
-                 wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
+        wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
     
     InitializePrefs (DEFAULT_LANGUAGE);
 
@@ -268,7 +269,7 @@ int Edit::CalcLineIndentByFoldLevel(int line, int level)
 void Edit::OnModified(wxStyledTextEvent &evt)
 {
     int type = evt.GetModificationType();
-    //wxPrintf("OnModified:0x%08X\n", type);
+    // wxPrintf("OnModified:0x%08X\n", type);
     if (type & (wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT)){        
         UpdateLineNumberMargin();
     }
@@ -281,6 +282,15 @@ void Edit::OnModified(wxStyledTextEvent &evt)
         // only worked on C++ mode
         if (NULL == m_language || wxString(m_language->name) != "C++"){
             return;        }
+        
+        if (!mbLoadFinish){
+            // document is still loading, skip this.
+            return;
+        }
+        
+        if (!GetModify()){
+            return;
+        }
         
         // indent the line by foldlevel
         int line = evt.GetLine();
@@ -352,7 +362,14 @@ void Edit::OnKeyDown (wxKeyEvent &event)
                     "It is meant to be a context sensitive popup helper for the user.");
         return;
     }
-
+    
+    if (';' == event.GetKeyCode() && event.AltDown()){
+        long start, end;
+        GetSelection(&start, &end);
+        TriggerCommentRange(start, end);
+        return;
+    }
+    
     if (WXK_TAB == event.GetKeyCode()){
         if (AutoCompActive()){
             AutoCompComplete();
@@ -870,7 +887,75 @@ bool Edit::HungerBack(){
         start--;
     }
     DeleteRange(start+1, end - start - 1);
+    return true;
 }
+
+
+long Edit::GetLineStartPosition(long line)
+{
+    if(line == 0){
+        return 0;
+    }
+    long ret = GetLineEndPosition(line - 1);
+    if (GetEOLMode() == wxSTC_EOL_CRLF){
+        ret += 2;
+    }
+    else{
+        ret += 1;
+    }
+    return ret;
+}
+
+bool Edit::TriggerCommentRange(long start, long stop)
+{
+    if (NULL == m_language || wxString(m_language->name) != "C++"){
+        return false;
+    }
+    
+    // find all the line in the range.
+    long startLine, endLine;
+    PositionToXY(start, NULL, &startLine);
+    PositionToXY(stop, NULL, &endLine);
+    wxPrintf("select line:<%ld-%ld>\n", startLine+1, endLine+1);
+    wxString comment = "// ";
+    if (start == stop){
+        // no selection, add comments at the line end
+        int pos = 0;// 
+        wxString value = GetLineText(startLine);
+        pos = value.find(comment);
+        // fixme:fanhongxuan@gmail.com
+        // later, we need to skip the // in the string.
+        if (pos == value.npos){
+            pos = GetLineEndPosition(startLine);
+            InsertText(pos, comment);
+        }
+        pos = GetLineEndPosition(startLine);
+        GotoPos(pos);
+        ChooseCaretX();
+        return true;
+    }
+    else{
+        // if all the line is start with "// ", we will try to delete all the "// " at the beginning.
+        
+        // otherwsize, add "// " at the min indent
+        int minIndent = -1;
+        int i = 0;
+        for (i = startLine; i <= endLine; i++){
+            int indent = GetLineIndentation(i);
+            if (minIndent == -1 || indent < minIndent){
+                minIndent = indent;
+            }
+        }
+        
+        for (i = startLine; i <= endLine; i++){
+            int pos = GetLineStartPosition(i);
+            pos += minIndent;
+            InsertText(pos, comment);
+        }
+    }
+    return true;
+}
+
 bool Edit::AutoIndentWithTab(int line)
 {
     if (NULL == m_language || wxString(m_language->name) != "C++"){
@@ -884,12 +969,19 @@ bool Edit::AutoIndentWithTab(int line)
     int indent = CalcLineIndentByFoldLevel(line, foldlevel);
     if (indent != curIndent){
         SetLineIndentation(line, indent);
-        GotoPos(pos + indent - curIndent);
+        pos = pos + indent - curIndent;
+        if (line > 1 && pos <= GetLineEndPosition(line - 1)){
+            pos = GetLineIndentPosition(line);
+        }
+        GotoPos(pos);
         ChooseCaretX();
     }
     else{
-        GotoPos(GetLineIndentPosition(line));
-        ChooseCaretX();
+        wxString value = GetLineText(line);
+        if (value.find_first_not_of("\r\n\t ") == value.npos){
+            GotoPos(GetLineIndentPosition(line));
+            ChooseCaretX();
+        }
     }
     return true;}
 
@@ -1054,7 +1146,7 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetEOLMode(wxSTC_EOL_LF);
 #endif
     
-    wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    wxFont font(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     StyleSetFont (wxSTC_STYLE_DEFAULT, font);
     StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxWHITE);
     StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxBLACK);
@@ -1106,7 +1198,7 @@ bool Edit::InitializePrefs (const wxString &name) {
     // default fonts for all styles!
     int Nr;
     for (Nr = 0; Nr < wxSTC_STYLE_LASTPREDEFINED; Nr++) {
-        wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+        wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
         StyleSetFont (Nr, font);
     }
     
@@ -1116,7 +1208,7 @@ bool Edit::InitializePrefs (const wxString &name) {
         for (Nr = 0; Nr < STYLE_TYPES_COUNT; Nr++) {
             if (curInfo->styles[Nr].type == -1) continue;
             const StyleInfo &curType = g_StylePrefs [curInfo->styles[Nr].type];
-            wxFont font(wxFontInfo(curType.fontsize)
+            wxFont font(wxFontInfo(11)
                 .Family(wxFONTFAMILY_MODERN)
                 .FaceName(curType.fontname));
             StyleSetFont (Nr, font);
@@ -1199,7 +1291,7 @@ bool Edit::LoadFile ()
     // get filename
     if (!m_filename) {
         wxFileDialog dlg (this, wxT("Open file"), wxEmptyString, wxEmptyString,
-                          wxT("Any file (*)|*"), wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_CHANGE_DIR);
+            wxT("Any file (*)|*"), wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_CHANGE_DIR);
         if (dlg.ShowModal() != wxID_OK) return false;
         m_filename = dlg.GetPath();
     }
@@ -1230,8 +1322,9 @@ bool Edit::LoadFile (const wxString &filename) {
     // load file in edit and clear undo
     if (!filename.empty()) m_filename = filename;
     
+    mbLoadFinish = false;
     wxStyledTextCtrl::LoadFile(m_filename);
-
+    mbLoadFinish = true;
     EmptyUndoBuffer();
 
     // determine lexer language
@@ -1248,6 +1341,7 @@ bool Edit::LoadFile (const wxString &filename) {
 
 bool Edit::NewFile(const wxString &defaultName)
 {
+    mbLoadFinish = true;
     mDefaultName = defaultName;
     wxFileName fname (mDefaultName);
     InitializePrefs (DeterminePrefs (fname.GetFullName()));
@@ -1318,24 +1412,24 @@ EditProperties::EditProperties (Edit *edit,
     wxBoxSizer *fullname = new wxBoxSizer (wxHORIZONTAL);
     fullname->Add (10, 0);
     fullname->Add (new wxStaticText (this, wxID_ANY, _("Full filename"),
-                                     wxDefaultPosition, wxSize(80, wxDefaultCoord)),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL);
+            wxDefaultPosition, wxSize(80, wxDefaultCoord)),
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL);
     fullname->Add (new wxStaticText (this, wxID_ANY, edit->GetFilename()),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL);
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL);
 
     // text info
     wxGridSizer *textinfo = new wxGridSizer (4, 0, 2);
     textinfo->Add (new wxStaticText (this, wxID_ANY, _("Language"),
-                                     wxDefaultPosition, wxSize(80, wxDefaultCoord)),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT, 4);
+            wxDefaultPosition, wxSize(80, wxDefaultCoord)),
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT, 4);
     textinfo->Add (new wxStaticText (this, wxID_ANY, edit->m_language->name),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxRIGHT, 4);
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxRIGHT, 4);
     textinfo->Add (new wxStaticText (this, wxID_ANY, _("Lexer-ID: "),
-                                     wxDefaultPosition, wxSize(80, wxDefaultCoord)),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT, 4);
+            wxDefaultPosition, wxSize(80, wxDefaultCoord)),
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT, 4);
     text = wxString::Format (wxT("%d"), edit->GetLexer());
     textinfo->Add (new wxStaticText (this, wxID_ANY, text),
-                   0, wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL|wxRIGHT, 4);
+        0, wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL|wxRIGHT, 4);
     wxString EOLtype = wxEmptyString;
     switch (edit->GetEOLMode()) {
         case wxSTC_EOL_CR: {EOLtype = wxT("CR (Unix)"); break; }
@@ -1343,15 +1437,15 @@ EditProperties::EditProperties (Edit *edit,
         case wxSTC_EOL_LF: {EOLtype = wxT("CR (Macintosh)"); break; }
     }
     textinfo->Add (new wxStaticText (this, wxID_ANY, _("Line endings"),
-                                     wxDefaultPosition, wxSize(80, wxDefaultCoord)),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT, 4);
+            wxDefaultPosition, wxSize(80, wxDefaultCoord)),
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT, 4);
     textinfo->Add (new wxStaticText (this, wxID_ANY, EOLtype),
-                   0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxRIGHT, 4);
+        0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxRIGHT, 4);
 
     // text info box
     wxStaticBoxSizer *textinfos = new wxStaticBoxSizer (
-                     new wxStaticBox (this, wxID_ANY, _("Informations")),
-                     wxVERTICAL);
+        new wxStaticBox (this, wxID_ANY, _("Informations")),
+        wxVERTICAL);
     textinfos->Add (textinfo, 0, wxEXPAND);
     textinfos->Add (0, 6);
 
