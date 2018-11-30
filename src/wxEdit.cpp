@@ -939,9 +939,11 @@ bool Edit::TriggerCommentRange(long start, long stop)
     }
     
     // find all the line in the range.
-    long startLine, endLine;
+    long startLine = 0, endLine = 0, endColum = 0, stopLine = 0;
     PositionToXY(start, NULL, &startLine);
-    PositionToXY(stop, NULL, &endLine);
+    PositionToXY(stop, &endLine, &endLine);
+    stopLine = endLine;
+    
     // wxPrintf("select line:<%ld-%ld>\n", startLine+1, endLine+1);
     
     wxString comment = "// ";
@@ -951,7 +953,7 @@ bool Edit::TriggerCommentRange(long start, long stop)
         wxString value = GetLineText(startLine);
         pos = value.find(comment);
         // fixme:fanhongxuan@gmail.com
-        // later, we need to skip the // in the string.
+        // later,we need to skip the in the string.
         if (pos == value.npos){
             pos = GetLineEndPosition(startLine);
             InsertText(pos, comment);
@@ -967,8 +969,8 @@ bool Edit::TriggerCommentRange(long start, long stop)
         int count = 0;
         
         // make sure stop is bigger than start
-        if (start > stop){
-            long temp = stop;stop = start; start = temp;
+        if (startLine > endLine){
+            long temp = endLine;endLine = startLine; startLine = temp;
         }
         
         // if all the line is start with "// ", we will try to delete all the "// " at the beginning.
@@ -977,10 +979,13 @@ bool Edit::TriggerCommentRange(long start, long stop)
             if (i == startLine){
                 text = GetTextRange(start, GetLineEndPosition(i));
             }
+            else if (i == endLine){
+                text = GetTextRange(GetLineStartPosition(i), stop);
+            }
             else{
                 text = GetLineText(i);
             }
-            // wxPrintf("Text:<%s>\n", text);
+            // wxPrintf("Text:%d<%s>\n", i+1,text);
             int pos = text.find_first_not_of("\r\n\t ");
             if (pos != text.npos){
                 text = text.substr(pos);
@@ -1000,7 +1005,7 @@ bool Edit::TriggerCommentRange(long start, long stop)
                     text = GetTextRange(start, GetLineEndPosition(i));
                     pos = text.find(comment);
                     if (pos != text.npos){
-                        DeleteRange(start, len);
+                        DeleteRange(start + pos, len);
                     }
                 }
                 else{
@@ -1011,7 +1016,12 @@ bool Edit::TriggerCommentRange(long start, long stop)
                     }
                 }
             }
-            return false;
+            
+            int pos = XYToPosition(endColum, stopLine);
+            SetSelection(pos, pos);
+            GotoPos(pos);
+            ChooseCaretX();            
+            return true;
         }
         
         // otherwsize, add "// " at the min indent
@@ -1036,6 +1046,12 @@ bool Edit::TriggerCommentRange(long start, long stop)
                 // skip the empty line
                 continue;
             }
+            if (i == endLine){
+                text = GetTextRange(GetLineStartPosition(i), stop + count);
+                if (text.find_first_not_of("\r\n\t ") == text.npos){
+                    continue;
+                }
+            }
             InsertText(pos, comment);
             count += comment.length();
             
@@ -1044,10 +1060,18 @@ bool Edit::TriggerCommentRange(long start, long stop)
                 if (text.find_first_not_of("\r\n\t ") != text.npos){
                     // has some thing left, add a newline.
                     InsertNewLine(stop + count);
+                    if (stopLine >= endLine){
+                        stopLine++;
+                    }
                 }
             }
         }
     }
+    int pos = XYToPosition(endColum, stopLine);
+    
+    SetSelection(pos, pos);
+    GotoPos(pos);
+    ChooseCaretX();
     return true;
 }
 
