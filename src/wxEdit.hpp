@@ -43,7 +43,7 @@ class EditProperties;
 class Edit: public wxStyledTextCtrl {
     friend class EditProperties;
     friend class EditPrint;
-
+        
 public:
     //! constructor
     Edit (wxWindow *parent, wxWindowID id = wxID_ANY,
@@ -61,15 +61,17 @@ public:
 
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     void UpdateLineNumberMargin();
-    
+
+    bool HungerBack();
     void AutoIndentWithNewline(int currentLine);
+    bool AutoIndentWithTab(int currentLine);
     void MoveCharBeforeRightParentheses(int currentLine);
     void OnColon(int currentLine);
     void OnEndBrace(int currentLine);
     void InsertPair(int currentLine, char c = '{');
-    
+    int CalcLineIndentByFoldLevel(int line, int level);
     bool GetSymbolList(std::vector<wxString> &symbol, int iBase = 0);
-    
+
     
     // event handlers
     // common

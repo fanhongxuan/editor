@@ -28,6 +28,8 @@ static const wxString &getFullTypeName(const wxString &input)
         theTypeMaps["s"] = "Struct";
         theTypeMaps["t"] = "Typedef";
         theTypeMaps["g"] = "Global";
+        theTypeMaps["i"] = "interface";
+        theTypeMaps["p"] = "package";
     }
     std::map<wxString, wxString>::iterator it = theTypeMaps.find(input);
     if (it != theTypeMaps.end()){

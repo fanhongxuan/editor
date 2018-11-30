@@ -54,6 +54,21 @@
 // The (uniform) style used for the annotations.
 const int ANNOTATION_STYLE = wxSTC_STYLE_LASTPREDEFINED + 1;
 
+static bool IsWhiteSpace(char ch)
+{
+    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == ' '){
+        return true;
+    }
+    return false;
+}
+
+static bool IsBraceChar(char cur){
+    if (cur == '[' || cur == ']' || cur == '(' || cur == ')' || cur == '{' || cur == '}' || cur == '\'' || cur == '\"'){
+        return true;
+    }
+    return false;
+}
+
 //============================================================================
 // implementation
 //============================================================================
@@ -161,24 +176,10 @@ Edit::Edit (wxWindow *parent,
     SetXCaretPolicy (wxSTC_CARET_EVEN|wxSTC_VISIBLE_STRICT|wxSTC_CARET_SLOP, 1);
     SetYCaretPolicy (wxSTC_CARET_EVEN|wxSTC_VISIBLE_STRICT|wxSTC_CARET_SLOP, 1);
 
-    // markers
-    MarkerDefine(wxSTC_MARKNUM_FOLDER,        wxSTC_MARK_BOXPLUS, wxT("WHITE"), wxT("BLACK"));
-    MarkerDefine(wxSTC_MARKNUM_FOLDEROPEN,    wxSTC_MARK_BOXMINUS,  wxT("WHITE"), wxT("BLACK"));
-    MarkerDefine(wxSTC_MARKNUM_FOLDERSUB,     wxSTC_MARK_VLINE,     wxT("WHITE"), wxT("BLACK"));
-    MarkerDefine(wxSTC_MARKNUM_FOLDEREND,     wxSTC_MARK_BOXPLUSCONNECTED, wxT("WHITE"), wxT("BLACK"));
-    MarkerDefine(wxSTC_MARKNUM_FOLDEROPENMID, wxSTC_MARK_BOXMINUSCONNECTED, wxT("WHITE"), wxT("BLACK"));
-    MarkerDefine(wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_TCORNER,     wxT("WHITE"), wxT("BLACK"));
-    MarkerDefine(wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_LCORNER,     wxT("WHITE"), wxT("BLACK"));
-
     // miscellaneous
     m_LineNrMargin = TextWidth (wxSTC_STYLE_LINENUMBER, wxT("_09999"));
     m_FoldingMargin = 16;
 
-    
-    SetCaretLineBackground(wxColour(193, 213, 255));
-    SetCaretLineVisible(true);
-    SetCaretLineVisibleAlways(true);
-    
     SetLayoutCache (wxSTC_CACHE_PAGE);
     UsePopUp(wxSTC_POPUP_ALL);
 }
@@ -242,6 +243,28 @@ void Edit::OnFocus(wxFocusEvent &evt)
     evt.Skip();
 }
 
+int Edit::CalcLineIndentByFoldLevel(int line, int level)
+{    
+    wxString value = GetLineText(line);
+    int start = value.find_first_not_of("\r\n\t ");
+    int end = value.find_last_not_of("\r\n\t ", start);
+    if (start != value.npos && end != value.npos){
+        value = value.substr(start, end + 1-start);
+        if (value == "}" || 
+            value == "public:" || 
+            value == "protected:" || 
+            value == "private:" || 
+            value == "default:" ||
+            value.find("case ") == 0){
+            level--;
+        }
+        // if this line is start with # set the indent to 0
+        if (value.size() >= 1 && value[0] == '#'){
+            level = 0;
+        }
+    }
+    return level * GetIndent();}
+
 void Edit::OnModified(wxStyledTextEvent &evt)
 {
     int type = evt.GetModificationType();
@@ -255,6 +278,10 @@ void Edit::OnModified(wxStyledTextEvent &evt)
     }
     if (type & (wxSTC_MOD_CHANGEMARKER | wxSTC_MOD_CHANGEFOLD)){
         // fold status changed.
+        // only worked on C++ mode
+        if (NULL == m_language || wxString(m_language->name) != "C++"){
+            return;        }
+        
         // indent the line by foldlevel
         int line = evt.GetLine();
         int curLine = GetCurrentLine();
@@ -268,25 +295,11 @@ void Edit::OnModified(wxStyledTextEvent &evt)
         }
         
         int level = evt.GetFoldLevelNow() & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
-    
-        wxString value = GetLineText(line);
-        int start = value.find_first_not_of("\r\n\t ");
-        int end = value.find_last_not_of("\r\n\t ", start);
-        if (start != value.npos && end != value.npos){
-            value = value.substr(start, end + 1-start);
-            if (value == "}" || 
-                value == "public:" || 
-                value == "protected:" || 
-                value == "private:" || 
-                value == "default:" ||
-                value.find("case ") == 0){
-                level--;
-            }
-        }
-        SetLineIndentation(evt.GetLine(), GetIndent() * level);
-        if (line == curLine && line > 0/*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
-            start = GetCurrentPos();
-			end = GetLineEndPosition(curLine-1);
+        int indent = CalcLineIndentByFoldLevel(line, level);
+        SetLineIndentation(evt.GetLine(), indent);
+        if (line == curLine && line > 0 /*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
+            int start = GetCurrentPos();
+			int end = GetLineEndPosition(curLine-1);
             if (GetEOLMode() == wxSTC_EOL_CRLF){
                 end++;            }
             if (start == (end + 1)){
@@ -325,35 +338,35 @@ void Edit::OnEditClear (wxCommandEvent &WXUNUSED(event)) {
 
 void Edit::OnKeyDown (wxKeyEvent &event)
 {
-    // if (CallTipActive())
-    //     CallTipCancel();
-    // if (event.GetKeyCode() == WXK_SPACE && event.ControlDown() && event.ShiftDown())
-    // {
-    //     int pos = GetCurrentPos();
-    //     CallTipSetBackground(*wxYELLOW);
-    //     CallTipShow(pos,
-    //                 "This is a CallTip with multiple lines.\n"
-    //                 "It is meant to be a context sensitive popup helper for the user.");
-    //     return;
-    // }
-    // if (WXK_TAB == event.GetKeyCode()){
-    // }
+    if (CallTipActive()){
+        CallTipCancel();
+    }
+    
+    //
+    if (event.GetKeyCode() == WXK_SPACE && event.ControlDown() && event.ShiftDown())
+    {
+        int pos = GetCurrentPos();
+        CallTipSetBackground(*wxYELLOW);
+        CallTipShow(pos,
+                    "This is a CallTip with multiple lines.\n"
+                    "It is meant to be a context sensitive popup helper for the user.");
+        return;
+    }
+
+    if (WXK_TAB == event.GetKeyCode()){
+        if (AutoCompActive()){
+            AutoCompComplete();
+        }
+        else{
+            AutoIndentWithTab(GetCurrentLine());
+        }
+    }
+    
+    if (event.GetKeyCode() == WXK_BACK){
+        HungerBack();
+    }
+    
     event.Skip();
-}
-
-static bool IsWhiteSpace(char ch)
-{
-    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == ' '){
-        return true;
-    }
-    return false;
-}
-
-static bool IsBraceChar(char cur){
-    if (cur == '[' || cur == ']' || cur == '(' || cur == ')' || cur == '{' || cur == '}' || cur == '\'' || cur == '\"'){
-        return true;
-    }
-    return false;
 }
 
 void Edit::DoBraceMatch()
@@ -398,7 +411,6 @@ void Edit::OnEditCut (wxCommandEvent &WXUNUSED(event)) {
     if (GetReadOnly() || (GetSelectionEnd()-GetSelectionStart() <= 0)) return;
     Cut ();
 }
-
 void Edit::OnEditCopy (wxCommandEvent &WXUNUSED(event)) {
     if (GetSelectionEnd()-GetSelectionStart() <= 0) return;
     Copy ();
@@ -516,7 +528,7 @@ void Edit::OnUseCharset (wxCommandEvent &event) {
 void Edit::OnAnnotationAdd(wxCommandEvent& WXUNUSED(event))
 {
     const int line = GetCurrentLine();
-
+    
     wxString ann = AnnotationGetText(line);
     ann = wxGetTextFromUser
           (
@@ -705,48 +717,6 @@ static bool IsNeedDecreaseIndentation(char ch){
     return false;
 }
 
-bool Edit::GetSymbolList(std::vector<wxString> &symbols, 
-                        int iBase)
-{
-    int i = 0;
-    /*for (i = 0; i < GetNumberOfLines(); i++){
-        int foldstatus = GetFoldLevel(i);
-        int foldlevel = foldstatus & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
-        wxPrintf("--<%d><%d><%s>\n", i+1, foldlevel, GetLineText(i));
-    }*/
-    // use ctags to generate the symbol list of one file
-    // ctags -x -Q --declarations wxAgSearch.cpp
-    long cur = GetCurrentLine();
-    GotoLine(GetNumberOfLines());
-    ScrollToEnd();
-    GotoLine(cur);
-    for (i = 0; i < GetNumberOfLines(); i++){
-        int foldstatus = GetFoldLevel(i);
-        if (foldstatus & wxSTC_FOLDLEVELHEADERFLAG){
-            int foldlevel = foldstatus & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
-            if (foldlevel <= iBase){
-                wxString text = GetLineText(i);
-                if (text.find('{') != text.npos){
-                    // must have a (), if no try the previous one
-                    int start = text.find('('), stop = text.find(')');
-                    if (start != text.npos && stop != text.npos && start < stop){
-                        wxPrintf("<%d><%d><%s>\n", i+1, foldlevel, GetLineText(i));
-                    }
-                    else{
-                        // should check the previous line
-                    }
-                }
-                else{
-                    // class construct which use : to define the param list, will be lost in this case.
-                }
-            }
-        }
-        else{
-        }
-    }
-    return true;
-}
-
 void Edit::MoveCharBeforeRightParentheses(int currentLine){
     if (NULL == m_language || wxString(m_language->name) != "C++"){
         return;
@@ -890,34 +860,83 @@ static char GetNextNoneWhiteSpaceChar(Edit *pEdit, int pos)
     return 0;    
 }
 
+bool Edit::HungerBack(){
+    int start = GetCurrentPos();
+    int end = start;
+    while(start >= 1){
+        if(!IsWhiteSpace(GetCharAt(start-1))){
+            break;
+        }
+        start--;
+    }
+    DeleteRange(start+1, end - start - 1);
+}
+bool Edit::AutoIndentWithTab(int line)
+{
+    if (NULL == m_language || wxString(m_language->name) != "C++"){
+        return false;    }
+    // auto indent current line
+    int pos = GetCurrentPos();
+    // calc the line indent according the level
+    int curIndent = GetLineIndentation(line);
+    int foldstatus = GetFoldLevel(line);
+    int foldlevel = foldstatus & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
+    int indent = CalcLineIndentByFoldLevel(line, foldlevel);
+    if (indent != curIndent){
+        SetLineIndentation(line, indent);
+        GotoPos(pos + indent - curIndent);
+        ChooseCaretX();
+    }
+    else{
+        GotoPos(GetLineIndentPosition(line));
+        ChooseCaretX();
+    }
+    return true;}
+
 // todo:fanhongxuan@gmail.com
 // auto pair "", '', (), [], {},
 // when delete auto delete.
 // auto indent with endline
 void Edit::AutoIndentWithNewline(int currentLine)
 {
+    // wxPrintf("AutoIndentWithNewline:%d\n", currentLine);
     // note:fanhongxuan@gmail.com
     if (NULL == m_language || wxString(m_language->name) != "C++"){
         // only handle this in C/C++
         return;
     }
-    int pos = GetInsertionPoint();
+    
+    int pos = GetCurrentPos();
     if (pos >= 2){
 		char prev = GetCharAt(pos - 2);
 		char next =GetCharAt(pos);
 		if ( pos >= 3 && prev == '\r'){
 			prev = GetCharAt(pos-3);
 		}
-		if (prev == '{' && next == '}'){
+        // wxPrintf("Prev:%c, next:%c\n", prev, next);        
+        if (prev == '{' && next == '}'){
             int eol = GetEOLMode();
             if (eol == wxSTC_EOL_LF){
-                InsertText(pos, "\r");
+                // wxPrintf("Insert LF\n");
+                InsertText(pos, "\n");
             }
             else if (eol == wxSTC_EOL_CRLF){
+                // wxPrintf("Insert CRLF\n");
                 InsertText(pos, "\r\n");
             }
             else{
-                InsertText(pos, "\n");    
+                // wxPrintf("Insert CR\n");
+                InsertText(pos, "\r");    
+            }
+        }
+        else{
+            // this is a normal newline. try to indent according the fold level.
+            int foldstatus = GetFoldLevel(currentLine);
+            int foldlevel = foldstatus & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
+            if (foldlevel >= 0){
+                SetLineIndentation(currentLine, GetIndent() * foldlevel);
+                GotoPos(GetLineIndentPosition(currentLine));
+                ChooseCaretX();
             }
         }
     }
@@ -948,8 +967,10 @@ void Edit::OnCharAdded (wxStyledTextEvent &event) {
         else{
             break;
         }
-    }    
-
+    }
+    
+    // wxPrintf("OnCharAdded:<%d>, ch:%d, %d\n", event.GetKey(), ch, bNewCandidate);
+    
     if (bNewCandidate){
         wxString opt;
         if (NULL != m_language){
@@ -960,10 +981,9 @@ void Edit::OnCharAdded (wxStyledTextEvent &event) {
         char chr = (char)event.GetKey();
         int currentLine = GetCurrentLine();
         // Change this if support for mac files with \r is needed
-        if (chr == '\n'){
+        if (chr == '\n' || chr == '\r'){
             AutoIndentWithNewline(currentLine);
         }
-        
         if (chr == ';' || chr == '{'){
             MoveCharBeforeRightParentheses(currentLine);
         }
@@ -1028,11 +1048,16 @@ bool Edit::InitializePrefs (const wxString &name) {
 
     // initialize styles
     StyleClearAll();
+#ifdef WIN32
+    SetEOLMode(wxSTC_EOL_CRLF);
+#else
+    SetEOLMode(wxSTC_EOL_LF);
+#endif
     
     wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
     StyleSetFont (wxSTC_STYLE_DEFAULT, font);
-    StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxBLACK);
-    StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxWHITE);
+    StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxWHITE);
+    StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxBLACK);
     
     // set margin type and style for line number
     SetMarginType (m_LineNrID, wxSTC_MARGIN_NUMBER);
@@ -1042,6 +1067,14 @@ bool Edit::InitializePrefs (const wxString &name) {
     // set style for indentguide
     StyleSetForeground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
     StyleSetBackground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
+    
+    // SetCaretWidth(20);
+    SetCaretStyle(wxSTC_CARETSTYLE_BLOCK);
+    SetCaretForeground(wxColor(wxT("RED")));
+    SetCaretLineBackground(wxColour(193, 213, 255));
+    SetCaretLineBackAlpha(60);
+    SetCaretLineVisible(true);
+    SetCaretLineVisibleAlways(true);
     
     // set style for brace light and bad
     //StyleSetForeground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("WHITE")));
@@ -1069,26 +1102,14 @@ bool Edit::InitializePrefs (const wxString &name) {
     // set lexer and language
     SetLexer (curInfo->lexer);
     m_language = curInfo;
-
-#if 0    
-    // annotations style
-    StyleSetBackground(ANNOTATION_STYLE, wxColour(244, 220, 220));
-    StyleSetForeground(ANNOTATION_STYLE, *wxBLACK);
-    StyleSetSizeFractional(ANNOTATION_STYLE,
-            (StyleGetSizeFractional(wxSTC_STYLE_DEFAULT)*4)/5);
-#endif
-
+    
     // default fonts for all styles!
     int Nr;
     for (Nr = 0; Nr < wxSTC_STYLE_LASTPREDEFINED; Nr++) {
         wxFont font(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
         StyleSetFont (Nr, font);
     }
-
-    // set common styles
-    StyleSetForeground (wxSTC_STYLE_DEFAULT, wxColour (wxT("BLACK")));
-    StyleSetForeground (wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("DARK GREY")));
-
+    
     // initialize settings
     if (g_CommonPrefs.syntaxEnable) {
         int keywordnr = 0;
@@ -1096,8 +1117,8 @@ bool Edit::InitializePrefs (const wxString &name) {
             if (curInfo->styles[Nr].type == -1) continue;
             const StyleInfo &curType = g_StylePrefs [curInfo->styles[Nr].type];
             wxFont font(wxFontInfo(curType.fontsize)
-                            .Family(wxFONTFAMILY_MODERN)
-                            .FaceName(curType.fontname));
+                .Family(wxFONTFAMILY_MODERN)
+                .FaceName(curType.fontname));
             StyleSetFont (Nr, font);
             if (curType.foreground) {
                 StyleSetForeground (Nr, wxColour (curType.foreground));
@@ -1117,59 +1138,56 @@ bool Edit::InitializePrefs (const wxString &name) {
             }
         }
     }
-
+    
     // set margin as unused
     SetMarginType (m_DividerID, wxSTC_MARGIN_SYMBOL);
     SetMarginWidth (m_DividerID, 0);
     SetMarginSensitive (m_DividerID, false);
-
+    
     // folding
     SetMarginType (m_FoldingID, wxSTC_MARGIN_SYMBOL);
     SetMarginMask (m_FoldingID, wxSTC_MASK_FOLDERS);
-    StyleSetBackground (m_FoldingID, *wxWHITE);
     SetMarginWidth (m_FoldingID, 0);
-    SetMarginSensitive (m_FoldingID, false);
-    if (g_CommonPrefs.foldEnable) {
-        SetMarginWidth (m_FoldingID, curInfo->folds != 0? m_FoldingMargin: 0);
-        SetMarginSensitive (m_FoldingID, curInfo->folds != 0);
-        SetProperty (wxT("fold"), curInfo->folds != 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.comment"),
-                     (curInfo->folds & mySTC_FOLD_COMMENT) > 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.compact"),
-                     (curInfo->folds & mySTC_FOLD_COMPACT) > 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.preprocessor"),
-                     (curInfo->folds & mySTC_FOLD_PREPROC) > 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.html"),
-                     (curInfo->folds & mySTC_FOLD_HTML) > 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.html.preprocessor"),
-                     (curInfo->folds & mySTC_FOLD_HTMLPREP) > 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.comment.python"),
-                     (curInfo->folds & mySTC_FOLD_COMMENTPY) > 0? wxT("1"): wxT("0"));
-        SetProperty (wxT("fold.quotes.python"),
-                     (curInfo->folds & mySTC_FOLD_QUOTESPY) > 0? wxT("1"): wxT("0"));
-    }
-    SetFoldFlags (wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED |
-                  wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
-
+    SetMarginSensitive (m_FoldingID, false); // don't handle the mouse click
+    SetFoldMarginColour(true, *wxBLACK);
+    SetFoldMarginHiColour(true, *wxBLACK);
+    MarkerDefine(wxSTC_MARKNUM_FOLDER,        wxSTC_MARK_BOXPLUS, wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEROPEN,    wxSTC_MARK_BOXMINUS,  wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERSUB,     wxSTC_MARK_VLINE,     wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEREND,     wxSTC_MARK_BOXPLUSCONNECTED, wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEROPENMID, wxSTC_MARK_BOXMINUSCONNECTED, wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_TCORNER,     wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_LCORNER,     wxT("BLACK"), wxT("WHITE"));
+    
+    SetMarginWidth (m_FoldingID, curInfo->folds != 0? m_FoldingMargin: 0);
+    SetMarginSensitive (m_FoldingID, curInfo->folds != 0);
+    SetProperty (wxT("fold"), curInfo->folds != 0? wxT("1"): wxT("0"));
+    SetProperty (wxT("fold.comment"), wxT("1"));
+    SetProperty (wxT("fold.compact"), wxT("1"));
+    SetProperty (wxT("fold.preprocessor"), wxT("0"));
+    
+    SetFoldFlags (wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | /*wxSTC_FOLDFLAG_LEVELNUMBERS |*/
+        wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
+    
     // set spaces and indentation
     SetTabWidth (4);
     SetUseTabs (false);
-    SetTabIndents (true);
-    SetBackSpaceUnIndents (true);
+    SetTabIndents (false);
+    SetBackSpaceUnIndents (false);
+    CmdKeyClear (wxSTC_KEY_TAB, 0); // disable the default tab handle;
     SetIndent(g_CommonPrefs.indentEnable? 4: 0);
-
-    // others
-    SetViewEOL (g_CommonPrefs.displayEOLEnable);
-    SetIndentationGuides (g_CommonPrefs.indentGuideEnable);
-    SetEdgeColumn (120);
-    SetEdgeMode (g_CommonPrefs.longLineOnEnable? wxSTC_EDGE_LINE: wxSTC_EDGE_NONE);
-    SetViewWhiteSpace (g_CommonPrefs.whiteSpaceEnable?
-                       wxSTC_WS_VISIBLEALWAYS: wxSTC_WS_INVISIBLE);
-    SetOvertype (g_CommonPrefs.overTypeInitial);
-    SetReadOnly (g_CommonPrefs.readOnlyInitial);
-    SetWrapMode (g_CommonPrefs.wrapModeInitial?
-                 wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
     
+    // others
+    SetViewEOL(g_CommonPrefs.displayEOLEnable);
+    SetIndentationGuides(true);
+    SetEdgeColumn(120);
+    SetEdgeMode(wxSTC_EDGE_LINE);
+    SetViewWhiteSpace(wxSTC_WS_INVISIBLE);
+    SetOvertype(g_CommonPrefs.overTypeInitial);
+    SetReadOnly(g_CommonPrefs.readOnlyInitial);
+    SetWrapMode(g_CommonPrefs.wrapModeInitial? wxSTC_WRAP_WORD: wxSTC_WRAP_NONE);
+    
+    // about autocomp
     LoadAutoComProvider(m_language->name);
     AutoCompSetMaxWidth(50);
     return true;
@@ -1201,6 +1219,9 @@ void Edit::UpdateLineNumberMargin()
         linenumber += wxT("9");
         lineCount = lineCount / 10;
     }
+    // fixme: for debug the auto indent
+    // show the fold level before the number.
+    // linenumber += wxT("9999");
     SetMarginWidth(m_LineNrID, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
 }
 

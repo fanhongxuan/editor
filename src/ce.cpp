@@ -51,6 +51,7 @@
 #include "wxAgSearch.hpp"
 #include "wxSymbolSearch.hpp"
 #include "ceRefSearch.hpp"
+#include "ceUtils.hpp"
 
 wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
@@ -199,7 +200,7 @@ void MyFrame::DoUpdate()
 {
     /**
      * fixme:fanhongxuan@gmail.com
-     */
+     */  
     // update the current dir of wxAgSearch according the current status.
     if (NULL != mpAgSearch){
         std::set<wxString> dirs;
@@ -220,7 +221,7 @@ void MyFrame::DoUpdate()
         }
         mpSearchDir->SetDirs(dirs);
     }
-    m_mgr.Update();
+    m_mgr.Update();   
 }
 
 class MyAgSearchHandler: public wxSearchHandler
@@ -479,6 +480,16 @@ void MyFrame::LoadInfo()
     height = config.ReadLong("/Config/LastSize.height", 0);
     if ((x+y+width+height) != 0){
         SetSize(x, y, width, height);
+    }
+    // if no file is open, open the readme.
+    if (NULL != mpBufferList && mpBufferList->GetPageCount() == 0){
+        wxString readme = ceGetExecPath();
+        #ifdef WIN32
+            readme += "\\README.md";
+        #else
+        readme += "/README.md";
+        #endif
+        OpenFile("README.md", readme, true);
     }
     SwitchFocus();
 }
