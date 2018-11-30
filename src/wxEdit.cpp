@@ -101,8 +101,8 @@ wxBEGIN_EVENT_TABLE (Edit, wxStyledTextCtrl)
     EVT_MENU (myID_BRACEMATCH,         Edit::OnBraceMatch)
     EVT_MENU (myID_GOTO,               Edit::OnGoto)
     // view
-    EVT_MENU_RANGE (myID_HIGHLIGHTFIRST, myID_HIGHLIGHTLAST,
-                                       Edit::OnHighlightLang)
+EVT_MENU_RANGE (myID_HIGHLIGHTFIRST, myID_HIGHLIGHTLAST,
+    Edit::OnHighlightLang)
     EVT_MENU (myID_DISPLAYEOL,         Edit::OnDisplayEOL)
     EVT_MENU (myID_INDENTGUIDE,        Edit::OnIndentGuide)
     EVT_MENU (myID_LINENUMBER,         Edit::OnLineNumber)
@@ -263,6 +263,10 @@ int Edit::CalcLineIndentByFoldLevel(int line, int level)
         if (value.size() >= 1 && value[0] == '#'){
             level = 0;
         }
+        if (value.find("// ") == 0){
+            // skip the auto comments line
+            return GetLineIndentation(line);
+        }
     }
     return level * GetIndent();}
 
@@ -370,17 +374,12 @@ void Edit::OnKeyDown (wxKeyEvent &event)
         return;
     }
     
-    if (WXK_TAB == event.GetKeyCode()){
-        if (AutoCompActive()){
-            AutoCompComplete();
+    if (WXK_BACK ==  event.GetKeyCode()){
+        long start = 0, stop = 0;
+        GetSelection(&start, &stop);
+        if (start == stop){
+            HungerBack();
         }
-        else{
-            AutoIndentWithTab(GetCurrentLine());
-        }
-    }
-    
-    if (event.GetKeyCode() == WXK_BACK){
-        HungerBack();
     }
     
     event.Skip();
@@ -405,7 +404,7 @@ void Edit::DoBraceMatch()
         }
         else{
             BraceBadLight (min);
-        }    
+        } 
     }
     else{
         BraceHighlight(-1, -1);
@@ -421,6 +420,33 @@ void Edit::OnMouseLeftUp(wxMouseEvent &event)
 void Edit::OnKeyUp(wxKeyEvent &event)
 {
     DoBraceMatch();
+    if (WXK_TAB == event.GetKeyCode()){
+        if (AutoCompActive()){
+            AutoCompComplete();
+        }
+        else{
+            long start = 0, stop = 0, startLine = 0, stopLine = 0;
+            GetSelection(&start, &stop);
+            PositionToXY(start, NULL, &startLine);
+            PositionToXY(stop, NULL, &stopLine);
+            // wxPrintf("startLine:%ld, stopLine:%ld\n", startLine, stopLine);
+            if (startLine != stopLine){
+                if (startLine > stopLine){
+                    long temp = stopLine; stopLine = startLine; startLine = temp;
+                }
+                for (int i = startLine; i <= stopLine; i++){
+                    AutoIndentWithTab(i);
+                }
+                int pos = GetLineIndentPosition(stopLine);
+                SetSelection(pos, pos);
+                GotoPos(pos);
+                ChooseCaretX();
+            }
+            else{
+                AutoIndentWithTab(GetCurrentLine());
+            }
+        }
+    } 
     event.Skip();
 }
 
@@ -886,10 +912,10 @@ bool Edit::HungerBack(){
         }
         start--;
     }
+    
     DeleteRange(start+1, end - start - 1);
     return true;
 }
-
 
 long Edit::GetLineStartPosition(long line)
 {
@@ -916,7 +942,8 @@ bool Edit::TriggerCommentRange(long start, long stop)
     long startLine, endLine;
     PositionToXY(start, NULL, &startLine);
     PositionToXY(stop, NULL, &endLine);
-    wxPrintf("select line:<%ld-%ld>\n", startLine+1, endLine+1);
+    // wxPrintf("select line:<%ld-%ld>\n", startLine+1, endLine+1);
+    
     wxString comment = "// ";
     if (start == stop){
         // no selection, add comments at the line end
@@ -935,11 +962,59 @@ bool Edit::TriggerCommentRange(long start, long stop)
         return true;
     }
     else{
-        // if all the line is start with "// ", we will try to delete all the "// " at the beginning.
-        
-        // otherwsize, add "// " at the min indent
         int minIndent = -1;
         int i = 0;
+        int count = 0;
+        
+        // make sure stop is bigger than start
+        if (start > stop){
+            long temp = stop;stop = start; start = temp;
+        }
+        
+        // if all the line is start with "// ", we will try to delete all the "// " at the beginning.
+        for (i = startLine; i <= endLine; i++){
+            wxString text;
+            if (i == startLine){
+                text = GetTextRange(start, GetLineEndPosition(i));
+            }
+            else{
+                text = GetLineText(i);
+            }
+            // wxPrintf("Text:<%s>\n", text);
+            int pos = text.find_first_not_of("\r\n\t ");
+            if (pos != text.npos){
+                text = text.substr(pos);
+                if (text.find(comment) != 0){
+                    break;
+                }
+            }
+        }
+
+        if (i == (endLine+1)){
+            // wxPrintf("all the line is start with // , try to remove the comments\n");
+            size_t len = comment.length();
+            for (i = startLine; i <= endLine; i++){
+                int pos = 0;
+                wxString text;
+                if (i == startLine){
+                    text = GetTextRange(start, GetLineEndPosition(i));
+                    pos = text.find(comment);
+                    if (pos != text.npos){
+                        DeleteRange(start, len);
+                    }
+                }
+                else{
+                    text = GetLineText(i);
+                    pos = text.find(comment);
+                    if (pos != text.npos){
+                        DeleteRange(GetLineStartPosition(i) + pos, len);
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // otherwsize, add "// " at the min indent
         for (i = startLine; i <= endLine; i++){
             int indent = GetLineIndentation(i);
             if (minIndent == -1 || indent < minIndent){
@@ -949,8 +1024,28 @@ bool Edit::TriggerCommentRange(long start, long stop)
         
         for (i = startLine; i <= endLine; i++){
             int pos = GetLineStartPosition(i);
-            pos += minIndent;
+            if (i == startLine && start > GetLineIndentPosition(i)){
+                // if the first line is not select all the content, keep the left content
+                pos = start;
+            }
+            else{
+                pos += minIndent;
+            }
+            wxString text = GetTextRange(pos, GetLineEndPosition(i));
+            if (text.find_first_not_of("\r\n\t ") == text.npos){
+                // skip the empty line
+                continue;
+            }
             InsertText(pos, comment);
+            count += comment.length();
+            
+            if (i == endLine){
+                text = GetTextRange(stop + count, GetLineEndPosition(i));
+                if (text.find_first_not_of("\r\n\t ") != text.npos){
+                    // has some thing left, add a newline.
+                    InsertNewLine(stop + count);
+                }
+            }
         }
     }
     return true;
@@ -959,7 +1054,9 @@ bool Edit::TriggerCommentRange(long start, long stop)
 bool Edit::AutoIndentWithTab(int line)
 {
     if (NULL == m_language || wxString(m_language->name) != "C++"){
-        return false;    }
+        return false;
+    }
+    // wxPrintf("AutoIndentWithTab:%d\n", line);
     // auto indent current line
     int pos = GetCurrentPos();
     // calc the line indent according the level
@@ -977,13 +1074,36 @@ bool Edit::AutoIndentWithTab(int line)
         ChooseCaretX();
     }
     else{
-        wxString value = GetLineText(line);
-        if (value.find_first_not_of("\r\n\t ") == value.npos){
+        if (pos < GetLineIndentPosition(line)){
             GotoPos(GetLineIndentPosition(line));
             ChooseCaretX();
         }
+        // wxString value = GetLineText(line);
+        // if (value.find_first_not_of("\r\n\t ") == value.npos){
+        //     GotoPos(GetLineIndentPosition(line));
+        //     ChooseCaretX();
+        // }
     }
-    return true;}
+    return true;
+}
+
+bool Edit::InsertNewLine(long pos)
+{
+    int eol = GetEOLMode();
+    if (eol == wxSTC_EOL_LF){
+        // wxPrintf("Insert LF\n");
+        InsertText(pos, "\n");
+    }
+    else if (eol == wxSTC_EOL_CRLF){
+        // wxPrintf("Insert CRLF\n");
+        InsertText(pos, "\r\n");
+    }
+    else{
+        // wxPrintf("Insert CR\n");
+        InsertText(pos, "\r");    
+    }
+    return true;
+}
 
 // todo:fanhongxuan@gmail.com
 // auto pair "", '', (), [], {},
@@ -1007,19 +1127,7 @@ void Edit::AutoIndentWithNewline(int currentLine)
 		}
         // wxPrintf("Prev:%c, next:%c\n", prev, next);        
         if (prev == '{' && next == '}'){
-            int eol = GetEOLMode();
-            if (eol == wxSTC_EOL_LF){
-                // wxPrintf("Insert LF\n");
-                InsertText(pos, "\n");
-            }
-            else if (eol == wxSTC_EOL_CRLF){
-                // wxPrintf("Insert CRLF\n");
-                InsertText(pos, "\r\n");
-            }
-            else{
-                // wxPrintf("Insert CR\n");
-                InsertText(pos, "\r");    
-            }
+            InsertNewLine(pos);
         }
         else{
             // this is a normal newline. try to indent according the fold level.

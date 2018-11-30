@@ -62,6 +62,7 @@ public:
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     void UpdateLineNumberMargin();
 
+    bool InsertNewLine(long pos);
     long GetLineStartPosition(long line);
     bool TriggerCommentRange(long start, long stop);
     bool HungerBack();
