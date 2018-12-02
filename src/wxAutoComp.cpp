@@ -1,5 +1,6 @@
 #include "wxAutoComp.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
+#include "ceUtils.hpp"
 
 std::vector<wxAutoCompProvider*> wxAutoCompProvider::mAllProviders;
 
@@ -91,8 +92,8 @@ wxAutoCompProviderKeyword &wxAutoCompProviderKeyword::Instance()
 
 wxAutoCompProviderKeyword::wxAutoCompProviderKeyword()
 {
-    ParseString(gCppKeyWord, mCPPKeyWordList, ' ');
-    ParseString(gCPreKeyWord, mCPPKeyWordList, ' ');
+    ceSplitString(gCppKeyWord, mCPPKeyWordList, ' ');
+    ceSplitString(gCPreKeyWord, mCPPKeyWordList, ' ');
 }
 
 static bool isCpp(const wxString &opt){

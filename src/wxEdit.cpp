@@ -919,18 +919,9 @@ bool Edit::HungerBack(){
 
 long Edit::GetLineStartPosition(long line)
 {
-    if(line == 0){
-        return 0;
-    }
-    long ret = GetLineEndPosition(line - 1);
-    if (GetCharAt(ret) == '\r'){
-        ret++;
-    }
-    if (GetCharAt(ret) == '\n'){
-        ret++;
-    }
-    return ret;
+    return XYToPosition(0, line);
 }
+
 
 bool Edit::TriggerCommentRange(long start, long stop)
 {
@@ -1273,7 +1264,7 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetEOLMode(wxSTC_EOL_LF);
 #endif
     
-    wxFont font(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+    wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
     StyleSetFont (wxSTC_STYLE_DEFAULT, font);
     StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxWHITE);
     StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxBLACK);
@@ -1385,7 +1376,7 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetProperty (wxT("fold.compact"), wxT("1"));
     SetProperty (wxT("fold.preprocessor"), wxT("0"));
     
-    SetFoldFlags (wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | /*wxSTC_FOLDFLAG_LEVELNUMBERS |*/
+    SetFoldFlags (wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | // wxSTC_FOLDFLAG_LEVELNUMBERS |
         wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
     
     // set spaces and indentation
@@ -1440,7 +1431,7 @@ void Edit::UpdateLineNumberMargin()
     }
     // fixme: for debug the auto indent
     // show the fold level before the number.
-    // linenumber += wxT("9999");
+    // linenumber = wxT("99999999999");
     SetMarginWidth(m_LineNrID, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
 }
 

@@ -25,9 +25,8 @@
 #include <map>
 #include <vector>
 
-// todo:fanhongxuan@gmail.com
-// in some case the need to display the search result in some different group.
-// maybe later we can use stc instread of wxTextEntry to show the search result.
+//#define DEBUG_FOLD
+
 class wxMyTimeTrace
 {
 public:
@@ -54,77 +53,292 @@ private:
     wxString mDesc;
 };
 
-class wxSearchListCtrl: public wxTextCtrl
+
+class wxSearchListCtrl: public wxStyledTextCtrl
 {
 private:
     wxSearch *mpParent;
-    long mStart;
-    long mEnd;
+    wxString mKey;
+    wxDECLARE_EVENT_TABLE();
 public:
-    wxSearchListCtrl(wxSearch *parent, wxSize size)
-        :wxTextCtrl(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, size,
-                    wxVSCROLL | wxHSCROLL /*| wxBORDER_NONE*/ |
-                    wxTE_RICH | wxWANTS_CHARS | wxTE_MULTILINE | wxTE_READONLY)
-    {
-        mpParent = parent;
-        mStart = -1;
-        mEnd = -1;
-    }
-    virtual void Clear()
-    {
-        mStart = -1;
-        mEnd = -1;
-        wxTextCtrl::Clear();
-    }
+    wxSearchListCtrl(wxSearch *parent, wxSize size);
     
-    bool SetSelection(int start, int end)
-    {
-        wxTextAttr normal(wxNullColour, wxColour(255, 255, 255));
-        wxTextAttr select(wxNullColour, wxColour(193, 213, 255));
-        if (mStart >= 0 && mEnd >= 0){
-            SetStyle(mStart, mEnd, normal);
-        }
-        if (start >= 0 && end >= 0 && start <= end){
-            mStart = start;
-            mEnd = end;
-            SetStyle(mStart, mEnd, select);
-        }
-        else{
-            wxPrintf("Invalid range:%d, %d\n", start, end);
-        }
-        wxTextCtrl::SetSelection(start, start);
-        return true;
-    }
+    void OnStyleNeeded(wxStyledTextEvent &evt);
+    void OnMarginClick(wxStyledTextEvent &evt);
+    
+    void OnLeftDown(wxMouseEvent &evt);
+    void OnKeyDown(wxKeyEvent &evt);
+    void SetKey(const wxString &input){mKey = input;}
+    void ListUpdated();
+    
+    bool IsGroupHeader(const wxString &input, long line);
+    bool IsGroupEnder(const wxString &input, long line);
+    
+    int CalcFoldLevel(int type, int line);
     
     virtual bool AcceptsFocus() const {return false;}
     virtual bool AcceptsFocusFromKeyboard() const {return false;}
     virtual bool AcceptsFocusRecursively() const {return false;}
-    virtual bool ProcessEvent(wxEvent &evt)
-    {
-        // note:fanhongxuan@gmail.com
-        // left click to select and active
-        // left double click to select and switch the focus.
-        if (wxEVT_LEFT_DOWN == evt.GetEventType() || wxEVT_LEFT_DCLICK == evt.GetEventType()){
-            wxMouseEvent *pEvt = dynamic_cast<wxMouseEvent*>(&evt);
-            if (NULL != mpParent && NULL != pEvt){
-                long pos = -1;
-                HitTest(pEvt->GetPosition(), &pos);
-                if (pos >= 0){
-                    long x = 0, y = 0;
-                    PositionToXY(pos, &x, &y);
-                    mpParent->SelectLine(y, true, wxEVT_LEFT_DOWN == evt.GetEventType());
-                    // note:fanhongxuan@gmail.com
-                    // skip the default handler of mouse event in wxTextCtrl::ProcessEvent;
-                    evt.StopPropagation();
-                    return true;
-                }
-            }
-        }
-        return wxTextCtrl::ProcessEvent(evt);
-    }
+    enum{
+        STYLE_NORMAL,
+        STYLE_HIGHLIGHT,
+        STYLE_GROUP_BEGIN,
+        STYLE_GROUP_END,
+    };
 };
 
-#define wxSearchInputCtrlBase wxSearchCtrl
+wxBEGIN_EVENT_TABLE(wxSearchListCtrl, wxStyledTextCtrl)
+EVT_LEFT_DOWN(wxSearchListCtrl::OnLeftDown)
+EVT_STC_STYLENEEDED(wxID_ANY, wxSearchListCtrl::OnStyleNeeded)
+EVT_LEFT_DCLICK(wxSearchListCtrl::OnLeftDown)
+EVT_KEY_DOWN(wxSearchListCtrl::OnKeyDown)
+EVT_STC_MARGINCLICK(wxID_ANY, wxSearchListCtrl::OnMarginClick)
+wxEND_EVENT_TABLE()
+
+wxSearchListCtrl::wxSearchListCtrl(wxSearch *parent, wxSize size)
+:wxStyledTextCtrl(parent, wxID_ANY, wxDefaultPosition, size)
+{
+    StyleClearAll();
+    
+    wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
+    StyleSetFont(wxSTC_STYLE_DEFAULT, font);
+    
+    SetCaretStyle(wxSTC_CARETSTYLE_BLOCK);
+    SetCaretForeground(wxColor(wxT("RED")));
+    SetCaretLineBackground(wxColour(193, 213, 255));
+    SetCaretLineBackAlpha(60);
+    SetCaretLineVisible(true);
+    SetCaretLineVisibleAlways(true);
+    
+    // set the default style
+    StyleSetForeground(wxSTC_STYLE_DEFAULT, *wxWHITE);
+    StyleSetBackground(wxSTC_STYLE_DEFAULT, *wxBLACK);
+    
+    StyleSetForeground(STYLE_NORMAL, *wxWHITE); // normal
+    StyleSetBackground(STYLE_NORMAL, *wxBLACK);
+    StyleSetFont(STYLE_NORMAL, font);
+    
+    StyleSetForeground(STYLE_HIGHLIGHT, *wxRED);  // highlight
+    StyleSetBackground(STYLE_HIGHLIGHT, *wxBLACK);
+    StyleSetFont(STYLE_HIGHLIGHT, font);
+    
+    StyleSetForeground(STYLE_GROUP_BEGIN, *wxGREEN); // Fold Header
+    StyleSetBackground(STYLE_GROUP_BEGIN, *wxBLACK);
+    StyleSetFont(STYLE_GROUP_BEGIN, font);
+    
+    StyleSetForeground(STYLE_GROUP_END, *wxGREEN); // Fold ender
+    StyleSetBackground(STYLE_GROUP_END, *wxBLACK);
+    StyleSetFont(STYLE_GROUP_END, font);
+    
+    // 0 is used as line number
+    SetMarginType (0, wxSTC_MARGIN_NUMBER);
+    StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("GREEN")));
+    StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxBLACK);
+    wxString linenumber = "999";
+    SetMarginWidth(0, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
+    
+    // setup about folder
+    SetMarginType (1, wxSTC_MARGIN_SYMBOL);
+    SetMarginMask (1, wxSTC_MASK_FOLDERS);
+    SetMarginWidth (1, 16);
+    SetMarginSensitive (1, true);
+    SetFoldMarginColour(true, *wxBLACK);
+    SetFoldMarginHiColour(true, *wxBLACK);
+    MarkerDefine(wxSTC_MARKNUM_FOLDER,        wxSTC_MARK_BOXPLUS, wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEROPEN,    wxSTC_MARK_BOXMINUS,  wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERSUB,     wxSTC_MARK_VLINE,     wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEREND,     wxSTC_MARK_BOXPLUSCONNECTED, wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDEROPENMID, wxSTC_MARK_BOXMINUSCONNECTED, wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_TCORNER,     wxT("BLACK"), wxT("WHITE"));
+    MarkerDefine(wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_LCORNER,     wxT("BLACK"), wxT("WHITE"));
+    
+    SetProperty (wxT("fold"), wxT("1"));
+    SetProperty (wxT("fold.compact"), wxT("1"));
+    
+    SetFoldFlags (wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | 
+#ifdef DEBUG_FOLD        
+        wxSTC_FOLDFLAG_LEVELNUMBERS |
+#endif        
+        wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
+    
+    SetLexer(wxSTC_LEX_CONTAINER);
+    // setup about the 
+    mpParent = parent;
+}
+
+void wxSearchListCtrl::OnLeftDown(wxMouseEvent &evt)
+{
+    if (NULL == mpParent){
+        return;
+    }
+    long pos = -1;
+    HitTest(evt.GetPosition(), &pos);
+    if (pos >= 0){
+        long x = 0, y = 0;
+        PositionToXY(pos, &x, &y);
+        mpParent->SelectLine(y, true, wxEVT_LEFT_DOWN == evt.GetEventType());
+        //evt.StopPropagation();
+    }
+    evt.Skip();
+}
+
+void wxSearchListCtrl::OnKeyDown(wxKeyEvent &evt)
+{
+    if (WXK_RETURN == evt.GetKeyCode() || WXK_UP == evt.GetKeyCode() || WXK_DOWN == evt.GetKeyCode()){
+        if (NULL != mpParent && mpParent->OnKey(evt)){
+        }
+    }
+    evt.StopPropagation();
+}
+
+bool wxSearchListCtrl::IsGroupHeader(const wxString &input, long line){
+    if (NULL != mpParent){
+        bool isHeader = false;
+        bool hasResult = mpParent->IsGroupHeader(input, line, isHeader);
+        if (hasResult){
+            return isHeader;
+        }
+    }
+    if (input.find("{") == 0){
+        return true;
+    }
+    return false;
+}
+
+bool wxSearchListCtrl::IsGroupEnder(const wxString &input, long line){
+    if (NULL != mpParent){
+        bool isEnd = false;
+        bool hasResult = mpParent->IsGroupEnder(input, line, isEnd);
+        if (hasResult){
+            return isEnd;
+        }
+    }
+    if (input.find("}") == 0){
+        return true;
+    }
+    return false;
+}
+
+int wxSearchListCtrl::CalcFoldLevel(int type, int line)
+{
+    int prevLevel = wxSTC_FOLDLEVELBASE;
+    if (line == 0){
+        if (type == STYLE_GROUP_BEGIN){
+            prevLevel |= wxSTC_FOLDLEVELHEADERFLAG;
+        }
+        return prevLevel;
+    }
+    
+    prevLevel = GetFoldLevel(line - 1);
+    if (prevLevel & wxSTC_FOLDLEVELHEADERFLAG){
+        prevLevel++;
+    }
+    prevLevel = prevLevel & wxSTC_FOLDLEVELNUMBERMASK;
+    if (STYLE_GROUP_BEGIN == type){
+        prevLevel |= wxSTC_FOLDLEVELHEADERFLAG;
+    }
+    else if (STYLE_GROUP_END == type){
+        if (prevLevel > wxSTC_FOLDLEVELBASE){
+            prevLevel--;
+        }
+    }
+    else{
+        // normal line, keep the prevLevel
+    }
+    return prevLevel;
+}
+
+void wxSearchListCtrl::OnStyleNeeded(wxStyledTextEvent &evt)
+{
+    int startPos = GetEndStyled();
+    int stopPos = evt.GetPosition();
+    int startLine = LineFromPosition(startPos);
+    int stopLine = LineFromPosition(stopPos);
+    
+    int foldLevel = wxSTC_FOLDLEVELBASE;
+    
+    startPos = XYToPosition(0, startLine);
+    stopPos = GetLineEndPosition(stopLine);
+    StartStyling(startPos);
+    SetStyling(stopPos - startPos, STYLE_NORMAL);
+    // wxPrintf("OnStyleNeeded:<%d-%d>\n", startLine, stopLine);
+    std::vector<wxString> rets;
+    ceSplitString(mKey, rets, ' ');
+    
+    for (int j = startLine; j <= stopLine; j++ ){
+        startPos = XYToPosition(0, j);
+        stopPos = GetLineEndPosition(j);
+        wxString text = GetLineText(j);
+        if (IsGroupHeader(text, j)){
+            SetFoldLevel(j,CalcFoldLevel(STYLE_GROUP_BEGIN, j));
+            StartStyling(startPos);
+            SetStyling(text.length(), STYLE_GROUP_BEGIN);
+        }
+        else if (IsGroupEnder(text, j)){
+            SetFoldLevel(j, CalcFoldLevel(STYLE_GROUP_END, j));
+            StartStyling(startPos);
+            SetStyling(text.length(), STYLE_GROUP_END);
+        }
+        else{
+            SetFoldLevel(j, CalcFoldLevel(STYLE_NORMAL, j));
+        }
+        wxString lowText = text.Lower();
+        for (int i = 0; i < rets.size(); i++ ){
+            int start = 0;
+            int length = text.length();
+            wxString low = rets[i].Lower();
+            bool bCaseSenstive = (low != rets[i]);
+            while(start < length){
+                if (bCaseSenstive){
+                    start = text.find(rets[i], start);
+                }
+                else{
+                    start = lowText.find(low, start);
+                }
+                if (start == text.npos){
+                    break;
+                }
+                StartStyling(startPos + start);
+                SetStyling(rets[i].length(), STYLE_HIGHLIGHT);
+                start+= rets[i].length();
+            }
+        }
+    }
+    
+    // note:fanhongxuan@gmail.com
+    // move the style end to the end.
+    StartStyling(stopPos);
+    SetStyling(0, STYLE_NORMAL);
+}
+
+void wxSearchListCtrl::OnMarginClick(wxStyledTextEvent &evt)
+{
+    if (evt.GetMargin() == 1) {
+        int lineClick = LineFromPosition (evt.GetPosition());
+        int levelClick = GetFoldLevel (lineClick);
+        if ((levelClick & wxSTC_FOLDLEVELHEADERFLAG) > 0) {
+            ToggleFold (lineClick);
+        }
+    }
+}
+
+void wxSearchListCtrl::ListUpdated()
+{
+    Clear(); // Clear selection;
+    int lineCount = GetLineCount();
+    wxString linenumber = wxT("_");
+    while(lineCount != 0){
+        linenumber += wxT("9");
+        lineCount = lineCount / 10;
+    }
+#ifdef DEBUG_FOLD    
+    linenumber = "99999999999";
+#endif
+    SetMarginWidth(0, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
+    GotoLine(0);
+}
+
+#define wxSearchInputCtrlBase wxTextCtrl
 class wxSearchInputCtrl: public wxSearchInputCtrlBase
 {
 private:
@@ -135,8 +349,14 @@ private:
     bool mbEmptyUpdate;
 public:
     wxSearchInputCtrl(wxSearch *parent)
-        :wxSearchInputCtrlBase(parent, wxID_ANY), 
-		mpParent(parent), mpList(NULL), mpTimer(NULL), mbEmptyUpdate(false){}
+    :wxSearchInputCtrlBase(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(-1, 25), wxTE_RICH|wxTE_MULTILINE), 
+    mpParent(parent), mpList(NULL), mpTimer(NULL), mbEmptyUpdate(false){
+        SetBackgroundColour(*wxBLACK);
+        SetForegroundColour(*wxWHITE);
+        wxTextAttr white(*wxWHITE);
+        SetDefaultStyle(white);
+        SetScrollbar(wxVERTICAL, 0, 1, 1);
+    }
     void SetList(wxSearchListCtrl *pList){mpList = pList;}
     void Reset()
     {
@@ -153,12 +373,14 @@ public:
         if (wxEVT_CHAR_HOOK == evt.GetEventType()){
             wxKeyEvent *pEvt = dynamic_cast<wxKeyEvent*>(&evt);
             if (NULL != pEvt){
-                if (pEvt->GetKeyCode() == WXK_UP || pEvt->GetKeyCode() == WXK_DOWN){
+                if (WXK_UP == pEvt->GetKeyCode() ||
+                    WXK_DOWN == pEvt->GetKeyCode()|| 
+                    WXK_RETURN == pEvt->GetKeyCode()){
                     // note:fanhongxuan@gmail.com
                     // the default process of wxk_up and wxk_down will switch the keyboard focus,
                     // we don't want it, so directly process it here, and stop propagation to our parent.
-                    evt.StopPropagation();
                     mpParent->OnKey(*pEvt);
+                    evt.StopPropagation();
                     return true;
                 }
             }
@@ -211,179 +433,61 @@ public:
     }
 };
 
-wxSearchResult::wxSearchResult(const wxString &content, const wxString &target, void *pCustomData)
-    :mContent(content), mTarget(target), mpCustomData(pCustomData)
+wxSearchResult::wxSearchResult(const wxString &content, const wxString &target, void *pCustomData, bool bNeedFilter)
+    :mContent(content), mTarget(target), mpCustomData(pCustomData), mbNeedFilter(bNeedFilter)
 {
     mbMatch = false;
     mLowContent = mContent.Lower();
 }
 
-void ParseString(const wxString &input, std::vector<wxString> &output, char sep, bool allowEmpty = false)
+bool wxSearchResult::ConvertToRichText(wxSearch *pSearch, const wxString &input, wxSearchListCtrl &rich,
+                                       const std::vector<wxString> &rets, bool bEnableHighlight)
 {
-    size_t begin = 0;
-    size_t end = 0;
-    while(begin != input.npos && begin < input.length()){
-        end = input.find_first_of(sep, begin);
-        if (end == input.npos){
-            output.push_back(input.substr(begin));
-            break;
+    // this result is not need filter, so directly return false;
+    if (!mbNeedFilter){
+        mbMatch = false;
+        if (NULL != pSearch){
+            pSearch->BeforeResultMatch(input, this);
         }
-        else{
-            if (begin != end || allowEmpty){
-                output.push_back(input.substr(begin, (end - begin)));
-            }
-            begin = end + 1;
-        }
-    }
-}
-
-int wxSearchResult::IsMatch(int pos, const std::map<int, int> &match) const
-{
-    std::map<int, int>::const_iterator it = match.begin();
-    while(it != match.end()){
-        if (pos >= it->first && pos < it->first + it->second){
-            return it->second;
-        }
-        it++;
-    }
-    return 0;
-}
-
-bool wxSearchResult::ConvertToRichText(wxSearchListCtrl &rich, const std::vector<wxString> &rets, bool bEnableHighlight)
-{
-    // todo:fanhongxuan@gmail.com
-    // make sure we only highlight the real content, not a ext info
-    std::map<int, int> match;
-    bool isNormal = true;
-    wxString result;
-    int i = 0;
-    int minMatch = mContent.length(), maxMatch = 0;
-    if (rets.empty()){
-        // note:fanhongxuan@gmail.com
-        // if the rets is empty, all is match, but don't highlight
-        mbMatch = true;
         if (rich.GetLastPosition() != 0){
             rich.WriteText("\n");
         }
         mRange.SetStart(rich.GetLastPosition());
         rich.WriteText(mContent);
-        // wxPrintf("Add <%s>\n", mContent);
         mRange.SetEnd(rich.GetLastPosition());
-        return true;
+        return false;
     }
-    
+    int i = 0;    
     mbMatch = false;
-    for (i = 0; i < rets.size(); i++){
+    for (i = 0; i < rets.size(); i++ ){
         wxString low = rets[i].Lower();
-        int start = 0;
-        bool isMatched = false;
         bool bCaseSenstive = (low != rets[i]);
-        while(start < mContent.length()){
-            int pos = mContent.npos;
-            if (bCaseSenstive){
-                pos = mContent.find(rets[i], start);
-            }
-            else{
-                pos = mLowContent.find(low, start); 
-            }
-            if (pos == wxString::npos){
-                if (isMatched){
-                    break;
-                }
-                else{
-                    return false;
-                }
-            }
-            
-            isMatched = true;
-            if (minMatch > pos){
-                minMatch = pos;
-            }
-            if (maxMatch < (pos + rets[i].length())){
-                maxMatch = pos + rets[i].length();
-            }
-            // note:fanhongxuan@gmail.com
-            // incase one pos has two match, we use the max one.
-            std::map<int, int>::iterator it = match.find(pos);
-            if (it != match.end()){
-                if (it->second < rets[i].size()){
-                    it->second = rets[i].size();
-                }
-            }
-            else{
-                match[pos] = rets[i].size();
-            }
-            start += (rets[i].size());
+        int pos = mContent.npos;
+        if (bCaseSenstive){
+            pos = mContent.find(rets[i]);
+        }
+        else{
+            pos = mLowContent.find(low);
+        }
+        if (pos == wxString::npos){
+            return false;
         }
     }
-
     mbMatch = true;
-    /*
-    {
-        wxPrintf("match(%d<-->%d)\n", minMatch, maxMatch);
-        // dump all the match
-        std::map<int, int>::iterator it = match.begin();
-        while(it != match.end()){
-            wxPrintf("%d-%d\n", it->first, it->second);
-            it++;
-        }
-    }*/
+    if (NULL != pSearch){
+        pSearch->BeforeResultMatch(input, this);
+    }
     if (rich.GetLastPosition() != 0){
         rich.WriteText("\n");
     }
     mRange.SetStart(rich.GetLastPosition());
-    wxTextAttr black(wxColor(0, 0, 0));
-    wxTextAttr red(wxColor(255, 0, 0));
-    rich.SetDefaultStyle(black);
-    if (bEnableHighlight){
-        wxString value = mContent;
-        // note:fanhongxuan@gmail.com
-        // WriteText use mostly time, need to call it less.
-        rich.WriteText(value.substr(0, minMatch));
-        
-        value = value.substr(minMatch, (maxMatch-minMatch));
-        wxString miss;
-        for (i = 0; i < value.length();){
-            int matchLen = IsMatch(i + minMatch, match);
-            if (matchLen > 0){
-                if (!miss.empty()){
-                    rich.WriteText(miss);
-                }
-                if (isNormal){
-                    rich.SetDefaultStyle(red);
-                    isNormal = false;
-                }
-                rich.WriteText(value.substr(i, matchLen));
-                i += matchLen;
-                miss = wxEmptyString;
-            }
-            else{
-                if (!isNormal){
-                    rich.SetDefaultStyle(black);
-                    isNormal = true;
-                }
-                miss.Append(value[i]);
-                // rich.WriteText(value[i]);
-                i++;
-            }
-        }
-        if (!miss.empty()){
-            rich.WriteText(miss);
-        }
-        rich.SetDefaultStyle(black);
-        value = mContent.substr(maxMatch);
-        rich.WriteText(value);
-    }
-    else{
-        rich.WriteText(mContent);
-    }
-    rich.SetDefaultStyle(black);
+    rich.WriteText(mContent);
     mRange.SetEnd(rich.GetLastPosition());
     return true;
 }
 
 wxSearch::wxSearch(wxWindow *pParent)
-    :wxPanel(pParent), mCurrentLine(-1), mMinStartLen(1), mMaxCandidate(100),
+    :wxPanel(pParent), mCurrentLine(-1), mMinStartLen(1), mMaxCandidate(10000),
      mbStartSearch(false)
 {
     wxSizer *pSizer = new wxBoxSizer(wxVERTICAL);
@@ -449,15 +553,9 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
         return false;
     }
     mCurrentLine = line;
-    int length = mpList->GetLineLength(mCurrentLine);
-    int pos = mpList->XYToPosition(0, mCurrentLine);
-
-    mpList->SetSelection(pos, pos + length);
-#ifndef WIN32
-    // note:fanhongxuan@gmail.com
-    // on gtk, need to call this to make sure the invisable item show. but on msw, dont need.
-    mpList->ShowPosition(pos);
-#endif    
+    int pos = mpList->GetLineIndentPosition(line);
+    mpList->GotoLine(line);
+    
     int i = 0;
     if (bActive){
         for (i = 0; i < mResults.size(); i++){
@@ -487,16 +585,9 @@ bool wxSearch::SelectLine(int line, bool bActive, bool bRequestFocus)
     }
     if ((!mpInput->HasFocus()) && bRequestFocus){
         long start, end;
-        // note:fanhongxuan@gmail.com
-        // SetFocus will cause the content select all, so first save the selection and then restore.
         mpInput->GetSelection(&start, &end);
         mpInput->SetFocus(); // this maybe generate a text-update event on gtk
         mpInput->SetSelection(start, end);
-        // int len = mpInput->GetValue().Length();
-        // note:fanhongxuan@gmail.com
-        // this will cause the mpInput change it's size a little.
-        // mpInput->SetPosition(wxPoint(0, len));
-        // mpInput->SetSelection(len, len);
     }
     return true;
 }
@@ -586,7 +677,7 @@ void wxSearch::Reset()
     mpStatus->SetLabel(GetShortHelp());
     mKeys.clear();
     mResults.clear();
-    mpList->Clear();
+    mpList->ClearAll();
     mbStartSearch = false;
 }
 
@@ -600,9 +691,10 @@ void wxSearch::AsyncAddSearchResult(wxSearchResult *pResult)
         return;
     }
     mpList->SetInsertionPointEnd();
-    if (pResult->ConvertToRichText(*mpList, mKeys, mCount <= mMaxCandidate)){
+    if (pResult->ConvertToRichText(this, mInput, *mpList, mKeys, mCount <= mMaxCandidate)){
         // wxPrintf("AsyncAddSearchResult:<%s>\n", pResult->Content());
         mCount++;
+        AfterResultMatch(mInput, pResult);
     }
     mpList->SetInsertionPoint(0);
     mpStatus->SetLabel(GetSummary(mInput, mCount));
@@ -615,6 +707,37 @@ void wxSearch::AsyncAddSearchResult(wxSearchResult *pResult)
         // no selection, getPreferedSelection
     }
 }
+
+void wxSearch::BeginGroup(const wxString &title, bool updateNow)
+{
+    wxSearchResult *pResult = new wxSearchResult("{" + title, title, NULL, false);
+    if (updateNow){
+        if (mpList->GetLastPosition() != 0){
+            mpList->WriteText("\n");
+        }
+        mpList->WriteText(pResult->Content());
+        delete pResult;
+    }
+    else{
+        AddSearchResult(pResult);
+    }
+}
+
+void wxSearch::EndGroup(const wxString &title, bool updateNow)
+{
+    wxSearchResult *pResult = new wxSearchResult("}" + title, title, NULL, false);
+    if (updateNow){
+        if (mpList->GetLastPosition() != 0){
+            mpList->WriteText("\n");
+        }
+        mpList->WriteText(pResult->Content());
+        delete pResult;
+    }
+    else{
+        AddSearchResult(pResult);
+    }
+}
+
 
 void wxSearch::AddSearchResult(wxSearchResult *pResult)
 {
@@ -704,7 +827,7 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
         }
     }
     std::vector<wxString> rets;
-    ParseString(input, rets, ' ');
+    ceSplitString(input, rets, ' ');
 
     // note:fanhongxuan@gmail.com
     // if all the search key is same as the previous value, directly return, do not need to update it.
@@ -739,9 +862,13 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
     
     // here, we start update the list
     // wxMyTimeTrace trace("UpdateSearchList");
-    mpList->Clear();
+    mpList->ClearAll();
+    mpList->SetKey(input);
     mCurrentLine = -1;
     mInput = input;
+    
+    BeginMatch(input);
+    
     for (i = 0; i < mResults.size(); i++){
         // todo:fanhongxuan@gmail.com
         // currently, if the match count is bigger than mMaxCandidate
@@ -749,8 +876,9 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
         if (count >= mMaxCandidate){
             break;
         }
-        if (mResults[i]->ConvertToRichText(*mpList, rets, count <= mMaxCandidate)){
+        if (mResults[i]->ConvertToRichText(this, input, *mpList, rets, count <= mMaxCandidate)){
             count++;
+            AfterResultMatch(input, mResults[i]);
         }
     }
     
@@ -766,11 +894,17 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
         }
     }
     for (i = 0; i < mTempResults.size(); i++){
-        mTempResults[i]->ConvertToRichText(*mpList, rets, true);
+        if (mTempResults[i]->ConvertToRichText(this, input, *mpList, rets, true)){
+            AfterResultMatch(input, mTempResults[i]);
+        }
     }
     
     mCount = count;
-    mpList->SetInsertionPoint(0);
+    // mpList->SetInsertionPoint(0);
+    FinishMatch(input);
+    
+    mpList->ListUpdated();
+    
     mpStatus->SetLabel(GetSummary(mInput, mCount));
     
     if (mCurrentLine < 0){
@@ -785,19 +919,6 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
 
 bool wxSearch::ProcessEvent(wxEvent &evt)
 {
-    wxEventType type = evt.GetEventType();
-    if (wxEVT_CHAR_HOOK == type){
-        wxKeyEvent *pEvt = dynamic_cast<wxKeyEvent*>(&evt);
-        if (NULL != pEvt){
-            OnKey(*pEvt);
-        }
-    }
-    if (wxEVT_SEARCH_CANCEL == type){
-        if (mbStartSearch){
-            mbStartSearch = false;
-            StopSearch();
-        }
-    }
     return wxPanel::ProcessEvent(evt);
 }
 
@@ -993,7 +1114,7 @@ bool wxSearchFile::StartSearch(const wxString &input, const wxString &fullInput)
             }
             int offset = value.find(niddle);
             if (offset != wxString::npos){
-                AddSearchResult(new wxSearchFileResult(wxString::Format("%d\t%s", i+1, text), "", i, pos + offset));
+                AddSearchResult(new wxSearchFileResult(wxString::Format("%d:\t%s", i+1, text), "", i, pos + offset));
             }
             pos += 1; // this is the newline
             pos += text.Length();

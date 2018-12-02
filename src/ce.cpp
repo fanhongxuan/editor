@@ -1053,12 +1053,12 @@ void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
     }
     m_mgr.Update();    
     if (NULL != mpBufferSelect && mbLoadFinish){
-        #ifdef WIN32
+#ifdef WIN32
 		// note:fanhongxuan@gmail.com
 		// on gtk, when the input first get the focus, will generate a wxevt_text event which will call UpdateSearchList
 		// on msw, we need to do it here to make sure will show all the candidate of buffer select.
         mpBufferSelect->UpdateSearchList("", false);
-        #endif
+#endif
         mpBufferSelect->SetFocus();
     }
 }

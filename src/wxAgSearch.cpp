@@ -45,7 +45,7 @@ void MyProcess::OnTerminate(int pid, int state)
 }
 
 wxAgSearch::wxAgSearch(wxWindow *parent)
-    :wxSearchFile(parent)
+    :wxSearchFile(parent), mpPrevResult(NULL), mItemCount(0)
 {
 }
 
@@ -53,7 +53,6 @@ wxAgSearch::~wxAgSearch()
 {
 }
 
-extern void ParseString(const wxString &input, std::vector<wxString> &output, char sep, bool allowEmpty = false);
 bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
 {
     //wxPrintf("OnResult:%s\n", result);
@@ -64,7 +63,7 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
         return false;
     }
     std::vector<wxString> rets;
-    ParseString(result, rets, ':');
+    ceSplitString(result, rets, ':');
 #ifdef WIN32
 #define RESULT_COUNT 4
 #define FILE_NAME_INDEX 1
@@ -98,8 +97,11 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
     if (!value.empty() && value[value.size() -1] == '\r'){
         value = value.substr(0, value.size()-1);
     }
+    if (!value.empty() && value[0] == ':'){
+        value = value.substr(1);
+    }
     rets.clear();
-    ParseString(line, rets, ';');
+    ceSplitString(line, rets, ';');
     if (rets.empty()){
         return false;
     }
@@ -119,7 +121,7 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
         }
         it++;
     }
-    wxString content = name + "(" + line + ")" + value;
+    wxString content = wxString::Format("%s:\t%s", line, value);
     unsigned long iLen = 0;
     line.ToULong(&iLen);
 #ifdef WIN32
@@ -144,7 +146,66 @@ wxString wxAgSearch::GetSummary(const wxString &input, int matchCount)
         dir = "'" + wxGetCwd() + "'";
     }
     return wxString::Format(wxT("Find '%s' in %s, %d%s match"), input, dir, matchCount,
-                            matchCount >= GetMaxCandidate() ? "+" : "");
+        matchCount >= GetMaxCandidate() ? "+" : "");
+}
+
+bool wxAgSearch::BeforeResultMatch(const wxString &input, wxSearchResult *pRet)
+{
+    wxSearchFileResult *pFRet = dynamic_cast<wxSearchFileResult*>(pRet);
+    if (NULL == pFRet){
+        return false;
+    }
+    // if tne file name is different with the previous value.
+    if (NULL != mpPrevResult && mpPrevResult->Target() != pRet->Target()){
+        // if the file name is different with the previous value:
+        EndGroup(wxString::Format(wxT("In '%s', %d item(s)"), pRet->Target(), mItemCount), true);
+        mpPrevResult = NULL;
+        mItemCount = 0;
+    }
+    if (NULL == mpPrevResult){
+        BeginGroup(wxString::Format(wxT("Search '%s' in '%s'"), input, pRet->Target()), true);
+        mpPrevResult = pFRet;
+        mFileCount++;
+    }
+    mTotalCount++;
+    mItemCount++;
+    return true;
+}
+
+bool wxAgSearch::AfterResultMatch(const wxString &input, wxSearchResult *pRet)
+{
+    return true;
+}
+
+bool wxAgSearch::BeginMatch(const wxString &input)
+{
+    wxString dir = "workspace";
+    if (mTargetDirs.size() == 1){
+        dir = "'" + *mTargetDirs.begin() + "'";
+    }
+    else if (mTargetDirs.empty()){
+        dir = "'" + wxGetCwd() + "'";
+    }
+    BeginGroup(wxString::Format(wxT("Search '%s' in %s"), input, dir), true);
+    return true;
+}
+
+bool wxAgSearch::FinishMatch(const wxString &input)
+{
+    if (NULL != mpPrevResult){
+        EndGroup(wxString::Format(wxT("In '%s', %d items(s)"), mpPrevResult->Target(), mItemCount), true);
+        mpPrevResult = NULL;
+        mItemCount = 0;
+    }
+    wxString dir = "workspace";
+    if (mTargetDirs.size() == 1){
+        dir = "'" + *mTargetDirs.begin() + "'";
+    }
+    else if (mTargetDirs.empty()){
+        dir = "'" + wxGetCwd() + "'";
+    }
+    EndGroup(wxString::Format(wxT("In '%s' match %d files, %d item(s)"), dir, mFileCount, mTotalCount), true);
+    return true;
 }
 
 bool wxAgSearch::StartSearch(const wxString &input, const wxString &fullInput)
@@ -155,6 +216,11 @@ bool wxAgSearch::StartSearch(const wxString &input, const wxString &fullInput)
     }
     mCmds.clear();
     std::set<wxString>::iterator it;
+    
+    mpPrevResult = NULL;
+    mItemCount = 0;
+    mFileCount = 0;
+    mTotalCount = 0;
     
     it = mTargetFiles.begin();
     while(it != mTargetFiles.end()){

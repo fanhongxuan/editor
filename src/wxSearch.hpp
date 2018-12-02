@@ -13,22 +13,24 @@ class wxKeyEvent;
 class Edit;
 class wxSearchInputCtrl;
 class wxSearchListCtrl;
+class wxSearch;
 
 class wxSearchResult
 {
 public:
-    wxSearchResult(const wxString &content, const wxString &target, void *pCustomData = NULL);
+    wxSearchResult(const wxString &content, const wxString &target, void *pCustomData = NULL, bool bNeedFilter = true);
     virtual ~wxSearchResult(){} // note:fanhongxuan@gmail.com, dynamic_cast need at least one virtual function
     bool IsMatch() const{return mbMatch;}
     bool IsInRange(long position) const { return mRange.GetStart() <= position && mRange.GetEnd() >= position;}
-    bool ConvertToRichText(wxSearchListCtrl &rich, const std::vector<wxString> &rets, bool bEnableHighlight);
+    bool ConvertToRichText(wxSearch *pSearch, const wxString &input,
+                           wxSearchListCtrl &rich, const std::vector<wxString> &rets,
+                           bool bEnableHighlight);
     const wxString &Content() const{return mContent;}
     const wxString &Target() const{return mTarget;}
     void *CustomData() const{return mpCustomData;}
 private:
-    int IsMatch(int pos, const std::map<int, int> &match) const;
-private:
     void *mpCustomData;
+    bool mbNeedFilter;
     bool mbMatch;
     wxString mContent; // content to display on the search result
     wxString mLowContent; // content in lowcase
@@ -58,6 +60,9 @@ public:
     // the following function will be called when receive a backend message.
     void AsyncAddSearchResult(wxSearchResult *pResult); // add a item and update the status immed
     void AddSearchResult(wxSearchResult *pResult);// add a item
+    void BeginGroup(const wxString &title, bool updateNow = false);
+    void EndGroup(const wxString &title, bool updateNow = false);
+    
     void Reset();
     void ClearTempResult();
     void OnDelItem(uint8_t index);   // delete a item
@@ -83,11 +88,18 @@ public:
     // the following function need to be impl.
     virtual bool StartSearch(const wxString &input, const wxString &fullInput) = 0;
     virtual bool StopSearch();
+    virtual bool BeforeResultMatch(const wxString &input, wxSearchResult *pRet){return false;}
+    virtual bool AfterResultMatch(const wxString &input, wxSearchResult *pRet){return false;}
+    virtual bool BeginMatch(const wxString &input){return false;}
+    virtual bool FinishMatch(const wxString &input){return false;}
     virtual wxString GetSummary(const wxString &input, int matchCount);
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
     virtual int GetPreferedLine(const wxString &input){return -1;};
     
+    
+    virtual bool IsGroupHeader(const wxString &input, long line, bool &isHeader){return false;}
+    virtual bool IsGroupEnder(const wxString &input, long line, bool &isEnder){return false;}
 protected:
     wxSearchInputCtrl *mpInput;
     wxSearchListCtrl *mpList;

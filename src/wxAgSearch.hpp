@@ -7,6 +7,12 @@ class wxAgSearch: public wxSearchFile
 public:
     wxAgSearch(wxWindow *pSearch);
     ~wxAgSearch();
+    virtual bool BeforeResultMatch(const wxString &input, wxSearchResult *pRet);
+    virtual bool AfterResultMatch(const wxString &input, wxSearchResult *pRet);
+    
+    virtual bool BeginMatch(const wxString &input);
+    virtual bool FinishMatch(const wxString &input);
+    
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
     
@@ -16,6 +22,10 @@ public:
     virtual wxString GetSummary(const wxString &input, int matchCount);
     bool OnResult(const wxString &cmd, const wxString &result);
 private:
+    wxSearchFileResult *mpPrevResult;
+    int mItemCount;
+    int mFileCount;
+    int mTotalCount;
     std::set<wxString> mCmds;
     std::set<wxString> mTargetDirs;
     std::set<wxString> mTargetFiles;
