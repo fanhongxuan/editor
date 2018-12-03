@@ -218,6 +218,8 @@ bool wxAgSearch::FinishMatch(const wxString &input)
         dir = "'" + wxGetCwd() + "'";
     }
     EndGroup(wxString::Format(wxT("In '%s' match %d files, %d item(s)"), dir, mFileCount, mTotalCount), true);
+    mFileCount = 0;
+    mTotalCount = 0;
     return true;
 }
 

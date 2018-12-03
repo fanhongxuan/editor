@@ -126,7 +126,7 @@ int ceRefSearch::GetPreferedLine(const wxString &input)
 
 bool ceRefSearch::ParseLine(const wxString &line, const wxString &path)
 {
-    wxPrintf("ParseLine:<%s>\n", line);
+    // wxPrintf("ParseLine:<%s>\n", line);
     std::vector<wxString> outputs;
     ceSplitString(line, outputs, " ");
     if (outputs.size() < 4){

@@ -14,29 +14,42 @@ wxSymbolSearch::~wxSymbolSearch()
 }
 
 
-static const wxString &getFullTypeName(const wxString &input)
+static const wxString &getFullTypeName(const wxString &input, const wxString &language)
 {
-    static std::map<wxString, wxString> theTypeMaps;
-    if (theTypeMaps.size() == 0){
-        theTypeMaps["f"] = "Function";
-        theTypeMaps["v"] = "Variable";
-        theTypeMaps["d"] = "Micro";
-        theTypeMaps["m"] = "Member";
-        theTypeMaps["c"] = "Class";
-        theTypeMaps["e"] = "Enum";
-        theTypeMaps["n"] = "Namespace";
-        theTypeMaps["s"] = "Struct";
-        theTypeMaps["t"] = "Typedef";
-        theTypeMaps["g"] = "Global";
-        theTypeMaps["i"] = "interface";
-        theTypeMaps["p"] = "package";
+    static std::map<wxString, wxString> theCMaps;
+    static std::map<wxString, wxString> theJavaMaps;
+    if (theCMaps.size() == 0){
+        theCMaps['A'] = "Alias";
+        theCMaps['L'] = "Label";
+        theCMaps['N'] = "Name";
+        theCMaps['U'] = "Using";
+        theCMaps['c'] = "Class";
+        theCMaps['d'] = "Macro";
+        theCMaps['e'] = "Enumerator";
+        theCMaps['f'] = "Function";
+        theCMaps['g'] = "Enum";
+        theCMaps['h'] = "Header";
+        theCMaps['l'] = "Local";
+        theCMaps['m'] = "Member";
+        theCMaps['n'] = "Namespace";
+        theCMaps['p'] = "Prototype";
+        theCMaps['s'] = "struct";
+        theCMaps['t'] = "typedef";
+        theCMaps['u'] = "union";
+        theCMaps['v'] = "variable";
+        theCMaps['x'] = "Externvar";
+        theCMaps['z'] = "parameter";
     }
-    std::map<wxString, wxString>::iterator it = theTypeMaps.find(input);
-    if (it != theTypeMaps.end()){
-        return it->second;
+    if (theJavaMaps.size() == 0){
     }
-    else{
-        return input;
+    if (language == "C++"){
+        std::map<wxString, wxString>::iterator it = theCMaps.find(input);
+        if (it != theCMaps.end()){
+            return it->second;
+        }
+        else{
+            return input;
+        }
     }
 }
 
@@ -70,7 +83,7 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
         wxPrintf("Invalid outputs size()%ld<%s><%s>\n", outputs.size(), line, value);
         return false;
     }
-    wxString type = getFullTypeName(outputs[0]);
+    wxString type = getFullTypeName(outputs[0], "C++");
     if (outputs.size() >= 2){
         pos = outputs[1].find("class:");
         if (pos != wxString::npos){
@@ -88,8 +101,9 @@ static wxString findCtags()
 {
     wxString ret = ceGetExecPath();
 #ifdef WIN32
-	ret += "\\ext\\ctags -f - -n ";
+	ret += "\\ext\\ctags -f - -n --kinds-C++=+z+l ";
 #else
+    // ret += "/ext/ctags -f - -n --kinds-C++=+z+l ";
     ret += "/ext/ctags -f - -n ";
 #endif
     return ret;
