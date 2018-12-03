@@ -63,6 +63,8 @@ public:
     void BeginGroup(const wxString &title, bool updateNow = false);
     void EndGroup(const wxString &title, bool updateNow = false);
     
+    void ResetSearch();
+    
     void Reset();
     void ClearTempResult();
     void OnDelItem(uint8_t index);   // delete a item
@@ -121,7 +123,7 @@ class wxSearchDir: public wxSearch
 {
 public:
     wxSearchDir(wxWindow *parent);
-    void SetDirs(const std::set<wxString> &dirs){mDirs = dirs;}
+    void SetDirs(const std::set<wxString> &dirs);
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
@@ -147,10 +149,16 @@ class wxSearchFile: public wxSearch
 {
 public:
     wxSearchFile(wxWindow *parent);
-    void SetFileName(const wxString &fileName);
+    ~wxSearchFile(){}
+    
     wxString GetFileName() const {return mFileName;}
+    
+    void ChangeSearchTarget(Edit *pEdit);
+    
     void SetEdit(Edit *pEdit);
+    void SetFileName(const wxString &fileName);
     void SetBuffer(const wxString &buffer);
+    
     virtual wxString GetShortHelp() const;
     virtual wxString GetHelp() const;
     virtual bool StartSearch(const wxString &input, const wxString &fullInput);

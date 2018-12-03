@@ -62,6 +62,7 @@ BOOL system_hide(const wchar_t* CommandLine, std::vector<wxString> &output)
 
 int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
 {
+    // wxPrintf("exec:<%s>\n", cmd);
 #ifdef WIN32
     system_hide(static_cast<const wchar_t*>(cmd.c_str()), output);
 #else
@@ -73,8 +74,10 @@ int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
             if (line == NULL){
                 break;
             }
-            //wxPrintf("Read:%s\n", line);
-            //OnResult(cmd, line);
+            // fixme:fanhongxuan@gmail.com
+            // if the line include invalid charsec, will convert to a null string.
+            // wxPrintf("Read:%s\n", line);
+            // OnResult(cmd, line);
             wxString strLine = line;
             if (strLine[strLine.size() -1 ] == '\n'){
                 strLine = strLine.substr(0, strLine.size() -1);

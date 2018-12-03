@@ -247,6 +247,14 @@ void Edit::OnFocus(wxFocusEvent &evt)
 int Edit::CalcLineIndentByFoldLevel(int line, int level)
 {    
     wxString value = GetLineText(line);
+    level = level & wxSTC_FOLDLEVELNUMBERMASK;
+    if (level < wxSTC_FOLDLEVELBASE){
+        level = 0;
+    }
+    else{
+        level -= wxSTC_FOLDLEVELBASE;
+    }
+    
     int start = value.find_first_not_of("\r\n\t ");
     int end = value.find_last_not_of("\r\n\t ", start);
     if (start != value.npos && end != value.npos){
@@ -268,7 +276,12 @@ int Edit::CalcLineIndentByFoldLevel(int line, int level)
             return GetLineIndentation(line);
         }
     }
-    return level * GetIndent();}
+    if (level < 0){
+        level = 0;
+    }
+    // wxPrintf("CalcLineIndentByFoldLevel:(%d):%d\n", line+1, level);
+    return level * GetIndent();
+}
 
 void Edit::OnModified(wxStyledTextEvent &evt)
 {
@@ -308,8 +321,7 @@ void Edit::OnModified(wxStyledTextEvent &evt)
             return;
         }
         
-        int level = evt.GetFoldLevelNow() & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
-        int indent = CalcLineIndentByFoldLevel(line, level);
+        int indent = CalcLineIndentByFoldLevel(line, evt.GetFoldLevelNow());
         SetLineIndentation(evt.GetLine(), indent);
         if (line == curLine && line > 0 /*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
             int start = GetCurrentPos();
@@ -1076,9 +1088,7 @@ bool Edit::AutoIndentWithTab(int line)
     int pos = GetCurrentPos();
     // calc the line indent according the level
     int curIndent = GetLineIndentation(line);
-    int foldstatus = GetFoldLevel(line);
-    int foldlevel = foldstatus & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
-    int indent = CalcLineIndentByFoldLevel(line, foldlevel);
+    int indent = CalcLineIndentByFoldLevel(line, GetFoldLevel(line));
     if (indent != curIndent){
         SetLineIndentation(line, indent);
         pos = pos + indent - curIndent;

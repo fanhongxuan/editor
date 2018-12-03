@@ -131,6 +131,7 @@ MyFrame::MyFrame(wxWindow* parent,
 	mpWorkSpace = NULL;
 	mpAgSearch = NULL;
     mpRefSearch = NULL;
+    mpActiveEdit = NULL;
     mpCmd = NULL;
     // tell wxAuiManager to manage this frame
     m_mgr.SetArtProvider(new wxMyDockArt);
@@ -195,32 +196,44 @@ wxAuiDockArt* MyFrame::GetDockArt()
     return m_mgr.GetArtProvider();
 }
 
-void MyFrame::DoUpdate()
+void MyFrame::UpdateWorkDirs(Edit *pActiveEdit, bool showWorkSpace, bool showExplorer)
 {
-    /**
-     * fixme:fanhongxuan@gmail.com
-     */  
-    // update the current dir of wxAgSearch according the current status.
-    if (NULL != mpAgSearch){
-        std::set<wxString> dirs;
-        std::set<wxString> files;
-        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
-        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
-            mpWorkSpace->GetDirs(dirs);
-            mpWorkSpace->GetFiles(files);
+    if (!mbLoadFinish){
+        return;
+    }
+    
+    std::set<wxString> dirs;
+    std::set<wxString> files;
+    wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
+    wxAuiPaneInfo &explorer = m_mgr.GetPane(wxT("Explorer"));
+    if (NULL != mpWorkSpace && (showWorkSpace || workspace.IsShown())){
+        mpWorkSpace->GetDirs(dirs);
+        mpWorkSpace->GetFiles(files);
+    }
+    else if (NULL != mpExplorer && (showExplorer || explorer.IsShown())){
+        dirs.insert(mpExplorer->GetCwd());
+    }
+    else if (NULL != pActiveEdit){
+        wxString filename = pActiveEdit->GetFilename();
+        int pos = filename.find_last_of("/\\");
+        if (pos != filename.npos){
+            dirs.insert(filename.substr(0, pos));
         }
+    }
+    
+    if (NULL != mpSearchDir){
+        mpSearchDir->SetDirs(dirs);
+    }
+    if (NULL != mpAgSearch){
         mpAgSearch->SetSearchDirs(dirs);
         mpAgSearch->SetSearchFiles(files);
     }
-    if (NULL != mpSearchDir){
-        std::set<wxString> dirs;
-        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
-        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
-            mpWorkSpace->GetDirs(dirs);
-        }
-        mpSearchDir->SetDirs(dirs);
-    }
-    m_mgr.Update();   
+}
+
+void MyFrame::DoUpdate()
+{   
+    UpdateWorkDirs(mpActiveEdit);
+    m_mgr.Update();
 }
 
 class MyAgSearchHandler: public wxSearchHandler
@@ -495,24 +508,26 @@ void MyFrame::LoadInfo()
 
 void MyFrame::SetActiveEdit(Edit *pEdit)
 {
-    if (NULL != mpSearch && NULL != pEdit){
-        mpSearch->SetFileName(pEdit->GetFilename());
-        mpSearch->SetEdit(pEdit);
+    mpActiveEdit = pEdit;
+    if (NULL != mpSearch){
+        mpSearch->ChangeSearchTarget(pEdit);
     }
     
-    if (NULL != mpSymbolSearch && NULL != pEdit){
+    if (NULL != mpSymbolSearch){
         if (NULL != mpSymbolSearchHandler){
             mpSymbolSearchHandler->SetEdit(pEdit);
         }
         mpSymbolSearch->SetEdit(pEdit);
         wxAuiPaneInfo &info = m_mgr.GetPane(wxT("Find Symbol"));
         if (info.IsOk() && info.IsShown() && pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
-            // wxPrintf("edit:%s, search:%s\n", pEdit->GetFilename(), mpSymbolSearch->GetFileName());
-            mpSymbolSearch->SetFileName(pEdit->GetFilename());
-            mpSymbolSearch->SetInput("");
-            mpSymbolSearch->UpdateSearchList("", false);
+            if (NULL != pEdit){
+                mpSymbolSearch->SetFileName(pEdit->GetFilename());
+                mpSymbolSearch->SetInput("");
+                mpSymbolSearch->UpdateSearchList("", false);
+            }
         }
     }
+    UpdateWorkDirs(mpActiveEdit);
 }
 
 void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results)
@@ -653,9 +668,11 @@ void MyFrame::OnFileClose(wxAuiNotebookEvent &evt)
                 }
             }
         }
+        
         if (NULL != mpBufferSelect){
             mpBufferSelect->DelBuffer(name, pEdit->GetFilename());
         }
+        SetActiveEdit(NULL);
     }
 }
 
@@ -790,16 +807,7 @@ void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
     }
     m_mgr.Update();
     if (NULL != mpSearchDir && mbLoadFinish){
-        // update the dirs according the display
-        std::set<wxString> dirs;
-        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
-        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
-            mpWorkSpace->GetDirs(dirs);
-        }
-        mpSearchDir->SetDirs(dirs);
-        if (!value.empty()){
-            mpSearchDir->SetInput(value);
-        }
+        UpdateWorkDirs(mpActiveEdit);
         mpSearchDir->SetFocus();
     }
 }
@@ -960,15 +968,7 @@ void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
         if (!value.empty()){
             mpAgSearch->SetInput(value);
         }
-        std::set<wxString> dirs;
-        std::set<wxString> files;
-        wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
-        if (NULL != mpWorkSpace && workspace.IsOk() && workspace.IsShown()){
-            mpWorkSpace->GetDirs(dirs);
-            mpWorkSpace->GetFiles(files);
-        }
-        mpAgSearch->SetSearchDirs(dirs);
-        mpAgSearch->SetSearchFiles(files);
+        UpdateWorkDirs(mpActiveEdit);
         mpAgSearch->SetFocus();
     }
 }
@@ -990,14 +990,7 @@ void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
     }
     m_mgr.Update();
     if (NULL != mpWorkSpace && mbLoadFinish){
-        if (NULL != mpAgSearch){
-            std::set<wxString> dirs;
-            std::set<wxString> files;
-            mpWorkSpace->GetDirs(dirs);
-            mpWorkSpace->GetFiles(files);
-            mpAgSearch->SetSearchDirs(dirs);
-            mpAgSearch->SetSearchFiles(files);
-        }
+        UpdateWorkDirs(mpActiveEdit);
         mpWorkSpace->SetFocus();
     }
 }
@@ -1021,11 +1014,7 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
     }
     m_mgr.Update();
     if (NULL != mpExplorer && mbLoadFinish){
-        if (NULL != mpAgSearch){
-            std::set<wxString> empty;
-            mpAgSearch->SetSearchDirs(empty);
-            mpAgSearch->SetSearchFiles(empty);
-        }
+        UpdateWorkDirs(mpActiveEdit);
         mpExplorer->SetFocus();
     }
 }

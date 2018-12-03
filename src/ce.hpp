@@ -106,6 +106,7 @@ private:
     void SwitchFocus();
     void SaveInfo();
     void LoadInfo();
+    void UpdateWorkDirs(Edit *pActiveEdit = NULL, bool showWorkSpace = false, bool showExplorer = false);
 private:
     bool mbLoadFinish;
     wxAuiNotebook *mpBufferList;
@@ -121,6 +122,7 @@ private:
     wxSymbolSearch *mpSymbolSearch;
     wxExplorer *mpExplorer;
     wxWorkSpace *mpWorkSpace;
+    Edit *mpActiveEdit;
     wxAuiManager m_mgr;
     wxArrayString m_perspectives;
     wxMenu* m_perspectives_menu;

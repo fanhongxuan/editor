@@ -1,6 +1,7 @@
 #include "wxAgSearch.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include <wx/process.h>
+#include <wx/stattext.h>
 
 #include "ceUtils.hpp"
 class MyProcess: public wxProcess
@@ -134,6 +135,18 @@ bool wxAgSearch::OnResult(const wxString &cmd, const wxString &result)
 #endif
     AddSearchResult(new wxSearchFileResult(content, filename, --iLen, 0));
     return true;
+}
+
+wxString wxAgSearch::GetShortHelp() const
+{
+    wxString dir = "workspace";
+    if (mTargetDirs.size() == 1){
+        dir = "'" + *mTargetDirs.begin() + "'";
+    }
+    else if (mTargetDirs.empty()){
+        dir = "'" + wxGetCwd() + "'";
+    }
+    return wxString::Format("Search in %s", dir);
 }
 
 wxString wxAgSearch::GetSummary(const wxString &input, int matchCount)
@@ -275,11 +288,15 @@ bool wxAgSearch::StopSearch()
 bool wxAgSearch::SetSearchDirs(const std::set<wxString> &dirs)
 {
     mTargetDirs = dirs;
+    mpStatus->SetLabel(GetShortHelp());
+    ResetSearch();
     return true;
 }
 
 bool wxAgSearch::SetSearchFiles(const std::set<wxString> &files)
 {
     mTargetFiles = files;
+    mpStatus->SetLabel(GetShortHelp());
+    ResetSearch();
     return true;
 }

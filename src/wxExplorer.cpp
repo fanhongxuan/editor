@@ -168,7 +168,7 @@ wxExplorer::wxExplorer(wxWindow *parent)
 wxExplorer::~wxExplorer()
 {
     wxConfig config("CE");
-    config.Write("/Config/CurrentWorkingDirectory", wxGetCwd());
+    config.Write("/Config/CurrentWorkingDirectory", mCwd);
 }
 
 void wxExplorer::OnFocus(wxFocusEvent &evt)
@@ -313,8 +313,8 @@ void wxExplorer::OnSelectionChanged(wxTreeEvent &evt)
     if (pItem->mbFile){
         wxFileName::SplitPath(pItem->mPath, NULL, &path, NULL, NULL);
     }
-    // wxPrintf("SetWorkingDirectory:%s\n", path);
-    wxSetWorkingDirectory(path);
+    
+    mCwd = path;
 }
 
 void wxExplorer::CreateImageList()
@@ -370,10 +370,12 @@ int wxExplorer::OnCompareItems(const wxTreeItemId &first, const wxTreeItemId &se
 
 wxString wxExplorer::GetCwd()
 {
-    return wxGetCwd();
+    return mCwd;
 }
 
 void wxExplorer::SetCwd(const wxString &cwd)
 {
     // todo:fanhongxuan@gmail.com
+    // update the selection in the tree.
+    mCwd = cwd;
 }

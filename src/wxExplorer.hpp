@@ -24,7 +24,8 @@ public:
                                const wxTreeItemId &second);
 private:
     void CreateImageList();
-
+    wxString mCwd;
+    
     wxDECLARE_EVENT_TABLE();
 };
 #endif

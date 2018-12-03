@@ -19,6 +19,7 @@ public:
     bool SetSearchDirs(const std::set<wxString> &input);
     bool SetSearchFiles(const std::set<wxString> &input);
     virtual int GetPreferedLine(const wxString &input){return -1;}
+    virtual wxString GetShortHelp() const;
     virtual wxString GetSummary(const wxString &input, int matchCount);
     bool OnResult(const wxString &cmd, const wxString &result);
 private:

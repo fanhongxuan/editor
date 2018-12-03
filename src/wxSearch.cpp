@@ -662,6 +662,14 @@ void wxSearch::ClearTempResult()
     mTempResults.clear();
 }
 
+void wxSearch::ResetSearch()
+{
+    Reset();
+    if (NULL != mpInput){
+        mpInput->SetValue("");
+    }
+}
+
 void wxSearch::Reset()
 {
     int i = 0;
@@ -808,7 +816,7 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
     }
     
     if (input.length() < mMinStartLen){
-        wxPrintf("input is two short:%d, %d\n", (int)input.length(), mMinStartLen);
+        // wxPrintf("input is too short:%d, %d\n", (int)input.length(), mMinStartLen);
         Reset();
         return false;
     }
@@ -819,11 +827,11 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
     if (input.find_first_not_of("\r\n\t ") == wxString::npos){
         Reset();
         if (mMinStartLen != 0){
-            wxPrintf("mMinStartLen:%d\n", mMinStartLen);
+            // wxPrintf("mMinStartLen:%d\n", mMinStartLen);
             return false;
         }
         else{
-            wxPrintf("UpdateSearchList when mMinStartLen is 0\n");
+            // wxPrintf("UpdateSearchList when mMinStartLen is 0\n");
         }
     }
     std::vector<wxString> rets;
@@ -909,10 +917,10 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
     
     if (mCurrentLine < 0){
         int prefer = GetPreferedLine(mInput);
-        if (prefer >= 0){
-            SelectLine(prefer, true, bRequestFocus);
+        if (prefer < 0){
+            prefer = 0;
         }
-        // no selection, getPreferedSelection
+        SelectLine(prefer, true, bRequestFocus);
     }
     return true;
 }
@@ -944,7 +952,17 @@ wxString wxSearchDir::GetSummary(const wxString &input, int matchCount)
 
 wxString wxSearchDir::GetShortHelp() const
 {
-    return "UP/DOWN to select, CTRL/ALT+ENTER to select and open, ENTER to open and switch";
+    wxString cwd;
+    if (!mDirs.empty()){
+        cwd = "'" + *mDirs.begin() + "'";
+    }
+    if (mDirs.size() > 1){
+        cwd += "...";
+    }
+    if (cwd.empty()){
+        cwd = "'" + wxGetCwd() + "'";
+    }
+    return wxString::Format("Find file in %s", cwd);
 }
 
 wxString wxSearchDir::GetHelp() const
@@ -978,6 +996,12 @@ bool wxSearch::IsBinaryFile(const wxString &file)
         return true;
     }
     return false;
+}
+
+void wxSearchDir::SetDirs(const std::set<wxString> &dirs)
+{
+    mDirs = dirs;
+    ResetSearch();
 }
 
 bool wxSearchDir::StartSearch(const wxString &input, const wxString &fullInput)
@@ -1075,9 +1099,21 @@ int wxSearchFile::GetPreferedLine(const wxString &input)
     return bestLine;
 }
 
+void wxSearchFile::ChangeSearchTarget(Edit *pEdit)
+{
+    if (NULL != pEdit && mpEdit != pEdit){
+        mFileName = pEdit->GetFilename();
+        mpEdit = pEdit;
+        ResetSearch();
+    }
+}
+
 void wxSearchFile::SetFileName(const wxString &fileName)
 {
     mFileName = fileName;
+    // update the summary.
+    // mpStatus->SetLabel();
+    mpStatus->SetLabel(GetShortHelp());
 }
 
 void wxSearchFile::SetBuffer(const wxString &buffer)
@@ -1089,6 +1125,7 @@ void wxSearchFile::SetEdit(Edit *pEdit)
 {
     mpEdit = pEdit;
 }
+
 wxSearchFileResult::wxSearchFileResult(const wxString &content, const wxString &target, int line, int pos)
     :wxSearchResult(content, target), mLine(line), mPos(pos)
 {
@@ -1138,7 +1175,10 @@ wxString wxSearchFile::GetSummary(const wxString &input, int matchCount)
 
 wxString wxSearchFile::GetShortHelp() const
 {
-    return wxSearch::GetShortHelp();
+    if (mFileName.empty()){
+        return wxSearch::GetShortHelp();
+    }
+    return wxString::Format("Search in '%s'", mFileName);
 }
 
 wxString wxSearchFile::GetHelp() const
