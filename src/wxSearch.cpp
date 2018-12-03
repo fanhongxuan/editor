@@ -1000,6 +1000,22 @@ bool wxSearch::IsBinaryFile(const wxString &file)
 
 void wxSearchDir::SetDirs(const std::set<wxString> &dirs)
 {
+    if (dirs.size() == mDirs.size()){
+        std::set<wxString>::const_iterator it = dirs.begin();
+        std::set<wxString>::const_iterator sit = mDirs.begin();
+        bool bSame = true;
+        while(it != dirs.end() && sit != mDirs.end()){
+            if (*it != *sit){
+                bSame = false;
+                break;
+            }
+            it++;
+            sit++;
+        }
+        if (bSame){
+            return;
+        }
+    }
     mDirs = dirs;
     ResetSearch();
 }

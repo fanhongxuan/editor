@@ -287,6 +287,22 @@ bool wxAgSearch::StopSearch()
 
 bool wxAgSearch::SetSearchDirs(const std::set<wxString> &dirs)
 {
+    if (dirs.size() == mTargetDirs.size()){
+        std::set<wxString>::const_iterator it = dirs.begin();
+        std::set<wxString>::const_iterator sit = mTargetDirs.begin();
+        bool bSame = true;
+        while(it != dirs.end() && sit != mTargetDirs.end()){
+            if (*it != *sit){
+                bSame = false;
+                break;
+            }
+            it++;
+            sit++;
+        }
+        if (bSame){
+            return true;
+        }
+    }
     mTargetDirs = dirs;
     mpStatus->SetLabel(GetShortHelp());
     ResetSearch();
@@ -295,6 +311,22 @@ bool wxAgSearch::SetSearchDirs(const std::set<wxString> &dirs)
 
 bool wxAgSearch::SetSearchFiles(const std::set<wxString> &files)
 {
+    if (files.size() == mTargetFiles.size()){
+        std::set<wxString>::const_iterator it = files.begin();
+        std::set<wxString>::const_iterator sit = mTargetFiles.begin();
+        bool bSame = true;
+        while(it != files.end() && sit != mTargetFiles.end()){
+            if (*it != *sit){
+                bSame = false;
+                break;
+            }
+            it++;
+            sit++;
+        }
+        if (bSame){
+            return true;
+        }
+    }
     mTargetFiles = files;
     mpStatus->SetLabel(GetShortHelp());
     ResetSearch();
