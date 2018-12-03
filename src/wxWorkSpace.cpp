@@ -126,6 +126,8 @@ wxWorkSpace::wxWorkSpace(wxWindow *parent)
 #endif
                 wxTR_FULL_ROW_HIGHLIGHT)
 {
+    SetBackgroundColour(*wxBLACK);
+    SetForegroundColour(*wxWHITE);
     CreateImageList();
     wxConfig config("CE");
     wxTreeItemId root = AddRoot(wxT("WorkSpace"));

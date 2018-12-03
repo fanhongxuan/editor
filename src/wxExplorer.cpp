@@ -117,6 +117,8 @@ wxExplorer::wxExplorer(wxWindow *parent)
 #endif
                 wxTR_FULL_ROW_HIGHLIGHT)
 {
+    SetBackgroundColour(*wxBLACK);
+    SetForegroundColour(*wxWHITE);
     CreateImageList();
     // iterator the file system only add the path to the current dir.
     wxConfig config("CE");

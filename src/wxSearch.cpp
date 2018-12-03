@@ -84,6 +84,7 @@ public:
         STYLE_HIGHLIGHT,
         STYLE_GROUP_BEGIN,
         STYLE_GROUP_END,
+        STYLE_INDEX,
     };
 };
 
@@ -129,6 +130,10 @@ wxSearchListCtrl::wxSearchListCtrl(wxSearch *parent, wxSize size)
     StyleSetForeground(STYLE_GROUP_END, *wxGREEN); // Fold ender
     StyleSetBackground(STYLE_GROUP_END, *wxBLACK);
     StyleSetFont(STYLE_GROUP_END, font);
+    
+    StyleSetForeground(STYLE_INDEX, wxColor("orange"));
+    StyleSetBackground(STYLE_INDEX, *wxBLACK);
+    StyleSetFont(STYLE_INDEX, font);
     
     // 0 is used as line number
     SetMarginType (0, wxSTC_MARGIN_NUMBER);
@@ -283,6 +288,13 @@ void wxSearchListCtrl::OnStyleNeeded(wxStyledTextEvent &evt)
             SetFoldLevel(j, CalcFoldLevel(STYLE_NORMAL, j));
         }
         wxString lowText = text.Lower();
+        
+        int pos = text.find(":");
+        if (pos != text.npos){
+            StartStyling(startPos);
+            SetStyling(pos+1, STYLE_INDEX);
+        }
+        
         for (int i = 0; i < rets.size(); i++ ){
             int start = 0;
             int length = text.length();
