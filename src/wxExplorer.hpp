@@ -17,6 +17,7 @@ public:
     void SetCwd(const wxString &cwd);
     void OnItemActivated(wxTreeEvent &evt);
     void OnSelectionChanged(wxTreeEvent &evt);
+    void OnItemCollapsed(wxTreeEvent &evt);
     void OnItemExpanding(wxTreeEvent &evt);
     void OnKeyDown(wxKeyEvent &evt);
     void OnFocus(wxFocusEvent &evt);

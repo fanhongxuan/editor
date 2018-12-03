@@ -395,8 +395,6 @@ void MyFrame::ChangeToBuffer(Edit *pEdit, int pos)
             break;
         }
     }
-    //pEdit->SetSelection(pos, pos);
-    //pEdit->SetInsertionPoint(pos);
 }
 
 void MyFrame::SaveInfo()
@@ -415,16 +413,13 @@ void MyFrame::SaveInfo()
         for (i = 0; i < mpBufferList->GetPageCount(); i++){
             Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
             if (NULL != pEdit){
-                config.Write(wxString::Format("/Config/LastOpenFile/%d", i), pEdit->GetFilename());
+                config.Write(wxString::Format("/Config/LastOpenFile/File%d.Name", i), pEdit->GetFilename());
+                config.Write(wxString::Format("/Config/LastOpenFile/File%d.FirstVisibleLine", i), pEdit->GetFirstVisibleLine());
+                config.Write(wxString::Format("/Config/LastOpenFile/File%d.CurrentPos", i), pEdit->GetCurrentPos());
             }
         }
         int selection = mpBufferList->GetSelection();
         config.Write("/Config/LastOpenFile/Selection", selection);
-        Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(selection));
-        if (NULL != pEdit){
-           config.Write("/Config/LastOpenFile/FirstVisibleLine", pEdit->GetFirstVisibleLine());
-           config.Write("/Config/LastOpenFile/InsertionPoint", pEdit->GetInsertionPoint());
-        }
     }
 
     // save the window pos and size
@@ -441,21 +436,12 @@ void MyFrame::LoadInfo()
     wxConfig config("CE");
     int i = 0;
     for (i = 0; i < 100; i++){
-        wxString entry = wxString::Format("/Config/LastOpenFile/%d", i);
+        wxString entry = wxString::Format("/Config/LastOpenFile/File%d.Name", i);
         if (!config.HasEntry(entry)){
             int selection = config.ReadLong("/Config/LastOpenFile/Selection", 0);
             if (selection < mpBufferList->GetPageCount()){
-                Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(selection));
-                if (NULL != pEdit){
-                    long line = config.ReadLong("/Config/LastOpenFile/FirstVisibleLine", 0);
-                    long insertionPoint = config.ReadLong("/Config/LastOpenFile/InsertionPoint", 0);
-                    pEdit->SetFirstVisibleLine(line);
-                    pEdit->SetSelection(insertionPoint, insertionPoint);
-                    pEdit->SetInsertionPoint(insertionPoint);
-                }
                 mpBufferList->SetSelection(selection);
-            }
-            
+            }    
             break;
         }
         else{
@@ -463,6 +449,16 @@ void MyFrame::LoadInfo()
             config.Read(entry, &filename);
             if (!filename.empty()){
                 OpenFile(filename, filename, false);
+                Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+                if (NULL != pEdit){
+                    long line = config.ReadLong(wxString::Format("/Config/LastOpenFile/File%d.FirstVisibleLine",i), 0);
+                    long insertionPoint = config.ReadLong(wxString::Format("/Config/LastOpenFile/File%d.CurrentPos",i), 0);
+                    wxPrintf("%s goto line:%ld, pos:%ld\n", filename, line, insertionPoint);
+                    pEdit->SetFirstVisibleLine(line);
+                    pEdit->SetSelection(insertionPoint, insertionPoint);
+                    pEdit->GotoPos(insertionPoint);
+                }
+                
             }
         }
     }

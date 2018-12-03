@@ -107,6 +107,7 @@ wxBEGIN_EVENT_TABLE(wxWorkSpace, wxTreeCtrl)
 EVT_TREE_ITEM_ACTIVATED(wxID_ANY, wxWorkSpace::OnItemActivated)
 EVT_TREE_SEL_CHANGED(wxID_ANY, wxWorkSpace::OnSelectionChanged)
 EVT_TREE_ITEM_EXPANDING(wxID_ANY, wxWorkSpace::OnItemExpanding)
+EVT_TREE_ITEM_COLLAPSED(wxID_ANY, wxWorkSpace::OnItemCollapsed)
 EVT_MENU(workspace_id_add_dir, wxWorkSpace::OnAddDirToWorkSpace)
 EVT_MENU(workspace_id_del_dir, wxWorkSpace::OnDelDirFromWorkSpace)
 EVT_MENU(workspace_id_generate_tag, wxWorkSpace::OnGenerateTag)
@@ -420,6 +421,24 @@ void wxWorkSpace::OnKeyDown(wxKeyEvent &evt)
         }
     }
     evt.Skip();
+}
+
+void wxWorkSpace::OnItemCollapsed(wxTreeEvent &evt)
+{
+    wxTreeItemId id = evt.GetItem();
+    if (!id.IsOk()){
+        return;
+    }
+    wxTreeItemData *pInfo = GetItemData(id);
+    if (NULL == pInfo){
+        return;
+    }
+    wxWorkSpaceItemInfo *pItem = dynamic_cast<wxWorkSpaceItemInfo*>(pInfo);
+    if (NULL == pItem){
+        return;
+    }
+    DeleteChildren(id);
+    AppendItem(id, "", workspace_folder, workspace_folder_select, NULL);
 }
 
 void wxWorkSpace::OnItemExpanding(wxTreeEvent &evt)

@@ -102,6 +102,7 @@ wxBEGIN_EVENT_TABLE(wxExplorer, wxTreeCtrl)
 EVT_TREE_ITEM_ACTIVATED(wxID_ANY, wxExplorer::OnItemActivated)
 EVT_TREE_SEL_CHANGED(wxID_ANY, wxExplorer::OnSelectionChanged)
 EVT_TREE_ITEM_EXPANDING(wxID_ANY, wxExplorer::OnItemExpanding)
+EVT_TREE_ITEM_COLLAPSED(wxID_ANY, wxExplorer::OnItemCollapsed)
 EVT_KEY_DOWN(wxExplorer::OnKeyDown)
 EVT_SET_FOCUS(wxExplorer::OnFocus)
 wxEND_EVENT_TABLE()
@@ -227,6 +228,24 @@ void wxExplorer::OnKeyDown(wxKeyEvent &evt)
         }
     }
     evt.Skip();
+}
+
+void wxExplorer::OnItemCollapsed(wxTreeEvent &evt)
+{
+    wxTreeItemId id = evt.GetItem();
+    if (!id.IsOk()){
+        return;
+    }
+    wxTreeItemData *pInfo = GetItemData(id);
+    if (NULL == pInfo){
+        return;
+    }
+    wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(pInfo);
+    if (NULL == pItem){
+        return;
+    }
+    DeleteChildren(id);
+    AppendItem(id, "", explorer_folder, explorer_folder_select, NULL);
 }
 
 void wxExplorer::OnItemExpanding(wxTreeEvent &evt)
