@@ -23,6 +23,7 @@ class MyAgSearchHandler;
 class MySymbolSearchHandler;
 class MyRefSearchHandler;
 class wxSearchResult;
+class wxSearchFileResult;
 class Edit;
 class wxStyledTextEvent;
 class wxSearchFile;
@@ -72,6 +73,7 @@ public:
     ~MyFrame();
 
     wxAuiDockArt* GetDockArt();
+    bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs);
     void ShowStatus(const wxString &status);
     void SetActiveEdit(Edit *pEdit);
     void DoUpdate();

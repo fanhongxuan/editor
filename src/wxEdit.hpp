@@ -62,6 +62,7 @@ public:
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     void UpdateLineNumberMargin();
 
+    bool ShowCallTips();
     bool InsertNewLine(long pos);
     long GetLineStartPosition(long line);
     bool StartReplaceInRegion();
@@ -129,6 +130,7 @@ public:
     void OnMouseLeftDown(wxMouseEvent &evt);
     void OnMouseLeftUp(wxMouseEvent &evt);
     void OnMouseLeftDclick(wxMouseEvent &evt);
+    void OnMouseWheel(wxMouseEvent &evt);
     void OnKillFocus(wxFocusEvent &evt);
     void OnFocus(wxFocusEvent &evt);
     void OnKeyDown(wxKeyEvent &event);

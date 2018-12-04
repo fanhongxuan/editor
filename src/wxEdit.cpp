@@ -41,7 +41,7 @@
 
 #include "wxAutoComp.hpp"
 #include "ce.hpp"
-
+#include "wxSearch.hpp"
 //----------------------------------------------------------------------------
 // resources
 //----------------------------------------------------------------------------
@@ -142,6 +142,7 @@ EVT_KILL_FOCUS(Edit::OnKillFocus)
 EVT_LEFT_DOWN(Edit::OnMouseLeftDown)
 EVT_LEFT_UP(Edit::OnMouseLeftUp)
 EVT_LEFT_DCLICK(Edit::OnMouseLeftDclick)
+EVT_MOUSEWHEEL(Edit::OnMouseWheel)
 wxEND_EVENT_TABLE()
 
 Edit::Edit (wxWindow *parent,
@@ -274,6 +275,9 @@ void Edit::OnKillFocus(wxFocusEvent &evt)
 {
     if (AutoCompActive()){
         AutoCompCancel();
+    }
+    if (CallTipActive()){
+        CallTipCancel();
     }
     evt.Skip();
 }
@@ -409,7 +413,6 @@ void Edit::OnKeyDown (wxKeyEvent &event)
     if (event.GetKeyCode() == WXK_SPACE && event.ControlDown() && event.ShiftDown())
     {
         int pos = GetCurrentPos();
-        CallTipSetBackground(*wxYELLOW);
         CallTipShow(pos,
                     "This is a CallTip with multiple lines.\n"
                     "It is meant to be a context sensitive popup helper for the user.");
@@ -507,6 +510,7 @@ void Edit::OnMouseLeftDown(wxMouseEvent &evt)
 void Edit::OnMouseLeftUp(wxMouseEvent &evt)
 {
     DoBraceMatch();
+    ShowCallTips();
     evt.Skip();
 }
 
@@ -514,6 +518,14 @@ void Edit::OnMouseLeftDclick(wxMouseEvent &evt){
     // first select the key;
     StartReplaceInRegion();
     // evt.Skip();
+}
+
+void Edit::OnMouseWheel(wxMouseEvent &evt)
+{
+    if (CallTipActive()){
+        CallTipCancel();
+    }
+    evt.Skip();
 }
 
 void Edit::OnKeyUp(wxKeyEvent &event)
@@ -1042,6 +1054,39 @@ static inline bool IsStyleNeedToSkip(int style, char c){
     return false;
 }
 
+// todo:fanhongxuan@gmail.com
+
+bool Edit::ShowCallTips()
+{
+    int start = WordStartPosition(GetCurrentPos(), true);
+    int stop = WordEndPosition(GetCurrentPos(), true);
+    wxString value = GetTextRange(start, stop);
+    if (NULL == wxGetApp().frame()){
+        return false;
+    }
+    std::vector<wxSearchFileResult *> outputs;
+    if (value.find_first_not_of("\r\n\t ") == value.npos){
+        return false;
+    }
+    
+    wxGetApp().frame()->FindDef(value, outputs);
+    int i = 0; 
+    value = wxEmptyString;
+    for (i = 0; i < outputs.size(); i++){
+        if (!value.empty()){
+            value += "\n";
+        }
+        value += outputs[i]->Content();
+        delete outputs[i];
+        outputs[i] = NULL;
+    }
+    if (value.empty()){
+        return false;
+    }
+    CallTipShow(start, value);
+    return true;
+}
+
 bool Edit::GetMatchRange(long &startPos, long &stopPos)
 {
     // todo:fanhongxuan@gmail.com
@@ -1505,6 +1550,9 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetCaretLineBackAlpha(60);
     SetCaretLineVisible(true);
     SetCaretLineVisibleAlways(true);
+    
+    CallTipSetBackground(*wxYELLOW);
+    CallTipSetForeground(*wxBLUE);
     
     // set style for brace light and bad
     //StyleSetForeground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("WHITE")));

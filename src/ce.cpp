@@ -404,6 +404,18 @@ void MyFrame::ChangeToBuffer(Edit *pEdit, int pos)
     }
 }
 
+bool MyFrame::FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs){
+    if (NULL != mpRefSearch){
+        if (NULL != mpWorkSpace){
+            std::set<wxString> dirs;
+            mpWorkSpace->GetDirs(dirs);
+            mpRefSearch->SetTagDir(dirs);
+        }
+        return mpRefSearch->FindDef(symbol, outputs);
+    }
+    return false;
+}
+
 void MyFrame::SaveInfo()
 {
     // note: fanhongxuan@gmail.com
