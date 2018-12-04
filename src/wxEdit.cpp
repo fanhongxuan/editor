@@ -132,13 +132,16 @@ EVT_MENU_RANGE (myID_HIGHLIGHTFIRST, myID_HIGHLIGHTLAST,
     EVT_MENU(myID_MULTIPLE_SELECTIONS_TYPING,   Edit::OnMultipleSelectionsTyping)
     EVT_MENU(myID_CUSTOM_POPUP,                 Edit::OnCustomPopup)
     EVT_SET_FOCUS(Edit::OnFocus)
+EVT_KILL_FOCUS(Edit::OnKillFocus)
     // stc
     EVT_STC_MARGINCLICK (wxID_ANY,     Edit::OnMarginClick)
     EVT_STC_CHARADDED (wxID_ANY,       Edit::OnCharAdded)
 
     EVT_KEY_DOWN( Edit::OnKeyDown )
     EVT_KEY_UP(Edit::OnKeyUp)
-    EVT_LEFT_UP(Edit::OnMouseLeftUp)
+EVT_LEFT_DOWN(Edit::OnMouseLeftDown)
+EVT_LEFT_UP(Edit::OnMouseLeftUp)
+EVT_LEFT_DCLICK(Edit::OnMouseLeftDclick)
 wxEND_EVENT_TABLE()
 
 Edit::Edit (wxWindow *parent,
@@ -148,6 +151,7 @@ Edit::Edit (wxWindow *parent,
     long style)
 : wxStyledTextCtrl (parent, id, pos, size, style) {
     
+    mbReplace = false;
     mbLoadFinish = false;
     m_filename = wxEmptyString;
     
@@ -172,6 +176,23 @@ Edit::Edit (wxWindow *parent,
     
     InitializePrefs (DEFAULT_LANGUAGE);
 
+    SetMultipleSelection(true);
+    SetMultiPaste(wxSTC_MULTIPASTE_EACH);
+    SetAdditionalSelectionTyping(true);
+    
+    SetSelForeground(true, *wxBLACK);
+    SetSelBackground(true, *wxWHITE);
+    
+    // SetVirtualSpaceOptions(7);
+    // SetViewWhiteSpace(wxSTC_WS_VISIBLEALWAYS);
+    // SetWhitespaceForeground(true, *wxGREEN);
+    // SetWhitespaceBackground(true, *wxWHITE);
+    
+    // fixme:fanhongxuan@gmail.com
+    // SetSelectionMode(wxSTC_SEL_RECTANGLE);
+    // SetMouseSelectionRectangularSwitch(true);
+    // SetRectangularSelectionModifier(wxSTC_SCMOD_CTRL);
+    
     // set visibility
     SetVisiblePolicy (wxSTC_VISIBLE_STRICT|wxSTC_VISIBLE_SLOP, 1);
     SetXCaretPolicy (wxSTC_CARET_EVEN|wxSTC_VISIBLE_STRICT|wxSTC_CARET_SLOP, 1);
@@ -189,8 +210,13 @@ Edit::~Edit () {}
 
 wxString Edit::GetCurrentWord(const wxString &validCharList)
 {
+    // note:fanhongxuan@gmail.com
+    // when multselection is enabled, GetSelectText will return all the selected text.
+    // so we use GetSelection to get the main selection, and then GetTextRange.
     // if has selection, return selection
-    wxString ret = GetSelectedText();
+    int startPos = 0, stopPos = 0;
+    GetSelection(&startPos, &stopPos);
+    wxString ret = GetTextRange(startPos, stopPos);
     if (!ret.empty()){
         return ret;
     }
@@ -240,6 +266,14 @@ void Edit::OnFocus(wxFocusEvent &evt)
     if (NULL != wxGetApp().frame()){
         wxGetApp().frame()->DoUpdate();
         wxGetApp().frame()->SetActiveEdit(this);
+    }
+    evt.Skip();
+}
+
+void Edit::OnKillFocus(wxFocusEvent &evt)
+{
+    if (AutoCompActive()){
+        AutoCompCancel();
     }
     evt.Skip();
 }
@@ -309,6 +343,9 @@ void Edit::OnModified(wxStyledTextEvent &evt)
             return;
         }
         
+        if (mbReplace){
+            return;
+        }
         // indent the line by foldlevel
         int line = evt.GetLine();
         int curLine = GetCurrentLine();
@@ -379,11 +416,40 @@ void Edit::OnKeyDown (wxKeyEvent &event)
         return;
     }
     
+    if (WXK_RETURN == event.GetKeyCode()){
+        if (AutoCompActive()){
+            // fixme:fanhongxuan@gmail.com
+            // this will end the multiple typing.
+            AutoCompComplete();
+            return;
+        }
+    }
+    
     if (';' == event.GetKeyCode() && event.AltDown()){
         long start, end;
         GetSelection(&start, &end);
         TriggerCommentRange(start, end);
         return;
+    }
+    
+    if ('R' == event.GetKeyCode() && event.ControlDown()){
+        StartReplaceInRegion();
+        return;
+    }
+    
+    if (WXK_ESCAPE == event.GetKeyCode()){
+        if (AutoCompActive()){
+            AutoCompCancel();
+            return;
+        }
+        if (mbReplace){
+            mbReplace = false;
+            SetSelForeground(true, *wxBLACK);
+            SetSelBackground(true, *wxWHITE);
+            if (NULL != wxGetApp().frame()){
+                wxGetApp().frame()->ShowStatus("");
+            }
+        }
     }
     
     if (WXK_BACK ==  event.GetKeyCode()){
@@ -423,10 +489,31 @@ void Edit::DoBraceMatch()
     }
 }
 
-void Edit::OnMouseLeftUp(wxMouseEvent &event)
+void Edit::OnMouseLeftDown(wxMouseEvent &evt)
+{
+    int pos = GetCurrentPos();
+    if (mbReplace){
+        mbReplace = false;
+        SetSelection(pos, pos);
+        SetSelBackground(true, *wxWHITE);
+        SetSelForeground(true, *wxBLACK);
+        if (NULL != wxGetApp().frame()){
+            wxGetApp().frame()->ShowStatus("");
+        }
+    }
+    evt.Skip();
+}
+
+void Edit::OnMouseLeftUp(wxMouseEvent &evt)
 {
     DoBraceMatch();
-    event.Skip();
+    evt.Skip();
+}
+
+void Edit::OnMouseLeftDclick(wxMouseEvent &evt){
+    // first select the key;
+    StartReplaceInRegion();
+    // evt.Skip();
 }
 
 void Edit::OnKeyUp(wxKeyEvent &event)
@@ -935,6 +1022,120 @@ long Edit::GetLineStartPosition(long line)
 }
 
 
+static inline bool IsStyleNeedToSkip(int style, char c){
+    if (style == 1){
+        // /*{}*/
+        return true;
+    }
+    if (style == 2){
+        // // {}
+        return true;
+    }
+    if (style == 6){
+        // "{}"
+        return true;
+    }
+    if (style == 7){
+        // '{' '}'
+        return true;
+    }
+    return false;
+}
+
+bool Edit::GetMatchRange(long &startPos, long &stopPos)
+{
+    // todo:fanhongxuan@gmail.com
+    // if user select in a function param, we need to auto select all the function body
+    
+    // set the start and end
+    startPos = GetCurrentPos();
+    // skip the {} in comments and string
+    while(startPos >0){
+        char c = GetCharAt(startPos);
+        if (!IsStyleNeedToSkip(GetStyleAt(startPos), c)){
+            if (c == '}'){
+                startPos = BraceMatch(startPos);
+            }
+            else if (c == '{'){
+                break;
+            }
+        }
+        startPos--;
+    }
+    
+    stopPos = GetCurrentPos();
+    int end = GetLastPosition();
+    while(stopPos < end && stopPos > 0){
+        char c = GetCharAt(stopPos);
+        if (!IsStyleNeedToSkip(GetStyleAt(stopPos), c)){
+            if (c == '{'){
+                stopPos = BraceMatch(stopPos);
+            }
+            else if (c == '}'){
+                break;
+            }
+        }
+        stopPos++;
+    }
+    if (startPos < 0){
+        startPos = 0;
+    }
+    if (stopPos < 0){
+        stopPos = end;
+    }    
+    return true;
+}
+
+bool Edit::StartReplaceInRegion(){
+    // todo:fanhongxuan@gmail.com
+    // when repace in region is run, don't update the indent according the fold level.
+    
+    long startPos = 0, stopPos = 0;
+    long start = 0, stop = 0;
+    int count = 0;
+    mbReplace = true;
+    GetSelection(&start, &stop);
+    
+    if (start == stop){
+        start = WordStartPosition(GetCurrentPos(), true);
+        stop = WordEndPosition(GetCurrentPos(), true);
+        SetSelection(start, stop);
+    }
+    
+    wxString text = GetSelectedText();
+    if (text.empty()){
+        return false;
+    }
+    
+    wxString lowText = text.Lower();
+    int flag = wxSTC_FIND_WHOLEWORD;
+    if (lowText != text){
+        flag |= wxSTC_FIND_MATCHCASE;
+    }
+    
+    GetMatchRange(startPos, stopPos);
+    SetSelForeground(false, wxColour("BLUE"));
+    SetSelBackground(true, wxColour("BLUE"));
+    
+    // wxPrintf("StartReplaceInRegion:%ld<->%ld\n", startPos, stopPos);
+    while(startPos < stopPos){
+        int ret = FindText(stopPos, startPos, text, flag);
+        if (ret < 0){
+            break;
+        }
+        if (ret != start && stop != (ret+text.length())){
+            AddSelection(ret, ret + text.length());
+        }
+        count++;
+        stopPos = ret;
+    }
+    AddSelection(start, stop);
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->ShowStatus(wxString::Format(wxT(" %d match(s) for '%s'"), count, text));
+    }
+    return true;
+}
+
 bool Edit::TriggerCommentRange(long start, long stop)
 {
     if (NULL == m_language || wxString(m_language->name) != "C++"){
@@ -1132,9 +1333,12 @@ bool Edit::InsertNewLine(long pos)
 void Edit::AutoIndentWithNewline(int currentLine)
 {
     // wxPrintf("AutoIndentWithNewline:%d\n", currentLine);
-    // note:fanhongxuan@gmail.com
     if (NULL == m_language || wxString(m_language->name) != "C++"){
         // only handle this in C/C++
+        return;
+    }
+    if (mbReplace){
+        // when use is replace, skip this
         return;
     }
     
@@ -1274,6 +1478,12 @@ bool Edit::InitializePrefs (const wxString &name) {
     SetEOLMode(wxSTC_EOL_LF);
 #endif
     
+    int charset = 65001;
+    for (int Nr = 0; Nr < wxSTC_STYLE_LASTPREDEFINED; Nr++) {
+        StyleSetCharacterSet (Nr, charset);
+    }
+    SetCodePage (charset);
+    
     wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
     StyleSetFont (wxSTC_STYLE_DEFAULT, font);
     StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxWHITE);
@@ -1304,6 +1514,13 @@ bool Edit::InitializePrefs (const wxString &name) {
     
     StyleSetForeground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("BLACK")));
     StyleSetBackground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("RED")));
+    
+    
+    // for multselection and replace
+    StyleSetFont (wxSTC_STYLE_LASTPREDEFINED + 1, font);
+    StyleSetForeground (wxSTC_STYLE_LASTPREDEFINED + 1, *wxGREEN);
+    StyleSetBackground (wxSTC_STYLE_LASTPREDEFINED + 1, *wxBLACK);
+    
     
     LanguageInfo const* curInfo = NULL;
 

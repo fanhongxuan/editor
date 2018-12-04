@@ -72,6 +72,7 @@ public:
     ~MyFrame();
 
     wxAuiDockArt* GetDockArt();
+    void ShowStatus(const wxString &status);
     void SetActiveEdit(Edit *pEdit);
     void DoUpdate();
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);

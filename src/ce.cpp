@@ -230,6 +230,13 @@ void MyFrame::UpdateWorkDirs(Edit *pActiveEdit, bool showWorkSpace, bool showExp
     }
 }
 
+void MyFrame::ShowStatus(const wxString &status)
+{
+    if (NULL != mpCmd){
+        mpCmd->SetValue(status);
+    }
+}
+
 void MyFrame::DoUpdate()
 {   
     UpdateWorkDirs(mpActiveEdit);
@@ -453,7 +460,7 @@ void MyFrame::LoadInfo()
                 if (NULL != pEdit){
                     long line = config.ReadLong(wxString::Format("/Config/LastOpenFile/File%d.FirstVisibleLine",i), 0);
                     long insertionPoint = config.ReadLong(wxString::Format("/Config/LastOpenFile/File%d.CurrentPos",i), 0);
-                    wxPrintf("%s goto line:%ld, pos:%ld\n", filename, line, insertionPoint);
+                    // wxPrintf("%s goto line:%ld, pos:%ld\n", filename, line, insertionPoint);
                     pEdit->SetFirstVisibleLine(line);
                     pEdit->SetSelection(insertionPoint, insertionPoint);
                     pEdit->GotoPos(insertionPoint);

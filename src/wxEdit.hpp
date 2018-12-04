@@ -51,9 +51,9 @@ public:
           const wxSize &size = wxDefaultSize,
           long style =
 #ifndef __WXMAC__
-          wxSUNKEN_BORDER|
+          // wxSUNKEN_BORDER|
 #endif
-          wxVSCROLL
+          wxHSCROLL
          );
 
     //! destructor
@@ -64,6 +64,7 @@ public:
 
     bool InsertNewLine(long pos);
     long GetLineStartPosition(long line);
+    bool StartReplaceInRegion();
     bool TriggerCommentRange(long start, long stop);
     bool HungerBack();
     void AutoIndentWithNewline(int currentLine);
@@ -74,7 +75,6 @@ public:
     void InsertPair(int currentLine, char c = '{');
     int CalcLineIndentByFoldLevel(int line, int level);
     bool GetSymbolList(std::vector<wxString> &symbol, int iBase = 0);
-
     
     // event handlers
     // common
@@ -126,8 +126,10 @@ public:
     void OnMarginClick (wxStyledTextEvent &event);
     void OnCharAdded  (wxStyledTextEvent &event);
 
+    void OnMouseLeftDown(wxMouseEvent &evt);
     void OnMouseLeftUp(wxMouseEvent &evt);
-    
+    void OnMouseLeftDclick(wxMouseEvent &evt);
+    void OnKillFocus(wxFocusEvent &evt);
     void OnFocus(wxFocusEvent &evt);
     void OnKeyDown(wxKeyEvent &event);
     void OnKeyUp(wxKeyEvent &event);
@@ -149,6 +151,7 @@ public:
     void SetFilename (const wxString &filename) {m_filename = filename;};
 
 private:
+    bool GetMatchRange(long &start, long &stop);
     void DoBraceMatch();
     bool LoadAutoComProvider(const wxString &filename);
     bool IsValidChar(char ch, const wxString &validCharList = wxEmptyString);
@@ -165,6 +168,7 @@ private:
     LanguageInfo const* m_language;
 
     bool mbLoadFinish;
+    bool mbReplace;
     // margin variables
     int m_LineNrID;
     int m_LineNrMargin;
