@@ -522,12 +522,10 @@ void MyFrame::SetActiveEdit(Edit *pEdit)
         }
         mpSymbolSearch->SetEdit(pEdit);
         wxAuiPaneInfo &info = m_mgr.GetPane(wxT("Find Symbol"));
-        if (info.IsOk() && info.IsShown() && pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
-            if (NULL != pEdit){
-                mpSymbolSearch->SetFileName(pEdit->GetFilename());
-                mpSymbolSearch->SetInput("");
-                mpSymbolSearch->UpdateSearchList("", false);
-            }
+        if (info.IsOk() && info.IsShown() && NULL != pEdit && pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
+            mpSymbolSearch->SetFileName(pEdit->GetFilename());
+            mpSymbolSearch->SetInput("");
+            mpSymbolSearch->UpdateSearchList("", false);
         }
     }
     UpdateWorkDirs(mpActiveEdit);
