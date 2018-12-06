@@ -52,6 +52,7 @@
 #include "wxSymbolSearch.hpp"
 #include "ceRefSearch.hpp"
 #include "ceUtils.hpp"
+#include "ceEdit.hpp"
 
 wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
@@ -345,7 +346,10 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
         return;
     }
     int i = 0;
-    Edit *pEdit = NULL;
+#ifndef DEBUG_NEW_EDIT
+#define ceEdit Edit    
+#endif    
+    ceEdit *pEdit = NULL;
     wxString name, ext;
     wxFileName::SplitPath(filename, NULL, NULL, &name, &ext);
     if (!ext.empty()){
@@ -353,7 +357,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
         name += ext;
     }
     for (i = 0; i < mpBufferList->GetPageCount(); i++){
-        pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+        pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
         if (NULL != pEdit && pEdit->GetFilename() == path){
             mpBufferList->SetSelection(i);
             break;
@@ -361,7 +365,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     }
     
     if (i == mpBufferList->GetPageCount()){
-        pEdit = new Edit(mpBufferList);
+        pEdit = new ceEdit(mpBufferList);
         if (!path.empty()){
             pEdit->LoadFile(path);
         }
@@ -402,6 +406,13 @@ void MyFrame::ChangeToBuffer(Edit *pEdit, int pos)
             break;
         }
     }
+}
+
+bool MyFrame::FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename){
+    if (NULL != mpWorkSpace){
+        return mpWorkSpace->FindDef(symbols, name, type, filename);
+    }
+    return false;
 }
 
 bool MyFrame::FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs){

@@ -153,7 +153,8 @@ public:
     void SetFilename (const wxString &filename) {m_filename = filename;};
 
 private:
-    bool GetMatchRange(long &start, long &stop);
+    bool IsAParam();
+    bool GetMatchRange(long &start, long &stop, char sc, char ec);
     void DoBraceMatch();
     bool LoadAutoComProvider(const wxString &filename);
     bool IsValidChar(char ch, const wxString &validCharList = wxEmptyString);

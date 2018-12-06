@@ -14,7 +14,7 @@ wxSymbolSearch::~wxSymbolSearch()
 }
 
 
-static const wxString &getFullTypeName(const wxString &input, const wxString &language)
+const wxString &getFullTypeName(const wxString &input, const wxString &language)
 {
     static std::map<wxString, wxString> theCMaps;
     static std::map<wxString, wxString> theJavaMaps;

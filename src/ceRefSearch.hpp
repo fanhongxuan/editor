@@ -16,8 +16,8 @@ public:
     void SetTagDir(const std::set<wxString> &tagDir){mTagDir = tagDir;}
     void SetHasRef(bool bHasRef){mbHasRef = bHasRef;}
     void SetGrep(bool bGrep){mbGrep = bGrep;}
-    bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult*> &outputs);
-    private:
+    bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult*> &outputs); 
+private:
     wxSearchFileResult *ParseLine(const wxString &line, const wxString &path);
 private:
     bool mbHasRef;

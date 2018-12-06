@@ -929,10 +929,12 @@ bool wxSearch::UpdateSearchList(const wxString &input, bool bRequestFocus)
     
     if (mCurrentLine < 0){
         int prefer = GetPreferedLine(mInput);
+        bool bActive = true;
         if (prefer < 0){
+            bActive = false;
             prefer = 0;
         }
-        SelectLine(prefer, true, bRequestFocus);
+        SelectLine(prefer, bActive, bRequestFocus);
     }
     return true;
 }
@@ -1005,6 +1007,10 @@ bool wxSearch::IsBinaryFile(const wxString &file)
     wxString ext;
     wxFileName::SplitPath(file, NULL, NULL, NULL, &ext);
     if (ext == "obj" || ext == "o" || ext == "pdb" || ext == "exe" || ext == "d"){
+        return true;
+    }
+    if (ext == "symbol"){
+        // ignore our temp file.
         return true;
     }
     return false;

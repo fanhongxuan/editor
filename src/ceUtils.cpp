@@ -62,7 +62,7 @@ BOOL system_hide(const wchar_t* CommandLine, std::vector<wxString> &output)
 
 int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
 {
-    // wxPrintf("exec:<%s>\n", cmd);
+    wxPrintf("exec:<%s>\n", cmd);
 #ifdef WIN32
     system_hide(static_cast<const wchar_t*>(cmd.c_str()), output);
 #else
@@ -157,4 +157,31 @@ void ceFindFiles(const wxString &dir, std::vector<wxString> &output)
         }
         cont = cwd.GetNext(&filename);
     }
+}
+
+wxString ceGetLine(const wxString &filename, long linenumber, int count)
+{
+    FILE *fp = fopen(filename, "r");
+    if (NULL == fp){
+        return wxEmptyString;
+    }
+    char buffer[1024+1];
+    int i = 1;
+    wxString ret;
+    while(i++ < linenumber){
+        fgets(buffer, 1024, fp);
+    }
+    i = 0;
+    while (i++ < count){
+        fgets(buffer, 1024, fp);
+        ret += buffer;
+    }
+    if (count == 1){
+        int pos = ret.find_first_of("\r\n");
+        if (pos != ret.npos){
+            ret = ret.substr(0, pos);
+        }
+    }
+    fclose(fp);
+    return ret;
 }

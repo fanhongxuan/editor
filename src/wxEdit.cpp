@@ -42,6 +42,8 @@
 #include "wxAutoComp.hpp"
 #include "ce.hpp"
 #include "wxSearch.hpp"
+#include "ceSymbolDb.hpp"
+#include "ceUtils.hpp"
 //----------------------------------------------------------------------------
 // resources
 //----------------------------------------------------------------------------
@@ -336,7 +338,8 @@ void Edit::OnModified(wxStyledTextEvent &evt)
         // fold status changed.
         // only worked on C++ mode
         if (NULL == m_language || wxString(m_language->name) != "C++"){
-            return;        }
+            return;
+        }
         
         if (!mbLoadFinish){
             // document is still loading, skip this.
@@ -368,7 +371,8 @@ void Edit::OnModified(wxStyledTextEvent &evt)
             int start = GetCurrentPos();
 			int end = GetLineEndPosition(curLine-1);
             if (GetEOLMode() == wxSTC_EOL_CRLF){
-                end++;            }
+                end++;
+            }
             if (start == (end + 1)){
                 GotoPos(GetLineIndentPosition(curLine));
                 // note:fanhongxuan@gmail.com
@@ -516,8 +520,8 @@ void Edit::OnMouseLeftUp(wxMouseEvent &evt)
 
 void Edit::OnMouseLeftDclick(wxMouseEvent &evt){
     // first select the key;
-    StartReplaceInRegion();
-    // evt.Skip();
+    // StartReplaceInRegion();
+    evt.Skip();
 }
 
 void Edit::OnMouseWheel(wxMouseEvent &evt)
@@ -1051,10 +1055,164 @@ static inline bool IsStyleNeedToSkip(int style, char c){
         // '{' '}'
         return true;
     }
+    if (style == 0){
+        // white space
+        return true;
+    }
+    // wxPrintf("<%c>:%d\n", c, style);
     return false;
 }
 
 // todo:fanhongxuan@gmail.com
+
+// static bool IsAFunction(const wxString &value, const wxString &line, int pos)
+// {
+//     // xxxx(
+// }
+
+// static bool IsAMember(const wxString &value, const wxString &line, int pos)
+// {
+//     //  .xxx not (
+//     // ->xxx not (
+//     // ::xxx not (
+// }
+
+bool Edit::IsAParam()
+{
+    // (int a1, int b2, int b3){}
+    // (int a1, int b2, int bc);
+    // 
+    int pos = GetCurrentPos();
+    // int start = WordStartPosition(pos, true);
+    // int stop = WordEndPosition(pos, true);
+    long startPos, stopPos;
+    GetMatchRange(startPos, stopPos, '(',')');
+    if (startPos == stopPos){
+        return false;
+    }
+    long end = GetLastPosition();
+    if (startPos == 0 && stopPos == end){
+        return false;
+    }
+    wxString text = GetTextRange(startPos+1, stopPos);
+    std::vector<wxString> outputs;
+    ceSplitString(text, outputs, ',');
+    for (int i = 0; i < outputs.size(); i++){
+        std::vector<wxString> values;
+        wxPrintf("output[%d] = <%s>\n", i, outputs[i]);
+        ceSplitString(outputs[i], values, ' ');
+        if (values.size() > 1){
+            wxPrintf("IsAParam\n");
+            return true;
+        }
+    }
+    // stopPos++;
+    // while(stopPos < end) {
+    //     char c = GetCharAt(stopPos);
+    //     wxPrintf("value:<%c>, style:%d\n", c,GetStyleAt(stopPos));
+    //     if (!IsStyleNeedToSkip(GetStyleAt(stopPos), c)){
+    //         if (c == ';'){
+    //             return false;
+    //         }
+    //         else if (c == '{'){
+    //             return true;
+    //         }
+    //     }
+    //     stopPos++;
+    // }
+    return false;
+}
+
+static wxString GuessTypeByLine(const wxString &value, const wxString line, int pos)
+{
+    // todo:fanhongxuan@gmail.com
+    // if value is ->value( find the member function and enum
+    // if value is ->value* find the member
+    // if value is ::value( find the member function prototype and enum, namespace
+    // if value is ::value*
+    wxPrintf("value:%s\n", value);
+    wxPrintf("line:%s\n", line);
+    wxString before = line.substr(0, pos);
+    wxString after = line.substr(pos + value.length());
+    // todo:fanhongxuan@gmail.com
+    // skip the comments later
+    bool isFunction = false;
+    bool isMember = false;
+    bool isPrototype = false;
+    pos = before.find_last_not_of("\r\n\t ");
+    if (pos != before.npos){
+        if (before[pos] == '.' || 
+            (before[pos] == '>' && pos > 1 && before[pos-1] == '-')){
+            // . or ->
+            isMember = true;
+        }
+        if (pos > 1 && before[pos] == ':' && before[pos-1] == ':'){
+            // ::
+            isPrototype = true;
+        }
+        // if line is like:
+        // wxString &value <-- value is a param, or local variable
+        // if line is like
+        // (wxString & value) <-- value can be a type, 
+    }
+    pos = after.find_first_not_of("\r\n\t ");
+    if (pos != after.npos){
+        if (after[pos] == '('){
+            // this is function call
+            isFunction = true;
+        }
+    }
+    wxString ret;
+    if (isFunction){
+        ret += "fp";
+    }
+    if ((!isFunction) && isMember){
+        ret += "m";
+    }
+    if (isPrototype){
+        ret += "p";
+    }
+    
+    
+    
+    if (!ret.empty()){
+        ret += "d"; // macro define
+        ret += "u"; // union
+        ret += "t"; // typedef
+        ret += "x"; // extern var
+        ret += "g"; // enum
+        ret += "e"; // Enumerator
+        ret += "c"; // class
+        ret += "s"; // struct
+    }
+    wxPrintf("type:%s\n", ret);
+    return ret;
+}
+
+static bool CanShowCallTips(int style)
+{
+    if (style == 1){
+        // /*{}*/
+        return false;
+    }
+    if (style == 2){
+        // // {}
+        return false;
+    }
+    if (style == 6){
+        // "{}"
+        return false;
+    }
+    if (style == 7){
+        // '{' '}'
+        return false;
+    }
+    if (style == 5){
+        return false;
+    }
+    wxPrintf("style:%d\n", style);
+    return true;
+}
 
 bool Edit::ShowCallTips()
 {
@@ -1064,21 +1222,60 @@ bool Edit::ShowCallTips()
     if (NULL == wxGetApp().frame()){
         return false;
     }
-    std::vector<wxSearchFileResult *> outputs;
     if (value.find_first_not_of("\r\n\t ") == value.npos){
         return false;
     }
     
-    wxGetApp().frame()->FindDef(value, outputs);
-    int i = 0; 
+    // skip comments, string &keywords, operator,
+    int style = GetStyleAt(start);
+    if (!CanShowCallTips(GetStyleAt(start))){
+        return false;
+    }
+    
+    // std::vector<wxSearchFileResult *> outputs;
+    // wxGetApp().frame()->FindDef(value, outputs);
+    // int i = 0; 
+    // value = wxEmptyString;
+    // for (i = 0; i < outputs.size(); i++){
+    //     if (!value.empty()){
+    //         value += "\n";
+    //     }
+    //     value += outputs[i]->Content();
+    //     delete outputs[i];
+    //     outputs[i] = NULL;
+    // }
+    
+    wxString line = GetLineText(GetCurrentLine());
+    long x = 0;
+    PositionToXY(start, &x, NULL);
+    if (IsAParam()){
+        return false;
+    }
+    wxString type = GuessTypeByLine(value, line, x);
+    std::set<ceSymbol*> outputs;
+    // todo:fanhongxuan@gmail.com
+    // later, we need to check if this file is include.
+    wxGetApp().frame()->FindDef(outputs, value, type, GetFilename());
     value = wxEmptyString;
-    for (i = 0; i < outputs.size(); i++){
+    std::set<ceSymbol*>::iterator it = outputs.begin();
+    while(it != outputs.end()){
+        if ((*it)->file == GetFilename() && (GetCurrentLine()+1) == (*it)->line){
+            it++;
+            // skip ourself
+            continue;
+        }
         if (!value.empty()){
             value += "\n";
         }
-        value += outputs[i]->Content();
-        delete outputs[i];
-        outputs[i] = NULL;
+        if (!(*it)->shortFilename.empty()){
+            value += (*it)->shortFilename;
+        }
+        else{
+            value += (*it)->file;
+        }
+        value += "(" + wxString::Format("%d", (*it)->line) + "):" + (*it)->desc;
+        delete (*it);
+        it++;
     }
     if (value.empty()){
         return false;
@@ -1087,7 +1284,7 @@ bool Edit::ShowCallTips()
     return true;
 }
 
-bool Edit::GetMatchRange(long &startPos, long &stopPos)
+bool Edit::GetMatchRange(long &startPos, long &stopPos, char sc, char ec)
 {
     // todo:fanhongxuan@gmail.com
     // if user select in a function param, we need to auto select all the function body
@@ -1098,10 +1295,10 @@ bool Edit::GetMatchRange(long &startPos, long &stopPos)
     while(startPos >0){
         char c = GetCharAt(startPos);
         if (!IsStyleNeedToSkip(GetStyleAt(startPos), c)){
-            if (c == '}'){
+            if (c == ec){
                 startPos = BraceMatch(startPos);
             }
-            else if (c == '{'){
+            else if (c == sc){
                 break;
             }
         }
@@ -1113,10 +1310,10 @@ bool Edit::GetMatchRange(long &startPos, long &stopPos)
     while(stopPos < end && stopPos > 0){
         char c = GetCharAt(stopPos);
         if (!IsStyleNeedToSkip(GetStyleAt(stopPos), c)){
-            if (c == '{'){
+            if (c == sc){
                 stopPos = BraceMatch(stopPos);
             }
-            else if (c == '}'){
+            else if (c == ec){
                 break;
             }
         }
@@ -1158,7 +1355,7 @@ bool Edit::StartReplaceInRegion(){
         flag |= wxSTC_FIND_MATCHCASE;
     }
     
-    GetMatchRange(startPos, stopPos);
+    GetMatchRange(startPos, stopPos, '{', '}');
     SetSelForeground(false, wxColour("BLUE"));
     SetSelBackground(true, wxColour("BLUE"));
     

@@ -4,6 +4,8 @@
 
 #include <set>
 
+class ceSymbol;
+class ceSymbolDb;
 class wxWorkSpace: public wxTreeCtrl
 {
     wxDECLARE_CLASS(wxExplorer);
@@ -30,12 +32,15 @@ public:
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
     bool UpdateTagForFile(const wxString &file);
+    bool FindDef(std::set<ceSymbol *> &symbols, const wxString &name, const wxString &type = "", const wxString &filename = "");
+    
 private:
     bool GenerateTagFile();
     void GenerateGTagFile(const wxString &dir);
     
 private:
     void CreateImageList();
+    ceSymbolDb *mpSymbolDb;
     std::set<wxString> mDirs;
     std::set<wxString> mFiles;
     wxDECLARE_EVENT_TABLE();

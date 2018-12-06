@@ -11,6 +11,8 @@
 #include <wx/msgdlg.h>
 #include <wx/busyinfo.h>
 #include "ceUtils.hpp"
+#include "ceSymbolDb.hpp"
+#include "ceInclude.hpp"
 #include "ce.hpp"
 
 enum workspace_icon{
@@ -179,6 +181,7 @@ bool wxWorkSpace::UpdateTagForFile(const wxString &file)
         if (file.find(*it) == 0){
             // belong to this dir.
             wxString cmd;
+            std::vector<wxString> outputs;
 #ifdef WIN32
             cmd = "cmd.exe /c \" cd ";
             cmd += (*it);
@@ -198,9 +201,13 @@ bool wxWorkSpace::UpdateTagForFile(const wxString &file)
             cmd += ceGetExecPath();
             cmd += "/ext/gtags --single-update ";
             cmd += file;
+            ceSyncExec(wxString::Format("sync %s", file), outputs);
 #endif
-            std::vector<wxString> outputs;
-            ceSyncExec(cmd, outputs);
+            ceSyncExec(cmd, outputs);       
+            if (NULL == mpSymbolDb){
+                mpSymbolDb = new ceSymbolDb;
+            }
+            mpSymbolDb->UpdateSymbolByFile(file);
         }
         it++;
     }
@@ -242,6 +249,11 @@ bool wxWorkSpace::GenerateTagFile()
         GenerateGTagFile(*it);
         it++;
     }
+    
+    if (NULL == mpSymbolDb){
+        mpSymbolDb = new ceSymbolDb;
+    }
+    mpSymbolDb->UpdateSymbol(mDirs);
     return true;
 }
     
@@ -537,6 +549,41 @@ void wxWorkSpace::CreateImageList()
         }
     }
     AssignImageList(images);
+}
+
+bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols, const wxString &name, const wxString &type, const wxString &filename)
+{
+    if (NULL == mpSymbolDb){
+        mpSymbolDb = new ceSymbolDb;
+    }
+    
+    ceInclude::Instance().AddIncDir("/home/fhx/code/editor/import/wxWidgets/include");
+    ceInclude::Instance().AddIncDir("/home/fhx/code/editor/import/wxWidgets/lib/linux/include");
+    ceInclude::Instance().AddIncDir("/home/fhx/code/editor/src");
+    
+    if (NULL != mpSymbolDb){
+        bool ret = mpSymbolDb->FindDef(symbols, name, type, filename);
+        // update the short name
+        std::set<ceSymbol *>::iterator it = symbols.begin();
+        while(it != symbols.end()){
+            std::set<wxString>::const_iterator cit = mDirs.begin();
+            ceSymbol *pSymbol = *it;
+            while(cit != mDirs.end()){
+                if (pSymbol->file.find(*cit) == 0){
+                    pSymbol->shortFilename = pSymbol->file.substr((*cit).length());
+                    if ((pSymbol->shortFilename.size() > 0) && 
+                        (pSymbol->shortFilename[0] == '/' || pSymbol->shortFilename[0] == '\\')){
+                        pSymbol->shortFilename = pSymbol->shortFilename.substr(1);
+                    }
+                    break;
+                }
+                cit++;
+            }
+            it++;
+        }
+        return ret;
+    }
+    return false;
 }
 
 int wxWorkSpace::OnCompareItems(const wxTreeItemId &first, const wxTreeItemId &second)

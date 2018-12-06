@@ -4,7 +4,9 @@
 #include <wx/app.h>
 #include <wx/frame.h>
 #include <wx/aui/framemanager.h>
+#include <set>
 // -- application --
+class ceSymbol;
 class MyFrame;
 class MyApp : public wxApp
 {
@@ -74,6 +76,7 @@ public:
 
     wxAuiDockArt* GetDockArt();
     bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs);
+    bool FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename);
     void ShowStatus(const wxString &status);
     void SetActiveEdit(Edit *pEdit);
     void DoUpdate();
