@@ -31,6 +31,7 @@ enum{
     STYLE_FOLDER,       // (){}
     STYLE_NUMBER,       // 123, 0x123, 0.123 etc.
     STYLE_IDENTY,       // unknown id,
+    STYLE_ESC_CHAR,     // char start with a '\'
     STYLE_NORMAL,       // other words.
     STYLE_ERROR,        // mark error.
     STYLE_MAX,
@@ -98,7 +99,7 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mForegrounds[STYLE_PREPROCESS_SYSTEM] = wxColor("RED");
         mBackgrounds[STYLE_PREPROCESS_SYSTEM] = *wxBLACK;
         
-        mForegrounds[STYLE_OPERATOR] = wxColor("YELLOW");
+        mForegrounds[STYLE_OPERATOR] = wxColor("BLUE");
         mBackgrounds[STYLE_OPERATOR] = *wxBLACK;
         
         mForegrounds[STYLE_FOLDER] = wxColor("YELLOW");
@@ -123,7 +124,10 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mBackgrounds[STYLE_PREPROCESS_SYSTEM] = *wxBLACK;  
         
         mForegrounds[STYLE_ERROR] = wxColor("BLACK");
-        mBackgrounds[STYLE_ERROR] = wxColor("RED");  
+        mBackgrounds[STYLE_ERROR] = wxColor("RED");
+        
+        mForegrounds[STYLE_ESC_CHAR] = wxColor("BLUE");
+        mBackgrounds[STYLE_ESC_CHAR] = wxColor("RED");
     }
     std::map<int, wxColor>::iterator it;
     if (type == 1){
@@ -376,8 +380,11 @@ bool ceEdit::IsKeyWord2(const wxString &value, const wxString &language){
 bool ceEdit::IsNumber(const wxString &value){
     // todo:fanhongxuan@gmail.com
     // use regext to match if is a number.
-    // wxPrintf("IsNumber:<%s>\n", value);
     static wxString sNumber = "0123456789";
+    if (value.empty()){
+        wxPrintf("empty string, mark as error\n");
+        return false;
+    }
     if (value.find_first_not_of(sNumber) == value.npos){
         return true; // only has number
     }
@@ -393,6 +400,7 @@ bool ceEdit::IsNumber(const wxString &value){
     if (value.ToLongLong(&llValue)){
         return true;
     }
+    wxPrintf("IsNotNumber:<%s>, mark as error\n", value);
     return false;
 }
 
@@ -453,7 +461,22 @@ int ceEdit::GetFoldLevelDelta(int line){
         ret++;
     }
     
+    pos = text.find("#ifndef");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
     pos = text.find("#else");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
+    pos = text.find("#eldef");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
+    pos = text.find("#elif");
     if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
         ret++;
     }
@@ -553,11 +576,12 @@ int ceEdit::ParseCharInDefault(char c, int curStyle, long pos)
     else if (sOperator.find(c) != sOperator.npos){
         StartStyling(pos);
         SetStyling(1, STYLE_OPERATOR);
+        curStyle = STYLE_NORMAL;
     }
     else if (sFolder.find(c) != sFolder.npos){
         StartStyling(pos);
         SetStyling(1, STYLE_FOLDER);
-        // HandleFolder(c, curStyle, pos);
+        curStyle = STYLE_NORMAL;
     }
     else if (sIdStart.find(c) != sIdStart.npos){
         StartStyling(pos);
@@ -655,25 +679,58 @@ int ceEdit::ParseChar( int curStyle,long pos)
             curStyle = STYLE_DEFAULT;
         }
         break;
+    case STYLE_ESC_CHAR:
+        StartStyling(pos);
+        SetStyling(1, STYLE_ESC_CHAR);
+        {
+            int startPos = pos;
+            while(startPos > 0 && curStyle == STYLE_ESC_CHAR){
+                curStyle = GetStyleAt(startPos--);
+            }
+        }
+        break;
     case STYLE_CHAR:
-        if ((c == '\'' && pos == 0) ||
-            (c == '\'' && pos > 0 && GetCharAt(pos-1) != '\\')){
-            curStyle = STYLE_DEFAULT;
+        if (c == '\\'){
+            StartStyling(pos);
+            SetStyling(1, STYLE_ESC_CHAR);
+            curStyle = STYLE_ESC_CHAR;
+        }
+        else if (c == '\'' && pos > 0){
+            if (GetCharAt(pos-1) == '\\' && GetStyleAt(pos-1) == STYLE_CHAR){
+                // we meet \', not the real end.
+            }
+            else{
+                curStyle = STYLE_DEFAULT;
+            }
         }
         break;
     case STYLE_PREPROCESS_LOCAL:
+        // note:fanhongxuan@gmail.com
+        // preprocessor local don't support esc char.
     case STYLE_STRING:
-        if ((c == '\"' && pos == 0) ||
-            (c == '\"' && pos > 0 && GetCharAt(pos-1) != '\\')){
-            //
-            curStyle = STYLE_DEFAULT;
+        if (c == '\\'){
+            StartStyling(pos);
+            SetStyling(1, STYLE_ESC_CHAR);
+            curStyle = STYLE_ESC_CHAR;
+        }
+        else if (c == '\"' && pos > 0){
+            if(GetCharAt(pos-1) == '\\' && GetStyleAt(pos-1) == STYLE_STRING){
+                // we meet \", not the real end.
+            }
+            else{
+                curStyle = STYLE_DEFAULT;
+            }
         }
         break;
     case STYLE_NUMBER:
-        if (sAlphaNumber.find(c) == sAlphaNumber.npos){
+        //
+        if (sAlphaNumber.find(c) == sAlphaNumber.npos && pos > 1){
             // the number is end, check if this is a valid number?
             int start = FindStyleStart(STYLE_NUMBER, pos);
             if (start > 0){
+                // fixme:fanhongxuan@gmail.com
+                // sometime, the text is wrong, not sure 
+                // is GetTextRange issue, or FindStyleStart issue.
                 wxString text = GetTextRange(start, pos);
                 if (!IsNumber(text)){
                     StartStyling(start);
