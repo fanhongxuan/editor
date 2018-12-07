@@ -66,6 +66,12 @@ bool wxAutoCompProvider::IsValidChar(char c) const
     return isAlphaNumber(c);
 }
 
+wxString gCPreKeyWord = "#define #endif #elif #else #error #if #ifdef #ifndef #include #pragma #undef";
+wxString gCKeyWord = "auto break case char const continue default do double else enum extern float for "
+                     "goto if int long register return short signed sizeof static struct switch typedef "
+                     "union unsigned void volatile while "
+                     "inline restrict _Bool _Complex _Imaginary "
+                     "_Alignas _Alignof _Atomic _Static_assert _Noreturn _Thread_local _Generic";
 wxString gCppKeyWord = "asm auto bool break case catch char class const "
     "const_cast continue default delete do double dynamic_cast else enum "
     "explicit export extern false float for friend goto if inline int long "
@@ -73,9 +79,11 @@ wxString gCppKeyWord = "asm auto bool break case catch char class const "
     "reinterpret_cast return short signed sizeof static static_cast struct "
     "switch template this throw true try typedef typeid typename union "
     "unsigned unsing virtual void volatile wchar_t while";
-wxString gCPreKeyWord = "#define #endif #elif #else #error #if #ifdef #ifndef #include #pragma #undef";
 
-wxString gJavaKeyWord = "";
+wxString gJavaKeyWord = "abstract assert boolean break byte case catch char class const continue default do double "
+    "else enum extends final finally float for goto if implements import instanceof int interface long native "
+    "new package private protected public return short static strictfp super switch synchronized this throw throws "
+    "transient try void volatile while";
 
 extern void ParseString(const wxString &input, std::vector<wxString> &output, char sep, bool allowEmpty = false);
 

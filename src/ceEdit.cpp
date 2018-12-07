@@ -1,9 +1,9 @@
 #include "ceEdit.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
+#include <wx/filename.h>
 #include <map>
 #include <set>
 #include "ceUtils.hpp"
-
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
 EVT_STC_MODIFIED(wxID_ANY,    ceEdit::OnModified)
@@ -22,6 +22,7 @@ enum{
     STYLE_KEYWORD1,
     STYLE_KEYWORD2,
     STYLE_KEYWORD3,
+    STYLE_COMMENT_KEY,  // @xxx in comments
     STYLE_MACRO,        // macro
     STYLE_OPERATOR,     // operator,
     STYLE_FUNCTION,     // function,
@@ -30,27 +31,18 @@ enum{
     STYLE_NUMBER,       // 123, 0x123, 0.123 etc.
     STYLE_IDENTY,       // unknown id,
     STYLE_NORMAL,       // other words.
+    STYLE_ERROR,        // mark error.
     STYLE_MAX,
-};
-
-class ceParseState{
-public:
-    int currentStyle;
-    
-    ceParseState(){
-        currentStyle = STYLE_DEFAULT;
-    }
 };
 
 ceEdit::ceEdit(wxWindow *parent)
 :wxStyledTextCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize){
-    mpParseState = NULL;
     mbLoadFinish = true;
     mLinenuMargin = 0;
     mDeviderMargin = 1;
     mFoldingMargin = 2;
+    
     SetLexer(wxSTC_LEX_CONTAINER);
-    mpParseState = new ceParseState;
 }
 
 wxString ceEdit::GetFilename(){
@@ -120,9 +112,17 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         
         mForegrounds[STYLE_KEYWORD1] = wxColor("RED");
         mBackgrounds[STYLE_KEYWORD1] = *wxBLACK;        
+        mForegrounds[STYLE_KEYWORD2] = wxColor("purple");
+        mBackgrounds[STYLE_KEYWORD2] = *wxBLACK;
+        
+        mForegrounds[STYLE_COMMENT_KEY] = wxColor("violet");
+        mBackgrounds[STYLE_COMMENT_KEY] = *wxBLACK;        
         
         mForegrounds[STYLE_PREPROCESS_SYSTEM] = wxColor("RED");
-        mBackgrounds[STYLE_PREPROCESS_SYSTEM] = *wxBLACK;        
+        mBackgrounds[STYLE_PREPROCESS_SYSTEM] = *wxBLACK;  
+        
+        mForegrounds[STYLE_ERROR] = wxColor("BLACK");
+        mBackgrounds[STYLE_ERROR] = wxColor("RED");  
     }
     std::map<int, wxColor>::iterator it;
     if (type == 1){
@@ -139,6 +139,26 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
     return *wxWHITE;
 }
 
+wxString ceEdit::GuessLanguage(const wxString &filename){
+    wxString volume, path, name, ext;
+    wxFileName::SplitPath(filename, &volume, &path, &name, &ext);
+    ext = ext.Lower();
+    if (ext == "c" || ext == "h"){
+        return "C";
+    }
+    else if (ext == "cpp" || ext == "hpp" ||
+        ext == "cxx" || ext == "hxx"){
+        return "C++";
+    }
+    else if (ext == "java"){
+        return "JAVA";
+    }
+    else if (ext == "bp"){
+        return "BP"; // For Android.bp
+    }
+    return "";
+}
+
 bool ceEdit::LoadStyleByFileName(const wxString &filename)
 {
     StyleClearAll();
@@ -149,17 +169,22 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
 #endif
     
     int charset = 65001;
-    for (int i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
+    int i = 0;
+    for (i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
         StyleSetCharacterSet (i, charset);
     }
     SetCodePage (charset);
     
+    // default fonts for all styles!
     wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
-    StyleSetFont (wxSTC_STYLE_DEFAULT, font);
-    StyleSetForeground (wxSTC_STYLE_DEFAULT, *wxWHITE);
-    StyleSetBackground (wxSTC_STYLE_DEFAULT, *wxBLACK);
+    for (i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
+        wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
+        StyleSetFont (i, font);
+        StyleSetForeground(i, GetColourByStyle(i, 0)); 
+        StyleSetBackground(i, GetColourByStyle(i, 1));
+    }
     
-    // set margin type and style for line number
+    // linenumber
     SetMarginType (mLinenuMargin, wxSTC_MARGIN_NUMBER);
     // note:fanhongxuan@gmail.com
     // do not set the margin width here
@@ -169,11 +194,11 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("GREEN")));
     StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxBLACK);
     
-    // set style for indentguide
+    // indent guide
     StyleSetForeground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
     StyleSetBackground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
     
-    // SetCaretWidth(20);
+    // Caret
     SetCaretStyle(wxSTC_CARETSTYLE_BLOCK);
     SetCaretForeground(wxColor(wxT("RED")));
     SetCaretLineBackground(wxColour(193, 213, 255));
@@ -181,13 +206,13 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetCaretLineVisible(true);
     SetCaretLineVisibleAlways(true);
     
+    // about call tips
     CallTipSetBackground(*wxYELLOW);
     CallTipSetForeground(*wxBLUE);
     
     // set style for brace light and bad
     StyleSetForeground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("BLACK")));
-    StyleSetBackground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("GREEN")));
-    
+    StyleSetBackground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("GREEN")));    
     StyleSetForeground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("BLACK")));
     StyleSetBackground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("RED")));
     
@@ -195,13 +220,6 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     StyleSetFont (wxSTC_STYLE_LASTPREDEFINED + 1, font);
     StyleSetForeground (wxSTC_STYLE_LASTPREDEFINED + 1, *wxGREEN);
     StyleSetBackground (wxSTC_STYLE_LASTPREDEFINED + 1, *wxBLACK);
-    
-    // default fonts for all styles!
-    int Nr;
-    for (Nr = 0; Nr < wxSTC_STYLE_LASTPREDEFINED; Nr++) {
-        wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
-        StyleSetFont (Nr, font);
-    }
     
     // set margin as unused
     SetMarginType (mDeviderMargin, wxSTC_MARGIN_SYMBOL);
@@ -222,12 +240,10 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     MarkerDefine(wxSTC_MARKNUM_FOLDEROPENMID, wxSTC_MARK_BOXMINUSCONNECTED, wxT("BLACK"), wxT("WHITE"));
     MarkerDefine(wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_TCORNER,     wxT("BLACK"), wxT("WHITE"));
     MarkerDefine(wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_LCORNER,     wxT("BLACK"), wxT("WHITE"));
-    
     SetProperty(wxT("fold"), wxT("1"));
     SetProperty(wxT("fold.comment"), wxT("1"));
     SetProperty(wxT("fold.compact"), wxT("1"));
     SetProperty(wxT("fold.preprocessor"), wxT("0"));
-    
     SetFoldFlags(wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | // wxSTC_FOLDFLAG_LEVELNUMBERS |
                  wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
     
@@ -248,16 +264,32 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetOvertype(false);
     SetReadOnly(false);
     SetWrapMode(wxSTC_WRAP_WORD);
-
-    for (int i = STYLE_DEFAULT; i < STYLE_MAX; i++){
-        StyleSetFont(i, font);
-        StyleSetForeground(i, GetColourByStyle(i, 0)); 
-        StyleSetBackground(i, GetColourByStyle(i, 1));
-    }
+    
+    mLanguage = GuessLanguage(filename);
     
     // about autocomp
     // LoadAutoComProvider(m_language->name);
     // AutoCompSetMaxWidth(50);
+}
+
+int ceEdit::FindStyleStart(int style, int curPos, bool bSkipNewline){
+    int pos = curPos;
+    wxString sWhitespace = "\t ";
+    while(pos > 0){
+        char c = GetCharAt(c);
+        if (bSkipNewline && (c == '\r' || c == '\n')){
+            pos--;
+            continue;
+        }
+        if (sWhitespace.find(c) == sWhitespace.npos){
+            if (GetStyleAt(pos-1) != style){
+                break;
+            }
+        }
+        pos--;
+    }
+    // wxPrintf("FindStyleStart(style:%d, curPos:%d, ret:%d)\n", style, curPos, pos);
+    return pos;
 }
 
 bool ceEdit::IsInPreproces(int stopPos)
@@ -282,21 +314,64 @@ bool ceEdit::IsInPreproces(int stopPos)
 }
 
 extern wxString gCppKeyWord;
-bool ceEdit::IsKeyWord1(const wxString &value){
+extern wxString gCKeyWord;
+extern wxString gJavaKeyWord;
+bool ceEdit::IsKeyWord1(const wxString &value, const wxString &language){
+    static std::set<wxString> sCKeyWords;
     static std::set<wxString> sCppKeyWords;
-    if (sCppKeyWords.size() == 0){
-        std::vector<wxString> outputs;
-        ceSplitString(gCppKeyWord, outputs, ' ');
-        for (int i = 0; i < outputs.size(); i++ ){
-            sCppKeyWords.insert(outputs[i]);
+    static std::set<wxString> sJavaKeyWords;
+    
+    if (language == "C"){
+        if (sCKeyWords.empty()){
+            std::vector<wxString> outputs;
+            ceSplitString(gCKeyWord, outputs, ' ');
+            for (int i = 0; i < outputs.size(); i++){
+                sCKeyWords.insert(outputs[i]);
+            }
         }
+        return (sCKeyWords.find(value) != sCKeyWords.end());
     }
-    return(sCppKeyWords.find(value) != sCppKeyWords.end());
+    else if (language == "C++"){
+        if (sCppKeyWords.empty()){
+            std::vector<wxString> outputs;
+            ceSplitString(gCppKeyWord, outputs, ' ');
+            for (int i = 0; i < outputs.size(); i++ ){
+                sCppKeyWords.insert(outputs[i]);
+            }
+        }
+        return(sCppKeyWords.find(value) != sCppKeyWords.end());
+    }
+    else if (language == "JAVA"){
+        if (sJavaKeyWords.empty()){
+            std::vector<wxString> outputs;
+            ceSplitString(gJavaKeyWord, outputs, ' ');
+            for (int i = 0; i < outputs.size(); i++ ){
+                sJavaKeyWords.insert(outputs[i]);
+            }
+        }
+        return(sJavaKeyWords.find(value) != sJavaKeyWords.end());
+    }
+    // todo:fanhongxuan@gmail.com
+    // add keywords for bp
+    return false;
+}
+
+bool ceEdit::IsKeyWord2(const wxString &value, const wxString &language){
+    if (value.size() >= 3 && value[0] == '_' && value[1] == '_' && (language == "C" || language == "C++")){
+        // c/c++: id start with __ is mark as keyword 2
+        return true;
+    }
+    if (value.size() >=2 && value[0] == '@' && language == "JAVA"){
+        // java: id start with @ is mark as keyword 2
+        return true;
+    }
+    return false;
 }
 
 bool ceEdit::IsNumber(const wxString &value){
     // todo:fanhongxuan@gmail.com
     // use regext to match if is a number.
+    wxPrintf("IsNumber:<%s>\n", value);
     static wxString sNumber = "0123456789";
     if (value.find_first_not_of(sNumber) == value.npos){
         return true; // only has number
@@ -325,24 +400,112 @@ bool ceEdit::ParseWord(int pos){
         startPos--;
     }
     wxString text = GetTextRange(startPos, pos+1);
-    if (IsKeyWord1(text)){
+    if (IsKeyWord1(text, mLanguage)){
         StartStyling(startPos);
         SetStyling(pos+1 - startPos, STYLE_KEYWORD1);
     }
-    if (IsNumber(text)){
+    else if (IsKeyWord2(text, mLanguage)){
         StartStyling(startPos);
-        SetStyling(pos+1 - startPos, STYLE_NUMBER);
+        SetStyling(pos+1 - startPos, STYLE_KEYWORD2);
     }
+    // else if (IsNumber(text)){
+    //     StartStyling(startPos);
+    //     SetStyling(pos+1 - startPos, STYLE_NUMBER);
+    // }
     return true;
 }
 
-int ceEdit::ParseChar( int curStyle,long pos)
+int ceEdit::ParseCharInDefault(char c, int curStyle, long pos)
 {
-    static wxString sAlphaNumber = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+    static wxString sIdStart = "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static wxString sNumberStart = ".0123456789";
     static wxString sPreprocess = "#";
-    static wxString sOperator = "~!@%^&*+-<>/?:|.=";
+    static wxString sOperator = "~!%^&*+-<>/?:|.=";
     static wxString sFolder = "(){}";
     static wxString sWhitespace = "\r\n\t ";
+    if (c == '*' && pos > 0 && GetCharAt(pos - 1) == '/'){
+        StartStyling(pos - 1);
+        SetStyling(2, STYLE_CSTYLE_COMMENTS);
+        curStyle = STYLE_CSTYLE_COMMENTS;
+    }
+    else if (c == '/' && pos > 0 && GetCharAt(pos - 1) == '/'){
+        StartStyling(pos - 1);
+        SetStyling(2, STYLE_COMMENTS);
+        curStyle = STYLE_COMMENTS;
+    }
+    else if (c == '#'){
+        StartStyling(pos);
+        SetStyling(1, STYLE_PREPROCESS);
+        curStyle = STYLE_PREPROCESS;
+    }
+    else if ((c == '\'' && pos > 0 && GetCharAt(pos-1) != '\\') ||
+        (c == '\'' && pos == 0)){
+        StartStyling(pos);
+        SetStyling(1, STYLE_CHAR);
+        curStyle = STYLE_CHAR;
+    }
+    else if ((c == '\"' && pos > 0 && GetCharAt(pos-1) != '\\') ||
+        (c == '\"' && pos == 0)){
+        if (IsInPreproces(pos)){
+            StartStyling(pos);
+            SetStyling(1, STYLE_PREPROCESS_LOCAL);
+            curStyle = STYLE_PREPROCESS_LOCAL;
+        }
+        else{
+            StartStyling(pos);
+            SetStyling(1, STYLE_STRING);
+            curStyle = STYLE_STRING;
+        }
+    }
+    else if (c == '<' && IsInPreproces(pos)){
+        StartStyling(pos);
+        SetStyling(1, STYLE_PREPROCESS_SYSTEM);
+        curStyle = STYLE_PREPROCESS_SYSTEM;
+    }
+    else if (sOperator.find(c) != sOperator.npos){
+        StartStyling(pos);
+        SetStyling(1, STYLE_OPERATOR);
+    }
+    else if (sFolder.find(c) != sFolder.npos){
+        StartStyling(pos);
+        SetStyling(1, STYLE_FOLDER);
+    }
+    else if (sIdStart.find(c) != sIdStart.npos){
+        StartStyling(pos);
+        SetStyling(1, STYLE_IDENTY);
+        curStyle = STYLE_IDENTY;
+    }
+    else if (c == '@' && mLanguage == "JAVA"){
+        // note:fanhongxuan@gmail.com
+        // in java, use @can start a id
+        StartStyling(pos);
+        SetStyling(1, STYLE_IDENTY);
+        curStyle = STYLE_IDENTY;
+    }
+    else if (sWhitespace.find(c) != sWhitespace.npos){
+        StartStyling(pos);
+        SetStyling(1, STYLE_DEFAULT);
+        curStyle = STYLE_NORMAL;
+    }
+    else if (sNumberStart.find(c) != sNumberStart.npos){
+        StartStyling(pos);
+        SetStyling(1, STYLE_NUMBER);
+        curStyle = STYLE_NUMBER;
+    }
+    // todo:fanhongxuan@gmail.com
+    // support #define to get macro define name.
+    else {
+        StartStyling(pos);
+        SetStyling(1, STYLE_NORMAL);
+        curStyle = STYLE_NORMAL;
+    }
+    return curStyle;
+}
+
+int ceEdit::ParseChar( int curStyle,long pos)
+{   
+    static wxString sNumber = ".0123456789abcdefABCDEFhxHX";
+    static wxString sAlphaNumber = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
     
     char c = GetCharAt(pos);
     // wxPrintf("pos:%ld, char:<%c>, style:%d\n", pos, c, curStyle);
@@ -367,8 +530,39 @@ int ceEdit::ParseChar( int curStyle,long pos)
             curStyle = STYLE_DEFAULT;
         }
         break;
+    case STYLE_COMMENT_KEY:
+        if ((c == '>' || c == '}') && mLanguage == "JAVA"){
+            curStyle = STYLE_CSTYLE_COMMENTS;
+        }
+        else if (c == '\r' || c == '\n' && mLanguage == "JAVA"){
+            // this is not a comments key, fix it.
+            int start = FindStyleStart(STYLE_COMMENT_KEY, pos);
+            if (start > 0){
+                StartStyling(start);
+                SetStyling(pos - start, STYLE_CSTYLE_COMMENTS);
+            }
+            curStyle = STYLE_CSTYLE_COMMENTS;
+        }
+        else if (sAlphaNumber.find(c) == sAlphaNumber.npos && 
+            (mLanguage == "C++" || mLanguage == "C")){
+            curStyle = STYLE_CSTYLE_COMMENTS;
+        }
+        break;
     case STYLE_CSTYLE_COMMENTS:
-        if (c == '/' && pos > 0 && GetCharAt(pos - 1) == '*'){
+        // note:fanhongxuan@gmail.com
+        // currently we only support the comments key in c-style comments,
+        // not in cpp style comments.
+        if ((c == '{' || c == '<') && mLanguage == "JAVA"){
+            StartStyling(pos);
+            SetStyling(1, STYLE_COMMENT_KEY);
+            curStyle = STYLE_COMMENT_KEY;
+        }
+        if (c == '@'){
+            StartStyling(pos);
+            SetStyling(1, STYLE_COMMENT_KEY);
+            curStyle = STYLE_COMMENT_KEY;
+        }
+        else if (c == '/' && pos > 0 && GetCharAt(pos - 1) == '*'){
             curStyle = STYLE_DEFAULT;
         }
         break;
@@ -386,6 +580,20 @@ int ceEdit::ParseChar( int curStyle,long pos)
             curStyle = STYLE_DEFAULT;
         }
         break;
+    case STYLE_NUMBER:
+        if (sAlphaNumber.find(c) == sAlphaNumber.npos){
+            // the number is end, check if this is a valid number?
+            int start = FindStyleStart(STYLE_NUMBER, pos);
+            if (start > 0){
+                wxString text = GetTextRange(start, pos);
+                if (!IsNumber(text)){
+                    StartStyling(start);
+                    SetStyling(pos - start, STYLE_ERROR);
+                }
+            }
+            curStyle = ParseCharInDefault(c, curStyle, pos);
+        }
+        break;
     case STYLE_IDENTY:
         if (sAlphaNumber.find(c) != sAlphaNumber.npos){
             break;
@@ -398,73 +606,10 @@ int ceEdit::ParseChar( int curStyle,long pos)
             }
             curStyle = STYLE_DEFAULT;
         }
-        // note:fanhongxuan@gmail.com
-        // this is the word end, parse this char again.
+        curStyle = ParseCharInDefault(c, curStyle, pos);
+        break;
     default:
-        if (c == '*' && pos > 0 && GetCharAt(pos - 1) == '/'){
-            StartStyling(pos - 1);
-            SetStyling(2, STYLE_CSTYLE_COMMENTS);
-            curStyle = STYLE_CSTYLE_COMMENTS;
-        }
-        else if (c == '/' && pos > 0 && GetCharAt(pos - 1) == '/'){
-            StartStyling(pos - 1);
-            SetStyling(2, STYLE_COMMENTS);
-            curStyle = STYLE_COMMENTS;
-        }
-        else if (c == '#'){
-            StartStyling(pos);
-            SetStyling(1, STYLE_PREPROCESS);
-            curStyle = STYLE_PREPROCESS;
-        }
-        else if ((c == '\'' && pos > 0 && GetCharAt(pos-1) != '\\') ||
-            (c == '\'' && pos == 0)){
-            StartStyling(pos);
-            SetStyling(1, STYLE_CHAR);
-            curStyle = STYLE_CHAR;
-        }
-        else if ((c == '\"' && pos > 0 && GetCharAt(pos-1) != '\\') ||
-            (c == '\"' && pos == 0)){
-            if (IsInPreproces(pos)){
-                StartStyling(pos);
-                SetStyling(1, STYLE_PREPROCESS_LOCAL);
-                curStyle = STYLE_PREPROCESS_LOCAL;
-            }
-            else{
-                StartStyling(pos);
-                SetStyling(1, STYLE_STRING);
-                curStyle = STYLE_STRING;
-            }
-        }
-        else if (c == '<' && IsInPreproces(pos)){
-            StartStyling(pos);
-            SetStyling(1, STYLE_PREPROCESS_SYSTEM);
-            curStyle = STYLE_PREPROCESS_SYSTEM;
-        }
-        else if (sOperator.find(c) != sOperator.npos){
-            StartStyling(pos);
-            SetStyling(1, STYLE_OPERATOR);
-        }
-        else if (sFolder.find(c) != sFolder.npos){
-            StartStyling(pos);
-            SetStyling(1, STYLE_FOLDER);
-        }
-        else if (sAlphaNumber.find(c) != sAlphaNumber.npos){
-            StartStyling(pos);
-            SetStyling(1, STYLE_IDENTY);
-            curStyle = STYLE_IDENTY;
-        }
-        else if (sWhitespace.find(c) != sWhitespace.npos){
-            StartStyling(pos);
-            SetStyling(1, STYLE_DEFAULT);
-            curStyle = STYLE_NORMAL;
-        }
-        // todo:fanhongxuan@gmail.com
-        // support #define to get macro define name.
-        else {
-            StartStyling(pos);
-            SetStyling(1, STYLE_NORMAL);
-            curStyle = STYLE_NORMAL;
-        }
+        curStyle = ParseCharInDefault(c, curStyle, pos);
         break;
     }
     return curStyle;
@@ -531,8 +676,6 @@ void ceEdit::OnStyleNeeded(wxStyledTextEvent &evt)
         }
         pos--;
     }
-    
-    // wxPrintf("OnStyleNeeded:%d<->%d, style:%d\n", startPos, stopPos, mpParseState->currentStyle);
     for (int i = startPos; i < stopPos; i++ ){
         curStyle = ParseChar(curStyle, i);
     }
