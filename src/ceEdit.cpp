@@ -7,6 +7,7 @@
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
 EVT_STC_MODIFIED(wxID_ANY,    ceEdit::OnModified)
+EVT_STC_MARGINCLICK(wxID_ANY, ceEdit::OnMarginClick)
 EVT_SIZE(ceEdit::OnSize)
 wxEND_EVENT_TABLE()
 
@@ -150,7 +151,7 @@ wxString ceEdit::GuessLanguage(const wxString &filename){
         ext == "cxx" || ext == "hxx"){
         return "C++";
     }
-    else if (ext == "java"){
+    else if (ext == "java" || ext == "aidl"){
         return "JAVA";
     }
     else if (ext == "bp"){
@@ -230,7 +231,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetMarginType (mFoldingMargin, wxSTC_MARGIN_SYMBOL);
     SetMarginMask (mFoldingMargin, wxSTC_MASK_FOLDERS);
     SetMarginWidth (mFoldingMargin, 16);
-    SetMarginSensitive (mFoldingMargin, true); // don't handle the mouse click
+    SetMarginSensitive (mFoldingMargin, true);
     SetFoldMarginColour(true, *wxBLACK);
     SetFoldMarginHiColour(true, *wxBLACK);
     MarkerDefine(wxSTC_MARKNUM_FOLDER,        wxSTC_MARK_BOXPLUS, wxT("BLACK"), wxT("WHITE"));
@@ -243,9 +244,13 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetProperty(wxT("fold"), wxT("1"));
     SetProperty(wxT("fold.comment"), wxT("1"));
     SetProperty(wxT("fold.compact"), wxT("1"));
-    SetProperty(wxT("fold.preprocessor"), wxT("0"));
-    SetFoldFlags(wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | // wxSTC_FOLDFLAG_LEVELNUMBERS |
-                 wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
+    // SetProperty(wxT("fold.preprocessor"), wxT("0"));
+    SetFoldFlags(wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | 
+//#define DEBUG_FOLD        
+#ifdef DEBUG_FOLD        
+        wxSTC_FOLDFLAG_LEVELNUMBERS |
+#endif        
+        wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
     
     // set spaces and indentation
     SetTabWidth(4);
@@ -371,7 +376,7 @@ bool ceEdit::IsKeyWord2(const wxString &value, const wxString &language){
 bool ceEdit::IsNumber(const wxString &value){
     // todo:fanhongxuan@gmail.com
     // use regext to match if is a number.
-    wxPrintf("IsNumber:<%s>\n", value);
+    // wxPrintf("IsNumber:<%s>\n", value);
     static wxString sNumber = "0123456789";
     if (value.find_first_not_of(sNumber) == value.npos){
         return true; // only has number
@@ -408,10 +413,85 @@ bool ceEdit::ParseWord(int pos){
         StartStyling(startPos);
         SetStyling(pos+1 - startPos, STYLE_KEYWORD2);
     }
-    // else if (IsNumber(text)){
-    //     StartStyling(startPos);
-    //     SetStyling(pos+1 - startPos, STYLE_NUMBER);
-    // }
+    // todo:fanhongxuan@gmail.com
+    // function call is like:
+    // ::function();
+    // ->function();
+    // ->function();
+    return true;
+}
+
+int ceEdit::GetFoldLevelDelta(int line){
+    int ret = 0;
+    int start = XYToPosition(0, line);
+    int stop = GetLineEndPosition(line);
+    // wxPrintf("GetFoldLevelDelta:%d(%d<->%d)\n", line, start, stop);
+    for (int i = start; i < stop; i++){
+        char c = GetCharAt(i);
+        int style = GetStyleAt(i);
+        if ((c == '(' || c == '{') && style == STYLE_FOLDER){
+            ret++;
+        }
+        if ((c == ')' || c == '}') && style == STYLE_FOLDER){
+            ret--;
+        }
+        if (c == '/' && (i+1) < stop && GetCharAt(i+1) == '*' && style == STYLE_CSTYLE_COMMENTS){
+            ret++;
+            i++;
+        }
+        if (c == '*' && (i+1) < stop && GetCharAt(i+1) == '/' && style == STYLE_CSTYLE_COMMENTS){
+            i++;
+            ret--;
+        }
+    }
+    
+    // support fold by preprocessor;
+    wxString text = GetLineText(line);
+    // #ifdef ret++
+    int pos = text.find("#ifdef");
+    if (pos != text.npos && GetStyleAt(start+ pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
+    pos = text.find("#else");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
+    pos = text.find("#endif");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret--;
+    }
+    return ret;
+}
+
+bool ceEdit::HandleFolder(char c, int curStyle, long pos)
+{
+    // get the folder level of previously line.
+    // skip the c-style comments
+    // child's fold level is parent+1
+    // fold header has wxSTC_FOLDLEVELHEADERFLAG 
+    // empty line set wxSTC_FOLDLEVELWHITEFLAG
+    int line = LineFromPosition(pos);
+    int foldLevel = wxSTC_FOLDLEVELBASE;
+    if (line != 0){
+        foldLevel = GetFoldLevel(line - 1) & wxSTC_FOLDLEVELNUMBERMASK;
+        int delta = GetFoldLevelDelta(line - 1);
+        foldLevel = foldLevel + delta;
+        if (foldLevel < wxSTC_FOLDLEVELBASE){
+            foldLevel = wxSTC_FOLDLEVELBASE;
+        }
+    }
+    
+    int delta = GetFoldLevelDelta(line);
+    if (delta > 0){
+        foldLevel |= wxSTC_FOLDLEVELHEADERFLAG;
+    }
+    wxString text = GetLineText(line);
+    if (text.find_first_not_of("\r\n\t ") == text.npos){
+        foldLevel |= wxSTC_FOLDLEVELWHITEFLAG;
+    }
+    SetFoldLevel(line, foldLevel);
     return true;
 }
 
@@ -423,6 +503,14 @@ int ceEdit::ParseCharInDefault(char c, int curStyle, long pos)
     static wxString sOperator = "~!%^&*+-<>/?:|.=";
     static wxString sFolder = "(){}";
     static wxString sWhitespace = "\r\n\t ";
+    // wxPrintf("c:<%d>\n", c);
+    if (c < 0){
+        // c is not a valid ascii.
+        // mark as error,
+        StartStyling(pos);
+        SetStyling(1, STYLE_ERROR);
+        return curStyle;
+    }
     if (c == '*' && pos > 0 && GetCharAt(pos - 1) == '/'){
         StartStyling(pos - 1);
         SetStyling(2, STYLE_CSTYLE_COMMENTS);
@@ -469,6 +557,7 @@ int ceEdit::ParseCharInDefault(char c, int curStyle, long pos)
     else if (sFolder.find(c) != sFolder.npos){
         StartStyling(pos);
         SetStyling(1, STYLE_FOLDER);
+        // HandleFolder(c, curStyle, pos);
     }
     else if (sIdStart.find(c) != sIdStart.npos){
         StartStyling(pos);
@@ -534,7 +623,7 @@ int ceEdit::ParseChar( int curStyle,long pos)
         if ((c == '>' || c == '}') && mLanguage == "JAVA"){
             curStyle = STYLE_CSTYLE_COMMENTS;
         }
-        else if (c == '\r' || c == '\n' && mLanguage == "JAVA"){
+        else if (c == '\r' || c == '\n'){
             // this is not a comments key, fix it.
             int start = FindStyleStart(STYLE_COMMENT_KEY, pos);
             if (start > 0){
@@ -557,7 +646,7 @@ int ceEdit::ParseChar( int curStyle,long pos)
             SetStyling(1, STYLE_COMMENT_KEY);
             curStyle = STYLE_COMMENT_KEY;
         }
-        if (c == '@'){
+        if (c == '@' && (mLanguage =="C++" || mLanguage == "C")){
             StartStyling(pos);
             SetStyling(1, STYLE_COMMENT_KEY);
             curStyle = STYLE_COMMENT_KEY;
@@ -611,6 +700,9 @@ int ceEdit::ParseChar( int curStyle,long pos)
     default:
         curStyle = ParseCharInDefault(c, curStyle, pos);
         break;
+    }
+    if (c == '\r' || c == '\n'){
+        HandleFolder(c, curStyle, pos);
     }
     return curStyle;
 }
@@ -691,8 +783,9 @@ void ceEdit::UpdateLineNumberMargin()
     }
     // fixme: for debug the auto indent
     // show the fold level before the number.
-    // linenumber = wxT("99999999999");
-    wxPrintf("updateLineNumberMargin:%d\n", GetLineCount());
+#ifdef DEBUG_FOLD    
+    linenumber = wxT("99999999999");
+#endif    
     SetMarginWidth(mLinenuMargin, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
 }
 
@@ -713,4 +806,15 @@ void ceEdit::OnSize( wxSizeEvent& event ) {
     int x = GetClientSize().x + GetMarginWidth(mLinenuMargin) + GetMarginWidth(mFoldingMargin);
     if (x > 0) SetScrollWidth (x);
     event.Skip();
+}
+
+void ceEdit::OnMarginClick(wxStyledTextEvent &evt)
+{
+    if (evt.GetMargin() == mFoldingMargin) {
+        int lineClick = LineFromPosition (evt.GetPosition());
+        int levelClick = GetFoldLevel (lineClick);
+        if ((levelClick & wxSTC_FOLDLEVELHEADERFLAG) > 0) {
+            ToggleFold (lineClick);
+        }
+    }
 }

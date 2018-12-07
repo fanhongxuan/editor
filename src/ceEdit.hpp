@@ -14,6 +14,7 @@ public:
 
     void OnStyleNeeded(wxStyledTextEvent &evt);
     void OnModified(wxStyledTextEvent &evt);
+    void OnMarginClick(wxStyledTextEvent &evt);
     void OnSize(wxSizeEvent& event);
 protected:
     bool IsInPreproces(int stopPos);
@@ -25,6 +26,8 @@ protected:
     int ParseChar(int curStyle, long pos);
     int ParseCharInDefault(char c, int curStyle, long pos);
     bool ParseWord(int pos);
+    int GetFoldLevelDelta(int line);
+    bool HandleFolder(char c, int curStyle, long pos);
     void UpdateLineNumberMargin();
     wxColor GetColourByStyle(int style, int type);
     wxString GuessLanguage(const wxString &language);
