@@ -43,7 +43,6 @@
 #include <wx/config.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include "wxSearch.hpp"
-#include "wxEdit.hpp"
 #include "wxBufferSelect.hpp"
 #include "wxExplorer.hpp"
 #include "wxWorkSpace.hpp"
@@ -197,7 +196,7 @@ wxAuiDockArt* MyFrame::GetDockArt()
     return m_mgr.GetArtProvider();
 }
 
-void MyFrame::UpdateWorkDirs(Edit *pActiveEdit, bool showWorkSpace, bool showExplorer)
+void MyFrame::UpdateWorkDirs(ceEdit *pActiveEdit, bool showWorkSpace, bool showExplorer)
 {
     if (!mbLoadFinish){
         return;
@@ -286,11 +285,11 @@ public:
 class MySymbolSearchHandler: public wxSearchHandler
 {
 private:
-    Edit *mpEdit;
+    ceEdit *mpEdit;
     MyFrame *mpFrame;
 public:
     MySymbolSearchHandler(MyFrame *frame){mpFrame = frame; mpEdit = NULL;}
-    void SetEdit(Edit *pEdit){mpEdit = pEdit;}
+    void SetEdit(ceEdit *pEdit){mpEdit = pEdit;}
     void OnSelect(wxSearchResult &ret, bool bActive){
         wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(&ret);
         if (NULL != pRet && NULL != mpEdit){
@@ -310,11 +309,11 @@ public:
 class MySearchHandler: public wxSearchHandler
 {
 private:
-    Edit *mpEdit;
+    ceEdit *mpEdit;
     MyFrame *mpFrame;
 public:
     MySearchHandler(MyFrame *frame){mpFrame = frame; mpEdit = NULL;}
-    void SetEdit(Edit *pEdit){mpEdit = pEdit;}
+    void SetEdit(ceEdit *pEdit){mpEdit = pEdit;}
     void OnSelect(wxSearchResult &ret, bool bActive){
         wxSearchFileResult *pRet = dynamic_cast<wxSearchFileResult*>(&ret);
         if (NULL != pRet && NULL != mpEdit){
@@ -346,9 +345,6 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
         return;
     }
     int i = 0;
-#ifndef DEBUG_NEW_EDIT
-#define ceEdit Edit    
-#endif    
     ceEdit *pEdit = NULL;
     wxString name, ext;
     wxFileName::SplitPath(filename, NULL, NULL, &name, &ext);
@@ -394,7 +390,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     m_mgr.Update();
 }
 
-void MyFrame::ChangeToBuffer(Edit *pEdit, int pos)
+void MyFrame::ChangeToBuffer(ceEdit *pEdit, int pos)
 {
     if (NULL == pEdit){
         return;
@@ -441,7 +437,7 @@ void MyFrame::SaveInfo()
     if (NULL != mpBufferList && mpBufferList->GetPageCount() != 0){
         int i = 0;
         for (i = 0; i < mpBufferList->GetPageCount(); i++){
-            Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+            ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
             if (NULL != pEdit){
                 config.Write(wxString::Format("/Config/LastOpenFile/File%d.Name", i), pEdit->GetFilename());
                 config.Write(wxString::Format("/Config/LastOpenFile/File%d.FirstVisibleLine", i), pEdit->GetFirstVisibleLine());
@@ -479,7 +475,7 @@ void MyFrame::LoadInfo()
             config.Read(entry, &filename);
             if (!filename.empty()){
                 OpenFile(filename, filename, false);
-                Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+                ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
                 if (NULL != pEdit){
                     long line = config.ReadLong(wxString::Format("/Config/LastOpenFile/File%d.FirstVisibleLine",i), 0);
                     long insertionPoint = config.ReadLong(wxString::Format("/Config/LastOpenFile/File%d.CurrentPos",i), 0);
@@ -532,7 +528,7 @@ void MyFrame::LoadInfo()
     SwitchFocus();
 }
 
-void MyFrame::SetActiveEdit(Edit *pEdit)
+void MyFrame::SetActiveEdit(ceEdit *pEdit)
 {
     mpActiveEdit = pEdit;
     if (NULL != mpSearch){
@@ -566,7 +562,7 @@ void MyFrame::PrepareResults(MySearchHandler &handler, const wxString &input, st
     if (wxNOT_FOUND == select){
         return;
     }
-    Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+    ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
     if (NULL == pEdit){
         return;
     }
@@ -581,7 +577,7 @@ void MyFrame::OnClose(wxCloseEvent &evt)
     if (NULL != mpBufferList){
         int i = 0;
         for (i = 0; i < mpBufferList->GetPageCount(); i++){
-            Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+            ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
             if (NULL != pEdit){
                 if (pEdit->Modified()){
                     int answer = wxMessageBox(wxString::Format("%s has been modified, save it?", mpBufferList->GetPageText(i)),
@@ -622,7 +618,7 @@ void MyFrame::OnFileSaved(wxStyledTextEvent &evt)
     if (NULL == mpBufferList){
         return;
     }
-    Edit *pEdit = dynamic_cast<Edit*>(evt.GetEventObject());
+    ceEdit *pEdit = dynamic_cast<ceEdit*>(evt.GetEventObject());
     if (pEdit == NULL){
         return ;
     }
@@ -648,7 +644,7 @@ void MyFrame::OnFileSaved(wxStyledTextEvent &evt)
         mpBufferSelect->ClearBuffer();
         for (int i = 0; i < mpBufferList->GetPageCount(); i++){
             name = mpBufferList->GetPageText(i);
-            pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+            pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
             if (NULL != pEdit){
                 mpBufferSelect->AddBuffer(name, pEdit->GetFilename());
             }
@@ -677,7 +673,7 @@ void MyFrame::OnFileClose(wxAuiNotebookEvent &evt)
         return;
     }
     wxString name = mpBufferList->GetPageText(select);
-    Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+    ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
     if (NULL != pEdit){
         if (pEdit->Modified()){
             int answer = wxMessageBox(wxString::Format("%s has been modified, save it?", name),
@@ -723,9 +719,9 @@ void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
 {
     int line = -1;
     int select = mpBufferList->GetSelection();
-    Edit *pEdit = NULL;
+    ceEdit *pEdit = NULL;
     if (wxNOT_FOUND != select || (mbLoadFinish)){
-        pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
             line = pEdit->GetCurrentLine();
         }
@@ -768,9 +764,9 @@ void MyFrame::OnShowSearch(wxCommandEvent &evt)
     wxString value;
     int line = -1;
     int select = mpBufferList->GetSelection();
-    Edit *pEdit = NULL;
+    ceEdit *pEdit = NULL;
     if (wxNOT_FOUND != select && mbLoadFinish){
-        pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
             value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_FILE);
             line = pEdit->GetCurrentLine();
@@ -810,7 +806,7 @@ void MyFrame::OnShowFindFiles(wxCommandEvent &evt)
     wxString value;
     int select = mpBufferList->GetSelection();
     if (wxNOT_FOUND != select && mbLoadFinish){
-        Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
             value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_DIR);
         }
@@ -877,7 +873,7 @@ void MyFrame::OnSaveCurrentBuffer(wxCommandEvent &evt)
     if (wxNOT_FOUND == select){
         return;
     }
-    Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+    ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
     if (NULL != pEdit && pEdit->HasFocus()){
         // if (!pEdit->Getfilename().empty()){
         // }
@@ -906,9 +902,9 @@ void MyFrame::ShowReference(int type)
     wxString value;
     int line = -1;
     int select = mpBufferList->GetSelection();
-    Edit *pEdit = NULL;
+    ceEdit *pEdit = NULL;
     if (wxNOT_FOUND != select && mbLoadFinish){
-        pEdit = dynamic_cast<Edit *>(mpBufferList->GetPage(select));
+        pEdit = dynamic_cast<ceEdit *>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
             value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_REF);
             line = pEdit->GetCurrentLine();
@@ -966,7 +962,7 @@ void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
     int line = -1;
     int select = mpBufferList->GetSelection();
     if (wxNOT_FOUND != select && mbLoadFinish){
-        Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(select));
+        ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(select));
         if (NULL != pEdit){
             value = pEdit->GetCurrentWord(VALID_CHAR_WHEN_SEARCH_FILE);
             line = pEdit->GetCurrentLine();
@@ -1055,7 +1051,7 @@ void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
         if (NULL != mpBufferList){
             int i = 0;
             for (i = 0; i < mpBufferList->GetPageCount(); i++){
-                Edit *pEdit = dynamic_cast<Edit*>(mpBufferList->GetPage(i));
+                ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
                 if (NULL != pEdit){
                     mpBufferSelect->AddBuffer(mpBufferList->GetPageText(i), pEdit->GetFilename());
                 }
@@ -1155,7 +1151,7 @@ void MyFrame::SwitchFocus()
     if (NULL != mpBufferList){
         int select = mpBufferList->GetSelection();
         if (wxNOT_FOUND != select){
-            Edit *pEdit = dynamic_cast<Edit *>(mpBufferList->GetPage(select));
+            ceEdit *pEdit = dynamic_cast<ceEdit *>(mpBufferList->GetPage(select));
             if (NULL != pEdit){
                 wxPrintf("Change focus to %s\n", pEdit->GetFilename());
                 pEdit->SetFocus();

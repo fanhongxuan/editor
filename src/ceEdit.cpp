@@ -1,13 +1,33 @@
 #include "ceEdit.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include <wx/filename.h>
+#include <wx/file.h>     // raw file io support
+#include <wx/filename.h> // filename support
+#include <wx/filedlg.h>
 #include <map>
 #include <set>
 #include "ceUtils.hpp"
+
+#include "wxAutoComp.hpp"
+#include "ce.hpp"
+#include "wxSearch.hpp"
+#include "ceSymbolDb.hpp"
+
+
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
 EVT_STC_MODIFIED(wxID_ANY,    ceEdit::OnModified)
 EVT_STC_MARGINCLICK(wxID_ANY, ceEdit::OnMarginClick)
+EVT_STC_CHARADDED (wxID_ANY,  ceEdit::OnCharAdded)
+
+EVT_SET_FOCUS(ceEdit::OnFocus)
+EVT_KILL_FOCUS(ceEdit::OnKillFocus)
+EVT_KEY_DOWN(ceEdit::OnKeyDown )
+EVT_KEY_UP(ceEdit::OnKeyUp)
+EVT_LEFT_DOWN(ceEdit::OnMouseLeftDown)
+EVT_LEFT_UP(ceEdit::OnMouseLeftUp)
+EVT_LEFT_DCLICK(ceEdit::OnMouseLeftDclick)
+EVT_MOUSEWHEEL(ceEdit::OnMouseWheel)
 EVT_SIZE(ceEdit::OnSize)
 wxEND_EVENT_TABLE()
 
@@ -40,11 +60,13 @@ enum{
 ceEdit::ceEdit(wxWindow *parent)
 :wxStyledTextCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize){
     mbLoadFinish = true;
+    mbReplace = false;
     mLinenuMargin = 0;
     mDeviderMargin = 1;
     mFoldingMargin = 2;
     
     SetLexer(wxSTC_LEX_CONTAINER);
+    // SetLexer(wxSTC_LEX_CPP);
 }
 
 wxString ceEdit::GetFilename(){
@@ -58,12 +80,50 @@ bool ceEdit::LoadFile(const wxString &filename){
     mbLoadFinish = true;
     EmptyUndoBuffer();
     LoadStyleByFileName(filename);
+    
+    wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), mLanguage);
     return true;
 }
 
 bool ceEdit::NewFile(const wxString &filename){
+    mDefaultName = filename;
     LoadStyleByFileName(filename);
     return true;
+}
+
+bool ceEdit::Modified () {
+    // return modified state
+    return (GetModify() && !GetReadOnly());
+}
+
+bool ceEdit::SaveFile (bool bClose)
+{
+    // return if no change
+    if (!Modified()) return true;
+    
+    if (mFilename.empty()) {
+        wxFileDialog dlg (this, wxT("Save file"), wxEmptyString, mDefaultName, wxT("Any file (*)|*"),
+            wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+        if (dlg.ShowModal() != wxID_OK) return false;
+        mFilename = dlg.GetPath();
+        mDefaultName = wxEmptyString;
+        wxFileName fname (mFilename);
+    }
+    
+    // save file
+    return SaveFile (mFilename, bClose);
+}
+
+bool ceEdit::SaveFile (const wxString &filename, bool bClose) {
+    // return if no change
+    if (!Modified()) return true;
+    bool ret = wxStyledTextCtrl::SaveFile(filename);
+    if (!bClose){
+        // todo:fanhongxuan@gmail.com
+        // handle the pasted event, when save file, do not need to update this again.
+        wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), mLanguage);
+    }
+    return ret;
 }
 
 wxColor ceEdit::GetColourByStyle(int style, int type)
@@ -102,7 +162,7 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mForegrounds[STYLE_OPERATOR] = wxColor("BLUE");
         mBackgrounds[STYLE_OPERATOR] = *wxBLACK;
         
-        mForegrounds[STYLE_FOLDER] = wxColor("YELLOW");
+        mForegrounds[STYLE_FOLDER] = wxColor("RED");
         mBackgrounds[STYLE_FOLDER] = *wxBLACK;
         
         
@@ -181,9 +241,12 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetCodePage (charset);
     
     // default fonts for all styles!
-    wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
-    for (i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
+#ifdef WIN32
+        wxFont font(wxFontInfo(11).FaceName("Consolas"));
+#else        
         wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
+#endif        
+    for (i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
         StyleSetFont (i, font);
         StyleSetForeground(i, GetColourByStyle(i, 0)); 
         StyleSetBackground(i, GetColourByStyle(i, 1));
@@ -248,9 +311,9 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetProperty(wxT("fold"), wxT("1"));
     SetProperty(wxT("fold.comment"), wxT("1"));
     SetProperty(wxT("fold.compact"), wxT("1"));
-    // SetProperty(wxT("fold.preprocessor"), wxT("0"));
+    SetProperty(wxT("fold.preprocessor"), wxT("1"));
     SetFoldFlags(wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | 
-//#define DEBUG_FOLD        
+// #define DEBUG_FOLD        
 #ifdef DEBUG_FOLD        
         wxSTC_FOLDFLAG_LEVELNUMBERS |
 #endif        
@@ -277,20 +340,20 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     mLanguage = GuessLanguage(filename);
     
     // about autocomp
-    // LoadAutoComProvider(m_language->name);
-    // AutoCompSetMaxWidth(50);
+    LoadAutoComProvider(mLanguage);
+    AutoCompSetMaxWidth(50);
+    return true;
 }
 
 int ceEdit::FindStyleStart(int style, int curPos, bool bSkipNewline){
     int pos = curPos;
-    wxString sWhitespace = "\t ";
     while(pos > 0){
-        char c = GetCharAt(c);
+        char c = GetCharAt(pos);
         if (bSkipNewline && (c == '\r' || c == '\n')){
             pos--;
             continue;
         }
-        if (sWhitespace.find(c) == sWhitespace.npos){
+        if (c != '\t' && c != ' '){
             if (GetStyleAt(pos-1) != style){
                 break;
             }
@@ -459,13 +522,21 @@ int ceEdit::GetFoldLevelDelta(int line){
     int pos = text.find("#ifdef");
     if (pos != text.npos && GetStyleAt(start+ pos) == STYLE_PREPROCESS){
         ret++;
+        return ret;
     }
     
     pos = text.find("#ifndef");
     if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
         ret++;
+        return ret;
     }
     
+    pos = text.find("#if");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+        return ret;
+    }    
+#if 0    
     pos = text.find("#else");
     if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
         ret++;
@@ -480,15 +551,16 @@ int ceEdit::GetFoldLevelDelta(int line){
     if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
         ret++;
     }
-    
+#endif    
     pos = text.find("#endif");
     if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
         ret--;
+        return ret;
     }
     return ret;
 }
 
-bool ceEdit::HandleFolder(char c, int curStyle, long pos)
+bool ceEdit::HandleFolder(long pos)
 {
     // get the folder level of previously line.
     // skip the c-style comments
@@ -728,9 +800,6 @@ int ceEdit::ParseChar( int curStyle,long pos)
             // the number is end, check if this is a valid number?
             int start = FindStyleStart(STYLE_NUMBER, pos);
             if (start > 0){
-                // fixme:fanhongxuan@gmail.com
-                // sometime, the text is wrong, not sure 
-                // is GetTextRange issue, or FindStyleStart issue.
                 wxString text = GetTextRange(start, pos);
                 if (!IsNumber(text)){
                     StartStyling(start);
@@ -758,8 +827,8 @@ int ceEdit::ParseChar( int curStyle,long pos)
         curStyle = ParseCharInDefault(c, curStyle, pos);
         break;
     }
-    if (c == '\r' || c == '\n'){
-        HandleFolder(c, curStyle, pos);
+    if (c == '\r' || c == '\n' || pos == GetLastPosition()){
+        HandleFolder(pos);
     }
     return curStyle;
 }
@@ -825,7 +894,7 @@ void ceEdit::OnStyleNeeded(wxStyledTextEvent &evt)
         }
         pos--;
     }
-    for (int i = startPos; i < stopPos; i++ ){
+    for (int i = startPos; i <= stopPos; i++ ){
         curStyle = ParseChar(curStyle, i);
     }
 }
@@ -857,6 +926,48 @@ void ceEdit::OnModified(wxStyledTextEvent &evt)
         // current not used.
         // wxPrintf("Style:%d:%d\n", evt.GetPosition(), GetStyleAt(evt.GetPosition()));
     }
+    if (type & (wxSTC_MOD_CHANGEMARKER | wxSTC_MOD_CHANGEFOLD)){
+        // fold status changed.
+        if (!mbLoadFinish){
+            // document is still loading, skip this.
+            return;
+        }
+        
+        if (!GetModify()){
+            return;
+        }
+        
+        if (mbReplace){
+            return;
+        }
+        // indent the line by foldlevel
+        int line = evt.GetLine();
+        int curLine = GetCurrentLine();
+        if (line > (curLine+1)){
+            //wxPrintf("skip otherline:%d\n", curLine+1);
+            return;
+        }
+        if (line >= GetLineCount() || line < 0){
+            // wxPrintf(" Skip the invalid line\n");
+            return;
+        }
+        
+        int indent = CalcLineIndentByFoldLevel(line, evt.GetFoldLevelNow());
+        SetLineIndentation(evt.GetLine(), indent);
+        if (line == curLine && line > 0 /*&& evt.GetFoldLevelNow() & wxSTC_FOLDLEVELWHITEFLAG*/){
+            int start = GetCurrentPos();
+			int end = GetLineEndPosition(curLine-1);
+            if (GetEOLMode() == wxSTC_EOL_CRLF){
+                end++;
+            }
+            if (start == (end + 1)){
+                GotoPos(GetLineIndentPosition(curLine));
+                // note:fanhongxuan@gmail.com
+                // See SCI_CHOOSECARETX
+                ChooseCaretX();
+            }
+        }
+    }
 }
 
 void ceEdit::OnSize( wxSizeEvent& event ) {
@@ -874,4 +985,924 @@ void ceEdit::OnMarginClick(wxStyledTextEvent &evt)
             ToggleFold (lineClick);
         }
     }
+}
+
+void ceEdit::OnFocus(wxFocusEvent &evt)
+{
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->DoUpdate();
+        wxGetApp().frame()->SetActiveEdit(this);
+    }
+    evt.Skip();
+}
+
+void ceEdit::OnKillFocus(wxFocusEvent &evt)
+{
+    if (AutoCompActive()){
+        AutoCompCancel();
+    }
+    if (CallTipActive()){
+        CallTipCancel();
+    }
+    evt.Skip();
+}
+
+void ceEdit::OnKeyDown (wxKeyEvent &event)
+{
+    if (CallTipActive()){
+        CallTipCancel();
+    }
+    
+    if (WXK_RETURN == event.GetKeyCode()){
+        if (AutoCompActive()){
+            // fixme:fanhongxuan@gmail.com
+            // this will end the multiple typing.
+            AutoCompComplete();
+            return;
+        }
+    }
+    
+    if (';' == event.GetKeyCode() && event.AltDown()){
+        long start, end;
+        GetSelection(&start, &end);
+        TriggerCommentRange(start, end);
+        return;
+    }
+    
+    if ('R' == event.GetKeyCode() && event.ControlDown()){
+        StartReplaceInRegion();
+        return;
+    }
+    
+    if (WXK_ESCAPE == event.GetKeyCode()){
+        if (AutoCompActive()){
+            AutoCompCancel();
+            return;
+        }
+        if (mbReplace){
+            mbReplace = false;
+            SetSelForeground(true, *wxBLACK);
+            SetSelBackground(true, *wxWHITE);
+            if (NULL != wxGetApp().frame()){
+                wxGetApp().frame()->ShowStatus("");
+            }
+        }
+    }
+    
+    if (WXK_BACK ==  event.GetKeyCode()){
+        long start = 0, stop = 0;
+        GetSelection(&start, &stop);
+        if (start == stop){
+            HungerBack();
+        }
+    }
+    event.Skip();
+}
+
+
+static inline bool IsBraceChar(char cur){
+    if (cur == '[' || cur == ']' || cur == '(' || cur == ')' || cur == '{' || cur == '}' || cur == '\'' || cur == '\"'){
+        return true;
+    }
+    return false;
+}
+
+void ceEdit::DoBraceMatch()
+{
+    bool bBrace = false;
+    int min = GetCurrentPos();
+    char cur = GetCharAt(min);
+    bBrace = IsBraceChar(cur);
+    if (!bBrace /*&& IsWhiteSpace(cur) || cur == ';'*/){
+        min--;
+        cur = GetCharAt(min);
+        bBrace = IsBraceChar(cur);
+    }
+    
+    if (bBrace){
+        int max = BraceMatch (min);
+        if (max >= 0) {
+            BraceHighlight (min, max);
+        }
+        else{
+            BraceBadLight (min);
+        } 
+    }
+    else{
+        BraceHighlight(-1, -1);
+    }
+}
+
+void ceEdit::OnMouseLeftDown(wxMouseEvent &evt)
+{
+    int pos = GetCurrentPos();
+    if (mbReplace){
+        mbReplace = false;
+        SetSelection(pos, pos);
+        SetSelBackground(true, *wxWHITE);
+        SetSelForeground(true, *wxBLACK);
+        if (NULL != wxGetApp().frame()){
+            wxGetApp().frame()->ShowStatus("");
+        }
+    }
+    evt.Skip();
+}
+
+void ceEdit::OnMouseLeftUp(wxMouseEvent &evt)
+{
+    DoBraceMatch();
+    ShowCallTips();
+    evt.Skip();
+}
+
+void ceEdit::OnMouseLeftDclick(wxMouseEvent &evt){
+    // first select the key;
+    // StartReplaceInRegion();
+    evt.Skip();
+}
+
+void ceEdit::OnMouseWheel(wxMouseEvent &evt)
+{
+    if (CallTipActive()){
+        CallTipCancel();
+    }
+    evt.Skip();
+}
+
+void ceEdit::OnKeyUp(wxKeyEvent &event)
+{
+    DoBraceMatch();
+    if (WXK_TAB == event.GetKeyCode()){
+        if (AutoCompActive()){
+            AutoCompComplete();
+        }
+        else{
+            long start = 0, stop = 0, startLine = 0, stopLine = 0;
+            GetSelection(&start, &stop);
+            PositionToXY(start, NULL, &startLine);
+            PositionToXY(stop, NULL, &stopLine);
+            // wxPrintf("startLine:%ld, stopLine:%ld\n", startLine, stopLine);
+            if (startLine != stopLine){
+                if (startLine > stopLine){
+                    long temp = stopLine; stopLine = startLine; startLine = temp;
+                }
+                for (int i = startLine; i <= stopLine; i++){
+                    AutoIndentWithTab(i);
+                }
+                int pos = GetLineIndentPosition(stopLine);
+                SetSelection(pos, pos);
+                GotoPos(pos);
+                ChooseCaretX();
+            }
+            else{
+                AutoIndentWithTab(GetCurrentLine());
+            }
+        }
+    } 
+    event.Skip();
+}
+
+bool ceEdit::LoadAutoComProvider(const wxString &mLanguage)
+{
+    mAllProviders.clear();
+    return wxAutoCompProvider::GetValidProvider(mLanguage, mAllProviders);
+}
+
+bool ceEdit::IsValidChar(char ch, const wxString &validCharList)
+{
+    if (!validCharList.empty()){
+        if (validCharList.find(ch) != validCharList.npos){
+            return true;
+        }
+        return false;
+    }
+    int i = 0;
+    for (i = 0; i < mAllProviders.size(); i++){
+        if (mAllProviders[i]->IsValidChar(ch)){
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ceEdit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
+{
+    int i = 0;
+    for (i = 0; i < mAllProviders.size(); i++){
+        mAllProviders[i]->GetCandidate(input, candidate, mLanguage);
+    }
+    
+    return true;
+}
+
+static bool IsNeedIncreaseIndentation(char ch){
+    // todo:fanhongxuan@gmail.com
+    // skip the value in the comment
+    if (ch == '{' || ch == ':' || ch == '.'){
+        return true;
+    }
+    return false;
+}
+
+static bool IsNeedDecreaseIndentation(char ch){
+    if (ch == '}'){
+        return true;
+    }
+    return false;
+}
+
+void ceEdit::MoveCharBeforeRightParentheses(int currentLine){
+    int pos = GetCurrentPos();
+    if (pos <= 0){
+        return;
+    }
+    wxString line = GetLineText(currentLine);
+    
+    int offset = 0;
+    int stop = GetLineEndPosition(currentLine);
+    while((pos + offset) < stop){
+        char c = GetCharAt(pos + offset);
+        if ( c != ')' && c != ']'){
+            break;
+        }
+        offset++;
+    }
+    if (offset != 0){
+        char c = GetCharAt(pos - 1);
+        InsertText(pos + offset, c);
+        DeleteRange(pos-1, 1);
+        GotoPos(pos + offset);
+        ChooseCaretX();
+    }
+}
+
+void ceEdit::OnColon(int currentLine)
+{
+    // when user input a : in cpp mode
+    // if the line only has the following cpp keyword, need to decrease the indent.
+    // public, private, protected:
+    int lineInd = GetLineIndentation(currentLine);
+    wxString line = GetLineText(currentLine);
+    int pos = line.find_first_not_of("\r\n\t ");
+    if (pos == line.npos){
+        return;
+    }
+    line = line.substr(pos);
+    pos = line.find_last_not_of("\r\n\t :");
+    if (pos == line.npos){
+        return;
+    }
+    line = line.substr(0, pos+1);
+    if (line == "public" || line == "private" || line == "protected" || line == "default" || line.find("case ") == 0){
+        int parent = GetFoldParent(currentLine);
+        if (parent >= 0){
+            SetLineIndentation(currentLine, GetLineIndentation(parent));
+        }
+        else{
+            lineInd -= GetIndent();
+            SetLineIndentation(currentLine, lineInd);
+        }
+    }
+}
+
+void ceEdit::InsertPair(int currentLine, char c)
+{
+    int pos = GetCurrentPos();
+    int style = GetStyleAt(pos);
+    if (style == STYLE_COMMENTS || style == STYLE_CSTYLE_COMMENTS && c == '\''){
+        // skip ' in comments
+        return;
+    }
+    char end = '0';
+    if (c == '{'){ end = '}';}
+    if (c == '\''){end = '\'';}
+    if (c == '\"'){end = '\"';}
+    if (c == '('){end = ')';}
+    if (c == '['){end = ']';}
+    if (c == '<'){end = '>';}
+    // note:fanhongxuan@gmail.com
+    // in which case we don't need to insert a } here?
+    int parent = GetFoldParent(currentLine);
+    if (parent >= 0){
+        InsertText(pos, end);
+    }
+    else{
+        // todo:fanhongxuan@gmail.com
+        // check if the {} is pair.
+        // if the length is less than 10000, check if all the {} is pair
+        InsertText(pos, end);
+    }
+}
+
+void ceEdit::OnEndBrace(int currentLine)
+{
+    // update the indent according the fold level;
+    wxString line = GetLineText(currentLine);
+    if (line.find_first_not_of("\r\n\t }") != line.npos){
+        return;
+    }
+    // this line only has white space or }, 
+    int parent = GetFoldParent(currentLine);
+    int ind = GetLineIndentation(parent);
+    SetLineIndentation(currentLine, ind);
+}
+
+// static char GetPrevNoneWhiteSpaceChar(Edit *pEdit, int pos)
+// {
+//     // todo:fanhongxuan@gmail.com
+//     // skip the comments
+//     char ret = 0;
+//     while(pos > 0){
+//         ret = pEdit->GetCharAt(pos);
+//         if (ret != ' ' && ret != '\r' && ret != '\t' && ret != '\n'){
+//             return ret;
+//         }
+//         pos--;
+//     }
+//     return 0;
+// }
+
+// static char GetNextNoneWhiteSpaceChar(Edit *pEdit, int pos)
+// {
+//     // todo:fanhongxuan@gmail.com
+//     // skip the comments
+//     char ret = 0;
+//     int size = pEdit->GetLastPosition();
+//     while(pos < size){
+//         ret = pEdit->GetCharAt(pos);
+//         if (ret != ' ' && ret != '\r' && ret != '\t' && ret != '\n'){
+//             return ret;
+//         }
+//         pos++;
+//     }
+//     return 0;    
+// }
+
+
+static inline bool IsWhiteSpace(char ch)
+{
+    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == ' '){
+        return true;
+    }
+    return false;
+}
+
+bool ceEdit::HungerBack(){
+    int start = GetCurrentPos();
+    int end = start;
+    while(start > 0){
+        if(!IsWhiteSpace(GetCharAt(start-1))){
+            break;
+        }
+        start--;
+    }
+    
+    DeleteRange(start+1, end - start - 1);
+    return true;
+}
+
+bool ceEdit::ShowCallTips()
+{
+    int start = WordStartPosition(GetCurrentPos(), true);
+    int stop = WordEndPosition(GetCurrentPos(), true);
+    wxString value = GetTextRange(start, stop);
+    if (NULL == wxGetApp().frame()){
+        return false;
+    }
+    if (value.find_first_not_of("\r\n\t ") == value.npos){
+        return false;
+    }
+    
+    // skip comments, string &keywords, operator,
+    if (GetStyleAt(start) != STYLE_IDENTY){
+        return false;
+    }
+    wxString line = GetLineText(GetCurrentLine());
+    long x = 0;
+    PositionToXY(start, &x, NULL);
+    
+    // std::vector<wxSearchFileResult *>outputs;
+    // wxGetApp().frame()->FindDef(value, outputs);
+    // value = "";
+    // for (int i = 0; i < outputs.size();i++){
+    //     if (!(outputs[i]->Target() == GetFilename() && (GetCurrentLine()+1) == outputs[i]->GetLine())){
+    //         // skip ourself
+    //         if (!value.empty()){
+    //             value += "\n";
+    //         }
+    //         value += outputs[i]->Content();
+    //     }
+    //     delete outputs[i];
+    //     outputs[i] = NULL;
+    // }
+    wxString type;
+    std::set<ceSymbol*> outputs;
+    wxGetApp().frame()->FindDef(outputs, value, type, GetFilename());
+    value = wxEmptyString;
+    std::set<ceSymbol*>::iterator it = outputs.begin();
+    while(it != outputs.end()){
+        if ((*it)->file == GetFilename() && (GetCurrentLine()+1) == (*it)->line){
+            delete (*it);
+            it++;
+            // skip ourself
+            continue;
+        }
+        if (!value.empty()){
+            value += "\n";
+        }
+        if (!(*it)->shortFilename.empty()){
+            value += (*it)->shortFilename;
+        }
+        else{
+            value += (*it)->file;
+        }
+        value += "(" + wxString::Format("%d", (*it)->line) + "):" + (*it)->desc;
+        delete (*it);
+        it++;
+    }
+    if (value.empty()){
+        return false;
+    }
+    CallTipShow(start, value);
+    return true;
+}
+
+static inline bool IsStyleNeedToSkip(int style, char c){
+    if (style == STYLE_FOLDER || style == STYLE_OPERATOR){
+        return false;
+    }
+    return true;
+}
+
+bool ceEdit::GetMatchRange(long &startPos, long &stopPos, char sc, char ec)
+{
+    // todo:fanhongxuan@gmail.com
+    // if user select in a function param, we need to auto select all the function body
+    
+    // set the start and end
+    startPos = GetCurrentPos();
+    // skip the {} in comments and string
+    while(startPos >0){
+        char c = GetCharAt(startPos);
+        if (!IsStyleNeedToSkip(GetStyleAt(startPos), c)){
+            if (c == ec){
+                startPos = BraceMatch(startPos);
+            }
+            else if (c == sc){
+                break;
+            }
+        }
+        startPos--;
+    }
+    
+    stopPos = GetCurrentPos();
+    int end = GetLastPosition();
+    while(stopPos < end && stopPos > 0){
+        char c = GetCharAt(stopPos);
+        if (!IsStyleNeedToSkip(GetStyleAt(stopPos), c)){
+            if (c == sc){
+                stopPos = BraceMatch(stopPos);
+            }
+            else if (c == ec){
+                break;
+            }
+        }
+        stopPos++;
+    }
+    if (startPos < 0){
+        startPos = 0;
+    }
+    if (stopPos < 0){
+        stopPos = end;
+    }    
+    return true;
+}
+
+bool ceEdit::StartReplaceInRegion(){
+    // todo:fanhongxuan@gmail.com
+    // when repace in region is run, don't update the indent according the fold level.
+    
+    long startPos = 0, stopPos = 0;
+    long start = 0, stop = 0;
+    int count = 0;
+    mbReplace = true;
+    GetSelection(&start, &stop);
+    
+    if (start == stop){
+        start = WordStartPosition(GetCurrentPos(), true);
+        stop = WordEndPosition(GetCurrentPos(), true);
+        SetSelection(start, stop);
+    }
+    
+    wxString text = GetSelectedText();
+    if (text.empty()){
+        return false;
+    }
+    
+    wxString lowText = text.Lower();
+    int flag = wxSTC_FIND_WHOLEWORD;
+    if (lowText != text){
+        flag |= wxSTC_FIND_MATCHCASE;
+    }
+    
+    GetMatchRange(startPos, stopPos, '{', '}');
+    SetSelForeground(false, wxColour("BLUE"));
+    SetSelBackground(true, wxColour("BLUE"));
+    
+    // wxPrintf("StartReplaceInRegion:%ld<->%ld\n", startPos, stopPos);
+    while(startPos < stopPos){
+        int ret = FindText(stopPos, startPos, text, flag);
+        if (ret < 0){
+            break;
+        }
+        if (ret != start && stop != (ret+text.length())){
+            AddSelection(ret, ret + text.length());
+        }
+        count++;
+        stopPos = ret;
+    }
+    AddSelection(start, stop);
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->ShowStatus(wxString::Format(wxT(" %d match(s) for '%s'"), count, text));
+    }
+    return true;
+}
+
+bool ceEdit::TriggerCommentRange(long start, long stop)
+{
+    // find all the line in the range.
+    long startLine = 0, endLine = 0, endColum = 0, stopLine = 0;
+    PositionToXY(start, NULL, &startLine);
+    PositionToXY(stop, &endLine, &endLine);
+    stopLine = endLine;
+    
+    // wxPrintf("select line:<%ld-%ld>\n", startLine+1, endLine+1);
+    
+    wxString comment = "// ";
+    if (start == stop){
+        // no selection, add comments at the line end
+        int pos = 0;// 
+        wxString value = GetLineText(startLine);
+        pos = value.find(comment);
+        // fixme:fanhongxuan@gmail.com
+        // later,we need to skip the in the string.
+        if (pos == value.npos){
+            pos = GetLineEndPosition(startLine);
+            InsertText(pos, comment);
+        }
+        pos = GetLineEndPosition(startLine);
+        GotoPos(pos);
+        ChooseCaretX();
+        return true;
+    }
+    else{
+        int minIndent = -1;
+        int i = 0;
+        int count = 0;
+        
+        // make sure stop is bigger than start
+        if (startLine > endLine){
+            long temp = endLine;endLine = startLine; startLine = temp;
+        }
+        
+        // if all the line is start with "// ", we will try to delete all the "// " at the beginning.
+        for (i = startLine; i <= endLine; i++){
+            wxString text;
+            if (i == startLine){
+                text = GetTextRange(start, GetLineEndPosition(i));
+            }
+            else if (i == endLine){
+                text = GetTextRange(XYToPosition(0, i), stop);
+            }
+            else{
+                text = GetLineText(i);
+            }
+            // wxPrintf("Text:%d<%s>\n", i+1,text);
+            int pos = text.find_first_not_of("\r\n\t ");
+            if (pos != text.npos){
+                text = text.substr(pos);
+                if (text.find(comment) != 0){
+                    break;
+                }
+            }
+        }
+        
+        if (i == (endLine+1)){
+            // wxPrintf("all the line is start with // , try to remove the comments\n");
+            size_t len = comment.length();
+            for (i = startLine; i <= endLine; i++){
+                int pos = 0;
+                wxString text;
+                if (i == startLine){
+                    text = GetTextRange(start, GetLineEndPosition(i));
+                    pos = text.find(comment);
+                    if (pos != text.npos){
+                        DeleteRange(start + pos, len);
+                    }
+                }
+                else{
+                    text = GetLineText(i);
+                    pos = text.find(comment);
+                    if (pos != text.npos){
+                        DeleteRange(XYToPosition(0, i) + pos, len);
+                    }
+                }
+            }
+                
+            int pos = XYToPosition(endColum, stopLine);
+            SetSelection(pos, pos);
+            GotoPos(pos);
+            ChooseCaretX();            
+            return true;
+        }
+        
+        // otherwsize, add "// " at the min indent
+        for (i = startLine; i <= endLine; i++){
+            int indent = GetLineIndentation(i);
+            if (minIndent == -1 || indent < minIndent){
+                minIndent = indent;
+            }
+        }
+        
+        for (i = startLine; i <= endLine; i++){
+            int pos = XYToPosition(0, i);
+            if (i == startLine && start > GetLineIndentPosition(i)){
+                // if the first line is not select all the content, keep the left content
+                pos = start;
+            }
+            else{
+                pos += minIndent;
+            }
+            wxString text = GetTextRange(pos, GetLineEndPosition(i));
+            if (text.find_first_not_of("\r\n\t ") == text.npos){
+                // skip the empty line
+                continue;
+            }
+            if (i == endLine){
+                text = GetTextRange(XYToPosition(0, i), stop + count);
+                if (text.find_first_not_of("\r\n\t ") == text.npos){
+                    continue;
+                }
+            }
+            InsertText(pos, comment);
+            count += comment.length();
+            
+            if (i == endLine){
+                text = GetTextRange(stop + count, GetLineEndPosition(i));
+                if (text.find_first_not_of("\r\n\t ") != text.npos){
+                    // has some thing left, add a newline.
+                    InsertNewLine(stop + count);
+                    if (stopLine >= endLine){
+                        stopLine++;
+                    }
+                }
+            }
+        }
+    }
+    int pos = XYToPosition(endColum, stopLine);
+    
+    SetSelection(pos, pos);
+    GotoPos(pos);
+    ChooseCaretX();
+    return true;
+}
+                    
+bool ceEdit::AutoIndentWithTab(int line)
+{
+    // wxPrintf("AutoIndentWithTab:%d\n", line);
+    // auto indent current line
+    int pos = GetCurrentPos();
+    // calc the line indent according the level
+    int curIndent = GetLineIndentation(line);
+    int indent = CalcLineIndentByFoldLevel(line, GetFoldLevel(line));
+    if (indent != curIndent){
+        SetLineIndentation(line, indent);
+        pos = pos + indent - curIndent;
+        if (line > 1 && pos <= GetLineEndPosition(line - 1)){
+            pos = GetLineIndentPosition(line);
+        }
+        GotoPos(pos);
+        ChooseCaretX();
+    }
+    else{
+        if (pos < GetLineIndentPosition(line)){
+            GotoPos(GetLineIndentPosition(line));
+            ChooseCaretX();
+        }
+    }
+    return true;
+}
+
+bool ceEdit::InsertNewLine(long pos)
+{
+    int eol = GetEOLMode();
+    if (eol == wxSTC_EOL_LF){
+        // wxPrintf("Insert LF\n");
+        InsertText(pos, "\n");
+    }
+    else if (eol == wxSTC_EOL_CRLF){
+        // wxPrintf("Insert CRLF\n");
+        InsertText(pos, "\r\n");
+    }
+    else{
+        // wxPrintf("Insert CR\n");
+        InsertText(pos, "\r");    
+    }
+    return true;
+}
+
+// todo:fanhongxuan@gmail.com
+// auto pair "", '', (), [], {},
+// when delete auto delete.
+// auto indent with endline
+void ceEdit::AutoIndentWithNewline(int currentLine)
+{
+    if (mbReplace){
+        // when use is replace, skip this
+        return;
+    }
+    
+    int pos = GetCurrentPos();
+    if (pos >= 2){
+        char prev = GetCharAt(pos - 2);
+        char next =GetCharAt(pos);
+        if ( pos >= 3 && prev == '\r'){
+            prev = GetCharAt(pos-3);
+        }
+        // wxPrintf("Prev:%c, next:%c\n", prev, next);        
+        if (prev == '{' && next == '}'){
+            InsertNewLine(pos);
+        }
+        else{
+            // this is a normal newline. try to indent according the fold level.
+            int foldstatus = GetFoldLevel(currentLine);
+            int foldlevel = foldstatus & wxSTC_FOLDLEVELNUMBERMASK - wxSTC_FOLDLEVELBASE;
+            if (foldlevel >= 0){
+                SetLineIndentation(currentLine, GetIndent() * foldlevel);
+                GotoPos(GetLineIndentPosition(currentLine));
+                ChooseCaretX();
+            }
+        }
+    }
+}
+
+
+void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
+    // note:fanhongxuan@gmail.com
+    // if the next is a validchar for autocomp, we don't show the autocomp
+    // don't use inputWord, we find the word backword start from current pos
+    bool bNewCandidate = false;
+    long pos = GetInsertionPoint();
+    if (pos > 0){
+        pos--;
+    }
+    long start = pos;
+    int ch = GetCharAt(pos);
+    if (!IsValidChar(ch)){
+        // in this case we add the latest string as a new candidate.
+        bNewCandidate = true;
+    }
+    
+    int i = 0;
+    while(start > 0){
+        ch = GetCharAt(start-1);
+        if (IsValidChar(ch)){
+            start--;
+        }
+        else{
+            break;
+        }
+    }
+    
+    // wxPrintf("OnCharAdded:<%d>, ch:%d, %d\n", event.GetKey(), ch, bNewCandidate);
+    wxString inputWord;
+    if (bNewCandidate){
+        inputWord = GetTextRange(start, pos);
+        wxAutoCompWordInBufferProvider::Instance().AddCandidate(inputWord, mLanguage);
+        char chr = (char)event.GetKey();
+        int currentLine = GetCurrentLine();
+        // Change this if support for mac files with \r is needed
+        if (chr == '\n' || chr == '\r'){
+            AutoIndentWithNewline(currentLine);
+        }
+        if (chr == ';' || chr == '{'){
+            MoveCharBeforeRightParentheses(currentLine);
+        }
+        
+        if (chr == '{' || chr == '\'' || chr == '\"' || chr == '(' || chr == '['){
+            InsertPair(currentLine, chr);
+        }
+        
+        if (chr == '}'){
+            OnEndBrace(currentLine);
+        }
+        
+        if (chr == ':'){
+            OnColon(currentLine);
+        }
+        return;
+    }
+    
+    inputWord = GetTextRange(start, pos+1);
+    std::set<wxString> candidate;
+    GetCandidate(inputWord, candidate);
+    if (!candidate.empty()){
+        wxString candidateStr;
+        std::set<wxString>::iterator it = candidate.begin();
+        while(it != candidate.end()){
+            candidateStr += (*it);
+            candidateStr += " ";
+            it++;
+        }
+        AutoCompShow(inputWord.length(), candidateStr);
+    }
+}
+
+int ceEdit::CalcLineIndentByFoldLevel(int line, int level)
+{    
+    wxString value = GetLineText(line);
+    level = level & wxSTC_FOLDLEVELNUMBERMASK;
+    if (level < wxSTC_FOLDLEVELBASE){
+        level = 0;
+    }
+    else{
+        level -= wxSTC_FOLDLEVELBASE;
+    }
+    
+    int start = value.find_first_not_of("\r\n\t ");
+    int end = value.find_last_not_of("\r\n\t ", start);
+    if (start != value.npos && end != value.npos){
+        value = value.substr(start, end + 1-start);
+        if (value == "}" || 
+            value == "public:" || 
+            value == "protected:" || 
+            value == "private:" || 
+            value == "default:" ||
+            value.find("case ") == 0){
+            level--;
+        }
+        // if this line is start with # set the indent to 0
+        if (value.size() >= 1 && value[0] == '#'){
+            level = 0;
+        }
+        if (value.find("// ") == 0){
+            // skip the auto comments line
+            return GetLineIndentation(line);
+        }
+    }
+    if (level < 0){
+        level = 0;
+    }
+    // wxPrintf("CalcLineIndentByFoldLevel:(%d):%d\n", line+1, level);
+    return level * GetIndent();
+}
+
+wxString ceEdit::GetCurrentWord(const wxString &validCharList)
+{
+    // note:fanhongxuan@gmail.com
+    // when multselection is enabled, GetSelectText will return all the selected text.
+    // so we use GetSelection to get the main selection, and then GetTextRange.
+    // if has selection, return selection
+    int startPos = 0, stopPos = 0;
+    GetSelection(&startPos, &stopPos);
+    wxString ret = GetTextRange(startPos, stopPos);
+    if (!ret.empty()){
+        return ret;
+    }
+    long pos = GetInsertionPoint();
+    long max = GetText().Length();
+    long start = pos, end = pos;
+    int i = 0;
+    while(start > 0){
+        int ch = GetCharAt(start-1);
+        if (IsValidChar(ch)){
+            start--;
+        }
+        else{
+            break;
+        }
+    }
+    
+    while(end < max){
+        int ch = GetCharAt(end+1);
+        if (IsValidChar(ch)){
+            end++;
+        }
+        else{
+            break;
+        }
+    }
+    if (start == end){
+        return wxEmptyString;
+    }
+    if (!IsValidChar(GetCharAt(pos))){
+        if (start != pos){
+            end = pos - 1;
+        }
+        else{
+            start = pos+1;
+        }
+    }
+    
+    return GetTextRange(start, end+1);
 }

@@ -12,7 +12,7 @@
 #include <wx/dir.h>
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include <wx/stattext.h>
-#include "wxEdit.hpp"
+#include "ceEdit.hpp"
 #ifndef WIN32
 #include <sys/time.h>
 #endif
@@ -1133,7 +1133,7 @@ int wxSearchFile::GetPreferedLine(const wxString &input)
     return bestLine;
 }
 
-void wxSearchFile::ChangeSearchTarget(Edit *pEdit)
+void wxSearchFile::ChangeSearchTarget(ceEdit *pEdit)
 {
     if (NULL != pEdit && mpEdit != pEdit){
         mFileName = pEdit->GetFilename();
@@ -1155,7 +1155,7 @@ void wxSearchFile::SetBuffer(const wxString &buffer)
     mBuffer = buffer;
 }
 
-void wxSearchFile::SetEdit(Edit *pEdit)
+void wxSearchFile::SetEdit(ceEdit *pEdit)
 {
     mpEdit = pEdit;
 }

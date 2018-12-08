@@ -26,7 +26,7 @@ class MySymbolSearchHandler;
 class MyRefSearchHandler;
 class wxSearchResult;
 class wxSearchFileResult;
-class Edit;
+class ceEdit;
 class wxStyledTextEvent;
 class wxSearchFile;
 class wxSearchDir;
@@ -78,10 +78,10 @@ public:
     bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs);
     bool FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename);
     void ShowStatus(const wxString &status);
-    void SetActiveEdit(Edit *pEdit);
+    void SetActiveEdit(ceEdit *pEdit);
     void DoUpdate();
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
-    void ChangeToBuffer(Edit *pEdit, int pos);
+    void ChangeToBuffer(ceEdit *pEdit, int pos);
     void OpenFile(const wxString &name, const wxString &path, bool bActive, int line = -1);
 
     bool ShowMiniBuffer(const wxString &name, bool bHide = false);
@@ -112,7 +112,7 @@ private:
     void SwitchFocus();
     void SaveInfo();
     void LoadInfo();
-    void UpdateWorkDirs(Edit *pActiveEdit = NULL, bool showWorkSpace = false, bool showExplorer = false);
+    void UpdateWorkDirs(ceEdit *pActiveEdit = NULL, bool showWorkSpace = false, bool showExplorer = false);
 private:
     bool mbLoadFinish;
     wxAuiNotebook *mpBufferList;
@@ -128,7 +128,7 @@ private:
     wxSymbolSearch *mpSymbolSearch;
     wxExplorer *mpExplorer;
     wxWorkSpace *mpWorkSpace;
-    Edit *mpActiveEdit;
+    ceEdit *mpActiveEdit;
     wxAuiManager m_mgr;
     wxArrayString m_perspectives;
     wxMenu* m_perspectives_menu;

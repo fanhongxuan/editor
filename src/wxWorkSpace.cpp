@@ -557,10 +557,6 @@ bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols, const wxString &name, c
         mpSymbolDb = new ceSymbolDb;
     }
     
-    ceInclude::Instance().AddIncDir("/home/fhx/code/editor/import/wxWidgets/include");
-    ceInclude::Instance().AddIncDir("/home/fhx/code/editor/import/wxWidgets/lib/linux/include");
-    ceInclude::Instance().AddIncDir("/home/fhx/code/editor/src");
-    
     if (NULL != mpSymbolDb){
         bool ret = mpSymbolDb->FindDef(symbols, name, type, filename);
         // update the short name

@@ -10,7 +10,7 @@ class wxStaticText;
 class wxSearchResult;
 class wxKeyEvent;
 
-class Edit;
+class ceEdit;
 class wxSearchInputCtrl;
 class wxSearchListCtrl;
 class wxSearch;
@@ -153,9 +153,9 @@ public:
     
     wxString GetFileName() const {return mFileName;}
     
-    void ChangeSearchTarget(Edit *pEdit);
+    void ChangeSearchTarget(ceEdit *pEdit);
     
-    void SetEdit(Edit *pEdit);
+    void SetEdit(ceEdit *pEdit);
     void SetFileName(const wxString &fileName);
     void SetBuffer(const wxString &buffer);
     
@@ -169,7 +169,7 @@ private:
     int mCurLine;
     wxString mFileName;
     wxString mBuffer;
-    Edit *mpEdit;
+    ceEdit *mpEdit;
 };
 
 

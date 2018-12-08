@@ -268,7 +268,7 @@ void Edit::OnFocus(wxFocusEvent &evt)
 {
     if (NULL != wxGetApp().frame()){
         wxGetApp().frame()->DoUpdate();
-        wxGetApp().frame()->SetActiveEdit(this);
+        // wxGetApp().frame()->SetActiveEdit(this);
     }
     evt.Skip();
 }

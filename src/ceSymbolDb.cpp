@@ -85,14 +85,15 @@ bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename){
     static wxString ctags_exec;
     if (ctags_exec.empty()){
         ctags_exec = ceGetExecPath();
-        ctags_exec += "/ext/ctags -n --kinds-C++=+p -f - ";
+        ctags_exec += "/ext/ctags -n --kinds-C++=+p -f  ";
     }
     wxString name = GetSymbolDbName(filename);
     if (name.empty()){
         return false;
     }
-    wxString cmd = ctags_exec + filename + ">" + name;
+    wxString cmd = ctags_exec + name + " " + filename;
     std::vector<wxString> outputs;
+    // fixme: current not used.
     ceSyncExec(cmd, outputs);
     return true;
 }
