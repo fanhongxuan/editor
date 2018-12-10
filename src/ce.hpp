@@ -83,7 +83,7 @@ public:
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
     void ChangeToBuffer(ceEdit *pEdit, int pos);
     void OpenFile(const wxString &name, const wxString &path, bool bActive, int line = -1);
-
+        void AddDirToWorkSpace(const wxString &path);
     bool ShowMiniBuffer(const wxString &name, bool bHide = false);
     
     void OnGotoDefine(wxCommandEvent &evt);
@@ -106,6 +106,7 @@ public:
     void OnFileSaved(wxStyledTextEvent &evt);
     void OnFileModified(wxStyledTextEvent &evt);
     
+
 private:
     void ShowReference(int type);
     void CreateAcceTable();

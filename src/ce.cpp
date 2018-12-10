@@ -993,6 +993,12 @@ void MyFrame::OnShowAgSearch(wxCommandEvent &evt)
     }
 }
 
+void MyFrame::AddDirToWorkSpace(const wxString &dir){
+    if (NULL != mpWorkSpace){
+        mpWorkSpace->AddDirToWorkSpace(dir);
+    }
+}
+
 void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
 {
     wxAuiPaneInfo &explorer = m_mgr.GetPane(wxT("Explorer"));

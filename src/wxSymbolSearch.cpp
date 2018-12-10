@@ -16,6 +16,7 @@ wxSymbolSearch::~wxSymbolSearch()
 
 const wxString &getFullTypeName(const wxString &input, const wxString &language)
 {
+    static wxString emptyRet;
     static std::map<wxString, wxString> theCMaps;
     static std::map<wxString, wxString> theJavaMaps;
     if (theCMaps.size() == 0){
@@ -42,7 +43,7 @@ const wxString &getFullTypeName(const wxString &input, const wxString &language)
     }
     if (theJavaMaps.size() == 0){
     }
-    if (language == "C++"){
+    if (language == "C++" || language == "C"){
         std::map<wxString, wxString>::iterator it = theCMaps.find(input);
         if (it != theCMaps.end()){
             return it->second;
@@ -51,6 +52,7 @@ const wxString &getFullTypeName(const wxString &input, const wxString &language)
             return input;
         }
     }
+    return emptyRet;
 }
 
 bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)

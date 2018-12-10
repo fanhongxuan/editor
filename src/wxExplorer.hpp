@@ -19,6 +19,8 @@ public:
     void OnSelectionChanged(wxTreeEvent &evt);
     void OnItemCollapsed(wxTreeEvent &evt);
     void OnItemExpanding(wxTreeEvent &evt);
+        void OnRightDown(wxMouseEvent &evt);
+        void OnAddDirToWorkSpace(wxCommandEvent &evt);
     void OnKeyDown(wxKeyEvent &evt);
     void OnFocus(wxFocusEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
@@ -26,6 +28,7 @@ public:
 private:
     void CreateImageList();
     wxString mCwd;
+        wxString mAddPath;
     
     wxDECLARE_EVENT_TABLE();
 };

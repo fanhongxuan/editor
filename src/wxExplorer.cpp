@@ -7,6 +7,7 @@
 #include <wx/wxcrtvararg.h> // for wxPrintf
 
 #include <wx/config.h>
+#include <wx/menu.h>
 #include "ce.hpp"
 
 enum {
@@ -16,6 +17,10 @@ enum {
     explorer_folder,
     explorer_folder_select,
     explorer_icon_count,
+};
+
+enum {
+    exploer_add_to_workspace = 1000,
 };
 
 wxIMPLEMENT_CLASS(wxExplorer, wxTreeCtrl);
@@ -103,6 +108,8 @@ EVT_TREE_ITEM_ACTIVATED(wxID_ANY, wxExplorer::OnItemActivated)
 EVT_TREE_SEL_CHANGED(wxID_ANY, wxExplorer::OnSelectionChanged)
 EVT_TREE_ITEM_EXPANDING(wxID_ANY, wxExplorer::OnItemExpanding)
 EVT_TREE_ITEM_COLLAPSED(wxID_ANY, wxExplorer::OnItemCollapsed)
+EVT_MENU(exploer_add_to_workspace, wxExplorer::OnAddDirToWorkSpace)
+EVT_RIGHT_DOWN(wxExplorer::OnRightDown)
 EVT_KEY_DOWN(wxExplorer::OnKeyDown)
 EVT_SET_FOCUS(wxExplorer::OnFocus)
 wxEND_EVENT_TABLE()
@@ -180,6 +187,37 @@ void wxExplorer::OnFocus(wxFocusEvent &evt)
         wxGetApp().frame()->DoUpdate();
     }    
     evt.Skip();
+}
+
+void wxExplorer::OnRightDown(wxMouseEvent &evt){
+    wxMenu menu;
+    wxTreeItemId id = GetFocusedItem();
+    if (id.IsOk()){
+        wxTreeItemData *pInfo = GetItemData(id);
+        if (NULL == pInfo){
+            return;
+        }
+        wxExplorerItemInfo *pItem = dynamic_cast<wxExplorerItemInfo*>(pInfo);
+        if (NULL == pItem){
+            return;
+        }
+        if (pItem->mbFile){
+            return;
+        }
+        mAddPath = pItem->mPath;
+        menu.Append(exploer_add_to_workspace, wxT("Add to workspace"));
+    }
+    PopupMenu(&menu);
+}
+
+void wxExplorer::OnAddDirToWorkSpace(wxCommandEvent &evt){
+    if (!mAddPath.empty()){
+        wxPrintf("OnAddDirToWorkSpace:%s\n", mAddPath);
+        if (NULL != wxGetApp().frame()){
+            wxGetApp().frame()->AddDirToWorkSpace(mAddPath);
+        }
+        mAddPath = "";
+    }
 }
 
 void wxExplorer::OnKeyDown(wxKeyEvent &evt)

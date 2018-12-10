@@ -63,7 +63,9 @@ protected:
     int ParseCharInDefault(char c, int curStyle, long pos);
     bool ParseWord(int pos);
     int GetFoldLevelDelta(int line);
-        int HandleFunctionStart(int pos, int curStyle);
+    int HandleFunctionStart(int pos, int curStyle);
+    int HandleFunctionBody(int pos, int curStyle);
+    int HandleLocalVariable(int pos, int curStyle);
     bool HandleFolder(long pos);
     void UpdateLineNumberMargin();
     wxFontInfo GetFontByStyle(int style, int type);
@@ -74,9 +76,10 @@ protected:
     bool LoadAutoComProvider(const wxString &filename);
     bool IsValidChar(char ch, const wxString &validCharList = wxEmptyString);
     bool GetCandidate(const wxString &input, std::set<wxString> &candidates);
-    wxString WhichFunction(int pos);
+    wxString WhichFunction(int pos, long *pStart = NULL, long *pStop = NULL);
     bool ClearLoalSymbol();
     bool BuildLocalSymbl();
+    int PrepareFunctionParams(int pos);
     int HandleClass(int pos, int curStyle);
     int HandleParam(int startPos, int stopPos);
     bool IsValidParam(int startPos, int stopPos);
@@ -87,10 +90,8 @@ protected:
     
 private:
     std::map<wxString, std::set<ceSymbol *>* > mSymbolMap;
-        
     std::set<ceSymbol *> mLocalSymbolMap;    
     std::set<wxString> mLocalTypes;
-    std::map<wxString, std::pair<int, int> > mFunctionRangeMap;
         std::map<wxString, int> mLocalVariable; // key is the name, second is the start pos
         std::map<wxString, int> mFunctionParames; // key is the name, seconds is the start pos
     wxString mFilename;
