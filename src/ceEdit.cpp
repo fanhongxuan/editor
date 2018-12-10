@@ -733,11 +733,6 @@ int ceEdit::HandleParam(int startPos, int stopPos){
             if (start <= startPos){
                 break;
             }
-            // fixme:fanhongxuan@gmail.com
-            if (pos == start){
-                pos --;
-                continue;
-            }
             {
                 // if this id is started with a =, skip this one,
                 // should be init value.
@@ -776,7 +771,7 @@ int ceEdit::HandleParam(int startPos, int stopPos){
                 // bParam = true;
             }
             pos = start;
-            continue;
+            //continue;
             // find the next ','
         }
         else if (c == ',' && style == STYLE_OPERATOR){
@@ -860,7 +855,9 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
         startPos--;
     }
     
-    // start should be the start of function.
+    // start should be the start of function
+    int returnStart = -1;
+    int returnStop = -1;
     if (startPos >= 0 && stopPos > startPos){
         bool hasReturnValue = false;
         int prev = startPos - 1;
@@ -878,6 +875,12 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                     hasReturnValue = true;
                     break;
                 }
+                else if (c == '&'){
+                    // return type is a reference
+                }
+                else if (c == '*'){
+                    // return type is a pointer
+                }
                 else{
                     // other operator, not a function.
                     // wxPrintf("Other operator:%c\n", c);
@@ -885,6 +888,9 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                 }
             }
             else if (style == STYLE_IDENTY){
+                returnStop = prev;
+                returnStart = FindStyleStart(STYLE_IDENTY, returnStop);
+                prev = returnStart;
                 hasReturnValue = true;
             }
             else if (style == STYLE_TYPE){
@@ -918,6 +924,12 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
         wxString param = GetTextRange(paramStart, paramStop);
         if (!HandleParam(paramStart, paramStop)){
             return curStyle;
+        }
+        
+        if (returnStart >= 0 && returnStop >= returnStart){
+            mLocalTypes.insert(GetTextRange(returnStart, returnStop+1));
+            StartStyling(returnStart);
+            SetStyling(returnStop+1 - returnStart, STYLE_TYPE);
         }
         
         StartStyling(startPos);
