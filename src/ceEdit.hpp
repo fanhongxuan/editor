@@ -37,7 +37,8 @@ public:
     void OnFocus(wxFocusEvent &evt);
     void OnKeyDown(wxKeyEvent &event);
     void OnKeyUp(wxKeyEvent &event);
-    
+    void OnUpdateUI(wxStyledTextEvent &evt);    
+        
 protected:
     bool ShowCallTips();
     bool InsertNewLine(long pos);

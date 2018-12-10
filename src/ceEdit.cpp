@@ -25,6 +25,7 @@ wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
 EVT_STC_MODIFIED(wxID_ANY,    ceEdit::OnModified)
 EVT_STC_MARGINCLICK(wxID_ANY, ceEdit::OnMarginClick)
+EVT_STC_UPDATEUI(wxID_ANY, ceEdit::OnUpdateUI)
 EVT_STC_CHARADDED (wxID_ANY,  ceEdit::OnCharAdded)
 
 EVT_SET_FOCUS(ceEdit::OnFocus)
@@ -1652,6 +1653,18 @@ void ceEdit::OnSize( wxSizeEvent& event ) {
     event.Skip();
 }
 
+void ceEdit::OnUpdateUI(wxStyledTextEvent &evt){
+    wxString func = WhichFunction(GetCurrentPos());
+    if (NULL != wxGetApp().frame()){
+        if (!func.empty()){
+            wxGetApp().frame()->ShowStatus(wxString::Format(wxT("CurrentFunction:[%s]"), func));
+        }
+        else{
+            wxGetApp().frame()->ShowStatus("");
+        }
+    }
+}
+
 void ceEdit::OnMarginClick(wxStyledTextEvent &evt)
 {
     if (evt.GetMargin() == mFoldingMargin) {
@@ -1696,6 +1709,16 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
             AutoCompComplete();
             return;
         }
+    }
+
+    // todo:fanhongxuan@gmail.com
+    // store all the goto target in a stack, use ctrl-right/left to go throw the stack
+    // in this case, can easyly return to the previously viewed 
+    if (WXK_PAGEUP == event.GetKeyCode() && event.ControlDown()){
+        GotoPos(0);
+    }
+    else if (WXK_PAGEDOWN == event.GetKeyCode() && event.ControlDown()){
+        GotoPos(GetLastPosition());
     }
     
     if (';' == event.GetKeyCode() && event.AltDown()){
