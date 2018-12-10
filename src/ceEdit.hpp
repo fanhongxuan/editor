@@ -79,7 +79,7 @@ protected:
     bool BuildLocalSymbl();
     int HandleClass(int pos, int curStyle);
     int HandleParam(int startPos, int stopPos);
-    bool IsValidParam(const wxString &param);
+    bool IsValidParam(int startPos, int stopPos);
     bool IsFunctionDeclare(int pos);
     bool IsFunctionDefination(int pos);
     wxString FindType(const wxString &value, int line = -1, int pos = -1);

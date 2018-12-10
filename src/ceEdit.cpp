@@ -376,6 +376,11 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     CmdKeyClear(wxSTC_KEY_TAB, 0); // disable the default tab handle;
     SetIndent(4);
     
+    // for multi input
+    SetMultipleSelection(true);
+    SetMultiPaste(wxSTC_MULTIPASTE_EACH);
+    SetAdditionalSelectionTyping(true);
+    
     // others
     SetViewEOL(false);
     SetIndentationGuides(true);
@@ -519,17 +524,6 @@ bool ceEdit::IsNumber(const wxString &value){
     return false;
 }
 
-bool ceEdit::IsValidParam(const wxString &param){
-    // if a valid param?
-    // should be the following type:
-    // keyword type *& name = "defaultValue"
-    // only can have, & * =, in a param list,
-    std::vector<wxString> outputs;
-    ceSplitString(param, outputs, ' ');
-    return true;
-}
-
-
 int ceEdit::HandleClass(int pos, int curStyle){
     if (pos <= 2){
         return curStyle;
@@ -560,44 +554,110 @@ int ceEdit::HandleClass(int pos, int curStyle){
 }
 
 
+bool ceEdit::IsValidParam(int startPos, int stopPos){
+    // if a valid param?
+    // should be the following type:
+    // keyword type *& name = "defaultValue"
+    // only can have, & * =, in a param list,
+    // if (param.empty()){
+    //     return true;
+    // }
+    // std::vector<wxString> outputs;
+    // ceSplitString(param, outputs, ' ');
+    // one keyword + one id,
+    // one type + one id.
+    // two id.
+    if (startPos > stopPos){
+        return false;
+    }
+    if (startPos == stopPos){
+        return true;
+    }
+    wxString param = GetTextRange(startPos, stopPos);
+    int pos = stopPos;
+    int keywordCount = 0;
+    int typeCount = 0;
+    int idCount = 0;
+    while(pos >= startPos){
+        int style = GetStyleAt(pos);
+        if (STYLE_IDENTY == style){
+            idCount++;
+        }
+        else if (STYLE_TYPE == style){
+            typeCount++;
+        }
+        else if (STYLE_KEYWORD1 == style){
+            keywordCount++;
+        }
+        int start = FindStyleStart(style, pos);
+        if (start < startPos){
+            return false;
+        }
+        else{
+            pos = start;
+        }
+        pos--;
+    }
+    if (idCount != 1){
+        return false;
+    }
+    if ((typeCount+keywordCount) == 0){
+        return false;
+    }
+    return true;
+}
+
 int ceEdit::HandleParam(int startPos, int stopPos){
     // param should like:
     // todo:fanhongxuan@gmail.com
     // the text should not include the comments and string, char style.
     wxString text = GetTextRange(startPos, stopPos);
-    std::vector<wxString> params;
-    ceSplitString(text, params, ',');
-    for (int i = 0; i < params.size(); i++){
-        if (!IsValidParam(params[i])){
-            return false;
+    // std::vector<wxString> params;
+    // ceSplitString(text, params, ',');
+    // for (int i = 0; i < params.size(); i++){
+    //     if (!IsValidParam(params[i])){
+    //         return false;
+    //     }
+    // }
+    int pos = stopPos;
+    while(pos >= startPos){
+        char c = GetCharAt(pos);
+        int style = GetStyleAt(pos);
+        if (c == ',' && style == STYLE_OPERATOR){
+            if(!IsValidParam(pos+1, stopPos)){
+                return false;
+            }
         }
+        pos --;
     }
+    
     bool bParam = true;
-    while(stopPos >= startPos){
-        char c = GetCharAt(stopPos);
-        int style = GetStyleAt(stopPos);
+    pos = stopPos;
+    while(pos >= startPos){
+        char c = GetCharAt(pos);
+        int style = GetStyleAt(pos);
         if (style == STYLE_IDENTY){
-            int start = FindStyleStart(STYLE_IDENTY, stopPos);
-            if (start < 0){
+            int start = FindStyleStart(STYLE_IDENTY, pos);
+            if (start <= startPos){
                 break;
             }
             StartStyling(start);
             if (bParam){
-                SetStyling(stopPos+1 - start, STYLE_PARAMETER);
+                SetStyling(pos+1 - start, STYLE_PARAMETER);
                 bParam = false;
             }
             else{
-                SetStyling(stopPos+1 - start, STYLE_TYPE);
+                SetStyling(pos+1 - start, STYLE_TYPE);
                 // bParam = true;
             }
-            stopPos = start;
+            pos = start;
             continue;
             // find the next ','
         }
         else if (c == ',' && style == STYLE_OPERATOR){
             bParam = true;
         }
-        stopPos--;
+        pos--;
     }
     return true;
 }
