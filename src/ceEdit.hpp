@@ -3,7 +3,9 @@
 
 #include <wx/stc/stc.h>
 #include <set>
+#include <map>
 
+class ceSymbol;    
 class wxAutoCompProvider;
 class ceEdit: public wxStyledTextCtrl
 {
@@ -61,18 +63,36 @@ protected:
     int ParseCharInDefault(char c, int curStyle, long pos);
     bool ParseWord(int pos);
     int GetFoldLevelDelta(int line);
+        int HandleFunctionStart(int pos, int curStyle);
     bool HandleFolder(long pos);
     void UpdateLineNumberMargin();
+    wxFontInfo GetFontByStyle(int style, int type);
     wxColor GetColourByStyle(int style, int type);
     wxString GuessLanguage(const wxString &language);
-    bool GetMatchRange(long &start, long &stop, char sc, char ec);
+    bool GetMatchRange(long pos, long &start, long &stop, char sc, char ec);
     void DoBraceMatch();
     bool LoadAutoComProvider(const wxString &filename);
     bool IsValidChar(char ch, const wxString &validCharList = wxEmptyString);
     bool GetCandidate(const wxString &input, std::set<wxString> &candidates);
+    wxString WhichFunction(int pos);
+    bool ClearLoalSymbol();
+    bool BuildLocalSymbl();
+    int HandleClass(int pos, int curStyle);
+    int HandleParam(int startPos, int stopPos);
+    bool IsValidParam(const wxString &param);
+    bool IsFunctionDeclare(int pos);
+    bool IsFunctionDefination(int pos);
+    wxString FindType(const wxString &value, int line = -1, int pos = -1);
     std::vector<wxAutoCompProvider *> mAllProviders;
     
 private:
+    std::map<wxString, std::set<ceSymbol *>* > mSymbolMap;
+        
+    std::set<ceSymbol *> mLocalSymbolMap;    
+    std::set<wxString> mLocalTypes;
+    std::map<wxString, std::pair<int, int> > mFunctionRangeMap;
+        std::map<wxString, int> mLocalVariable; // key is the name, second is the start pos
+        std::map<wxString, int> mFunctionParames; // key is the name, seconds is the start pos
     wxString mFilename;
     wxString mDefaultName;
     wxString mLanguage;

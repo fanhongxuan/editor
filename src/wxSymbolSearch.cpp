@@ -33,12 +33,12 @@ const wxString &getFullTypeName(const wxString &input, const wxString &language)
         theCMaps['m'] = "Member";
         theCMaps['n'] = "Namespace";
         theCMaps['p'] = "Prototype";
-        theCMaps['s'] = "struct";
-        theCMaps['t'] = "typedef";
-        theCMaps['u'] = "union";
-        theCMaps['v'] = "variable";
+        theCMaps['s'] = "Struct";
+        theCMaps['t'] = "Typedef";
+        theCMaps['u'] = "Union";
+        theCMaps['v'] = "Variable";
         theCMaps['x'] = "Externvar";
-        theCMaps['z'] = "parameter";
+        theCMaps['z'] = "Parameter";
     }
     if (theJavaMaps.size() == 0){
     }

@@ -43,11 +43,13 @@ public:
     bool UpdateSymbolByDir(const wxString &dir);
     bool UpdateSymbolByFile(const wxString &filename);
     
+    static bool GetFileSymbol(const wxString &file, std::set<ceSymbol*> &symbols);
+        
     void SetRootDir(const wxString &rootdir){mRootDir = rootdir;}
     wxString GetRootDir() const{return mRootDir;}
 private:
     wxString GetSymbolDbName(const wxString &source_filename);
-    ceSymbol *ParseLine(const wxString &line, const wxString &name, const wxString &type, std::set<wxString> &files);
+    static ceSymbol *ParseLine(const wxString &line, const wxString &name, const wxString &type, std::set<wxString> &files);
 private:
     wxString mRootDir;
     // note:fanhongxuan@gmail.com

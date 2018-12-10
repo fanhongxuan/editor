@@ -29,36 +29,37 @@ wxString ceSymbolDb::GetSymbolDbName(const wxString &source_filename){
     static wxString rootdir;
     if (rootdir.empty()){
         rootdir = ceGetExecPath();
-        rootdir += "/symboldb/";
+        rootdir += "/symboldb/tags";
     }
-    // replace all the / \\ to - and add root dir
-    wxString ret;
-    wxString volume, path, filename, ext;
-    wxFileName::SplitPath(source_filename, &volume, &path, &filename, &ext);
-    ext = ext.Lower();
-    if (ext != "cpp" && ext != "hpp" &&
-        ext != "c" && ext != "h" &&
-        ext != "cxx" && ext != "hxx"){
-        // wxPrintf("Unknown ext:%s\n", ext);
-        return "";
-    }
-    int i = 0;
-    ret = volume;
-    if (!ret.empty()){
-        ret += ".";
-    }
-    ret += path; 
-    ret += "."; ret += filename; 
-    ret += "."; ret += ext;
-    for (i = 0; i < ret.size(); i++){
-        char c = ret[i];
-        if (c == '/' || c == '\\'){
-            ret[i] = '.';
-        }
-    }
-    ret = rootdir + ret;
-    ret += ".symbol";
-    return ret;
+    // // replace all the / \\ to - and add root dir
+    // wxString ret;
+    // wxString volume, path, filename, ext;
+    // wxFileName::SplitPath(source_filename, &volume, &path, &filename, &ext);
+    // ext = ext.Lower();
+    // if (ext != "cpp" && ext != "hpp" &&
+    //     ext != "c" && ext != "h" &&
+    //     ext != "cxx" && ext != "hxx"){
+    //     // wxPrintf("Unknown ext:%s\n", ext);
+    //     return "";
+    // }
+    // int i = 0;
+    // ret = volume;
+    // if (!ret.empty()){
+    //     ret += ".";
+    // }
+    // ret += path; 
+    // ret += "."; ret += filename; 
+    // ret += "."; ret += ext;
+    // for (i = 0; i < ret.size(); i++){
+    //     char c = ret[i];
+    //     if (c == '/' || c == '\\'){
+    //         ret[i] = '.';
+    //     }
+    // }
+    // ret = rootdir + ret;
+    // ret += ".symbol";
+    // return ret;
+    return rootdir;
 }
 
 bool ceSymbolDb::UpdateSymbol(const std::set<wxString> &dirs){
@@ -71,13 +72,26 @@ bool ceSymbolDb::UpdateSymbol(const std::set<wxString> &dirs){
 }
 
 bool ceSymbolDb::UpdateSymbolByDir(const wxString &dir){
-    std::vector<wxString> files;
-    ceFindFiles(dir, files);
-    std::vector<wxString>::const_iterator it = files.begin();
-    while(it != files.end()){
-        UpdateSymbolByFile(*it);
-        it++;
+    static wxString ctags_exec;
+    if (ctags_exec.empty()){
+        ctags_exec = ceGetExecPath();
+        ctags_exec += "/ext/ctags -n --kinds-C++=+p -f  ";
     }
+    wxString name = GetSymbolDbName(dir);
+    if (name.empty()){
+        return false;
+    }
+    wxString cmd = ctags_exec + name + " -R " + dir;
+    std::vector<wxString> outputs;
+    // fixme: current not used.
+    ceSyncExec(cmd, outputs);
+    // std::vector<wxString> files;
+    // ceFindFiles(dir, files);
+    // std::vector<wxString>::const_iterator it = files.begin();
+    // while(it != files.end()){
+    //     UpdateSymbolByFile(*it);
+    //     it++;
+    // }
     return true;
 }
 
@@ -85,7 +99,7 @@ bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename){
     static wxString ctags_exec;
     if (ctags_exec.empty()){
         ctags_exec = ceGetExecPath();
-        ctags_exec += "/ext/ctags -n --kinds-C++=+p -f  ";
+        ctags_exec += "/ext/ctags -n --kinds-C++=+p -a -f  ";
     }
     wxString name = GetSymbolDbName(filename);
     if (name.empty()){
@@ -139,8 +153,28 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols, const wxString &name, con
     ceSyncExec(cmd, outputs);
     for (int i = 0; i < outputs.size();i++){
         ceSymbol *pSymbol = ParseLine(outputs[i], name, type, files);
+        // fixme:fanhongxuan@gmail.com
+        // if user change a anonymous enum define, it maybe generte two define.
+        // so we check if it's duplicate here.
+        // if name, filename, line is same, skip it.
         if (NULL != pSymbol){
-            symbols.insert(pSymbol);
+            std::set<ceSymbol*>::iterator it = symbols.begin();
+            while(it != symbols.end()){
+                if ((*it)->name == pSymbol->name &&
+                    (*it)->file == pSymbol->file &&
+                    (*it)->line == pSymbol->line &&
+                    (*it)->symbolType == pSymbol->symbolType &&
+                    (*it)->type == pSymbol->type){
+                    break;
+                }
+                it++;
+            }
+            if (it != symbols.end()){
+                delete pSymbol;
+            }
+            else{
+                symbols.insert(pSymbol);
+            }
         }
     }
     return true;
@@ -168,7 +202,7 @@ ceSymbol *ceSymbolDb::ParseLine(const wxString &line, const wxString &name, cons
     // wxPrintf("Line:%s\n", line);
     // wxPrintf("type:%s\n", type);
     wxString symbol = outputs[0]; // symbol name
-    if (name != symbol){
+    if ((!name.empty()) && name != symbol){
         return NULL;
     }
     wxString file;
@@ -205,7 +239,16 @@ ceSymbol *ceSymbolDb::ParseLine(const wxString &line, const wxString &name, cons
     //     return NULL;
     // }
     ceSymbol *pRet = new ceSymbol;
-    pRet->type = getFullTypeName(outputs[0], "C++");
+    pRet->symbolType = outputs[0];
+    wxString strTypeName = "typename:";
+    pos = value.find(strTypeName);
+    if (pos != value.npos){
+        pRet->type = value.substr(pos + strTypeName.length());
+        // int stopType = value.find("file:", pos + strTypeName.length());
+        // if (stopType != value.npos){
+        //     pRet->type = value.substr(pos + strTypeName.length(), stopType);
+        // }
+    }
     pRet->name = symbol;
     pRet->file = file;
     pRet->line = iLineNumber;
@@ -216,4 +259,81 @@ ceSymbol *ceSymbolDb::ParseLine(const wxString &line, const wxString &name, cons
     }
     pRet->desc = desc;
     return pRet;
+}
+
+static ceSymbol *ParseSymbolLine(const wxString &line, const wxString &file){
+    int pos = line.find_last_of('"');
+    if (pos == line.npos){
+        wxPrintf("No \" found\n");
+        return NULL;
+    }
+    wxString ret, value = line.substr(0, pos);
+    std::vector<wxString> outputs;
+    ceSplitString(value, outputs, '\t', false);
+    if (outputs.size() < 3){
+        wxPrintf("Invalid outputs size():%ld<%s>\n", outputs.size(), value);
+        return NULL;
+    }
+    wxString symbol = outputs[0]; // symbol name
+    wxString lineNumber = outputs[outputs.size() - 1]; // last is linenumber
+    lineNumber = lineNumber.substr(0, lineNumber.size() - 1); // remove the last ';'
+    long iLineNumber = 0;
+    lineNumber.ToLong(&iLineNumber);
+    if (iLineNumber > 0){
+        iLineNumber--;
+    }
+    
+    outputs.clear();
+    value = line.substr(pos+1);
+    ceSplitString(value, outputs, '\t', false);
+    if (outputs.size() < 1){
+        wxPrintf("Invalid outputs size()%ld<%s><%s>\n", outputs.size(), line, value);
+        return NULL;
+    }
+    ceSymbol *pRet = new ceSymbol;
+    pRet->symbolType = outputs[0];
+    wxString strTypeName = "typename:";
+    pos = value.find(strTypeName);
+    if (pos != value.npos){
+        pRet->type = value.substr(pos + strTypeName.length());
+        // int stopType = value.find("file:", pos + strTypeName.length());
+        // if (stopType != value.npos){
+        //     pRet->type = value.substr(pos + strTypeName.length(), stopType);
+        // }
+    }
+    pRet->name = symbol;
+    pRet->file = file;
+    pRet->line = iLineNumber;
+    wxString desc = ceGetLine(file, iLineNumber);
+    pos = desc.find_first_not_of("\r\n\t ");
+    if (pos != desc.npos){
+        desc = desc.substr(pos);
+    }
+    pRet->desc = desc;
+    return pRet;
+}
+
+bool ceSymbolDb::GetFileSymbol(const wxString &filename, std::set<ceSymbol*> &symbols){
+    static wxString ctags_exec;
+    if (ctags_exec.empty()){
+        ctags_exec = ceGetExecPath();
+        ctags_exec += "/ext/ctags -n --kinds-C++=+p+z+l -f - ";
+    }
+    if (filename.empty()){
+        return false;
+    }
+    wxString cmd = ctags_exec + filename;
+    std::vector<wxString> outputs;
+    std::set<wxString> files; // empty files
+    // fixme: current not used.
+    ceSyncExec(cmd, outputs);
+    int i = 0;
+    wxPrintf("%s has %ld line output\n", filename, outputs.size());
+    for (i = 0; i < outputs.size(); i++ ){
+        ceSymbol *pRet = ParseSymbolLine(outputs[i], filename);
+        if (NULL != pRet){
+            symbols.insert(pRet);
+        }
+    }
+    return true;
 }
