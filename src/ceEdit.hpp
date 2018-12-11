@@ -53,7 +53,7 @@ protected:
     void OnEndBrace(int currentLine);
     void InsertPair(int currentLine, char c = '{');
     int CalcLineIndentByFoldLevel(int line, int level);
-    
+        wxString GetPrevValue(int stopPos, int style, int *pStop = NULL);
     bool IsInPreproces(int stopPos);
     bool IsKeyWord1(const wxString &value, const wxString &language);
     bool IsKeyWord2(const wxString &value, const wxString &language);

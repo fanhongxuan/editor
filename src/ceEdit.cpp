@@ -428,6 +428,37 @@ int ceEdit::FindStyleStart(int style, int curPos, bool bSkipNewline){
     return pos;
 }
 
+// note:fanhongxuan@gmail.com
+// we check from the stopPos;
+// skip comments and whitespace.
+// if first meet other style, return empty;
+wxString ceEdit::GetPrevValue(int stopPos, int style, int *pStop)
+{
+    if (IsCommentOrWhiteSpace(0, style)){
+        // the target style is comments, return,
+        // this should be a error;
+        wxPrintf("Bug:GetPrevValue set a comments style as input, please check the code!!!\n");
+        return "";
+    }
+    int start = stopPos;
+    while(start > 0){
+        char c = GetCharAt(start);
+        int sty = GetStyleAt(start);
+        if (!IsCommentOrWhiteSpace(c, sty)){
+            if (sty != style){
+                return "";
+            }
+            int vStart = FindStyleStart(style, start);
+            if (vStart >= 0){
+                return GetTextRange(vStart, start+1);
+            }
+            return "";
+        }
+        start--;
+    }
+    return "";
+}
+
 bool ceEdit::IsInPreproces(int stopPos)
 {
     int pos = stopPos;
@@ -1154,6 +1185,15 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                     prev--;
                     // break;
                 }
+                else if (c == ':' && style == STYLE_OPERATOR){
+                    // todo:fanhongxuan@gmail.com
+                    // public: function xxxx;
+                    int stop = 0;
+                    wxString value = GetPrevValue(prev-1, STYLE_KEYWORD1, &stop);
+                    if (value == "public" || value == "protected" || value == "private"){
+                        break;
+                    }
+                }
                 else if (c == '~'){
                     // destructor a class, don't need a return type.
                     bNeedReturn = false;
@@ -1191,7 +1231,17 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
             else if (c == ';' && style == STYLE_NORMAL){
                 break;
             }
-            else if ((c == ')'|| c == '{' || c == '(') && style == STYLE_FOLDER){
+            else if ( c == '{' && style == STYLE_FOLDER){
+                if (bNeedReturn){
+                    if (!hasReturnValue){
+                        return curStyle;
+                    }
+                }
+                else{
+                    break;
+                }
+            }
+            else if ((c == ')'|| c == '(') && style == STYLE_FOLDER){
                 return curStyle; // no ; find, not a function
             }
             prev--;
@@ -1400,30 +1450,38 @@ bool ceEdit::ParseWord(int pos){
     // if this identy is started with a class,
     // this is a class define.
     {
-        int start = startPos - 1;
-        while(start > 0){
-            char c = GetCharAt(start);
-            int style = GetStyleAt(start);
-            if (!IsCommentOrWhiteSpace(c, style)){
-                if (style == STYLE_KEYWORD1){
-                    int keyStart = FindStyleStart(STYLE_KEYWORD1, start);
-                    if (keyStart >= 0){
-                        wxString key = GetTextRange(keyStart, start+1);
-                        if (key == "class" || key == "struct"){
-                            StartStyling(startPos);
-                            SetStyling(pos+1 - startPos, STYLE_TYPE);
-                            mLocalTypes.insert(text);
-                            return true;
-                        }
-                    }
-                }
-                break;
-            }
-            // else{
-            //     break;
-            // }
-            start--;
+        wxString prevValue = GetPrevValue(startPos-1, STYLE_KEYWORD1);
+        if (prevValue == "class" || prevValue == "struct" || 
+            prevValue == "protected" || prevValue == "private" || prevValue == "public"){
+            StartStyling(startPos);
+            SetStyling(pos+1 - startPos, STYLE_TYPE);
+            mLocalTypes.insert(text);
+            return true;
         }
+        // int start = startPos - 1;
+        // while(start > 0){
+        //     char c = GetCharAt(start);
+        //     int style = GetStyleAt(start);
+        //     if (!IsCommentOrWhiteSpace(c, style)){
+        //         if (style == STYLE_KEYWORD1){
+        //             int keyStart = FindStyleStart(STYLE_KEYWORD1, start);
+        //             if (keyStart >= 0){
+        //                 wxString key = GetTextRange(keyStart, start+1);
+        //                 if (key == "class" || key == "struct"){
+        //                     StartStyling(startPos);
+        //                     SetStyling(pos+1 - startPos, STYLE_TYPE);
+        //                     mLocalTypes.insert(text);
+        //                     return true;
+        //                 }
+        //             }
+        //         }
+        //         break;
+        //     }
+        //     // else{
+        //     //     break;
+        //     // }
+        //     start--;
+        // }
     }
     
     std::set<wxString>::iterator tIt = mLocalTypes.find(text);
@@ -1690,6 +1748,10 @@ int ceEdit::ParseChar( int curStyle,long pos)
     
     // todo:fanhongxuan@gmail.com
     // support \ to expand the preprocessor to multiple line
+    // preprocess -> meet < switch to preprocess_system
+    // preprocess -> meet " swtich to preprocess_local
+    // other string following by preprocess is marked as preprocess,
+    // and will be skipped when process
     switch (curStyle){
     case STYLE_PREPROCESS:
         if (c == '\r' || c== '\n' || c == '\t' || c == ' '){
