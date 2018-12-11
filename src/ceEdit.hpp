@@ -66,7 +66,7 @@ protected:
     int GetFoldLevelDelta(int line);
     int HandleFunctionStart(int pos, int curStyle);
     int HandleFunctionBody(int pos, int curStyle);
-    int HandleLocalVariable(int pos, int curStyle);
+    int HandleVariable(int pos, int curStyle);
     bool HandleFolder(long pos);
     void UpdateLineNumberMargin();
     wxFontInfo GetFontByStyle(int style, int type);
@@ -84,6 +84,7 @@ protected:
     int HandleClass(int pos, int curStyle);
     int HandleParam(int startPos, int stopPos);
     bool IsValidParam(int startPos, int stopPos);
+    bool IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *pStart = NULL, int *pLen = NULL);    
     bool IsFunctionDeclare(int pos);
     bool IsFunctionDefination(int pos);
     wxString FindType(const wxString &value, int line = -1, int pos = -1);
