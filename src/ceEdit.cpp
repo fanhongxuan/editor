@@ -238,10 +238,10 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mForegrounds[STYLE_ERROR] = wxColor("BLACK");
         mBackgrounds[STYLE_ERROR] = wxColor("RED");
         
-        mForegrounds[STYLE_PARAMETER] = wxColor("purple");
+        mForegrounds[STYLE_PARAMETER] = wxColor("violet");
         mBackgrounds[STYLE_PARAMETER] = *wxBLACK;
         
-        mForegrounds[STYLE_VARIABLE] = wxColor("GREEN");
+        mForegrounds[STYLE_VARIABLE] = wxColor("purple");
         mBackgrounds[STYLE_VARIABLE] = *wxBLACK;
         
         
@@ -528,9 +528,9 @@ bool ceEdit::IsKeyWord2(const wxString &value, const wxString &language){
         // c/c++: id start with __ is mark as keyword 2
         return true;
     }
-    if (value == "size_t" && ((language == "C") || language == "C++")){
-        return true;
-    }
+    // if (value == "size_t" && ((language == "C") || language == "C++")){
+    //     return true;
+    // }
     if (value.size() >=2 && value[0] == '@' && language == "JAVA"){
         // java: id start with @ is mark as keyword 2
         return true;
@@ -561,7 +561,7 @@ bool ceEdit::IsNumber(const wxString &value){
     if (value.ToLongLong(&llValue)){
         return true;
     }
-    wxPrintf("IsNotNumber:<%s>, mark as error\n", value);
+    // wxPrintf("IsNotNumber:<%s>, mark as error\n", value);
     return false;
 }
 
@@ -610,9 +610,11 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
     int identyCount = 0;
     int typeCount = 0;
     int keywordCount = 0;
+    int iColonCount = 0;
     int variableStart = -1;
     int variableStop = -1;
     std::set< std::pair<int, int> > localTypes;
+	wxString variable = GetTextRange(startPos, stopPos+1);
     while(stop > start){
         char c = GetCharAt(stop);
         int style = GetStyleAt(stop);
@@ -639,23 +641,40 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
                 localTypes.insert(std::pair<int, int>(stop, iTypeStop+1));
             }
         }
+        else if (c == ')' && style == STYLE_FOLDER){
+            // skip the content in between
+            stop = BraceMatch(stop);
+        }
         else if (style == STYLE_TYPE){
             typeCount++;
             stop = FindStyleStart(style, stop);
         }
         else if (style == STYLE_KEYWORD1){
             keywordCount++;
+            int keywordStop = stop+1;
             stop = FindStyleStart(style, stop);
+            wxString text = GetTextRange(stop, keywordStop);
+            if (text == "return"){
+                return false;
+            }
         }
         else if (style == STYLE_OPERATOR){
             // only can has *, &, <>, :, ","
             // "," is for:
             // std::map<int, int> map;
-            if (c != '*' && c != '&' && c != '<' && c != '>' && c != ':' && c != ','){
+            if (c == ':' && stop > 1 && GetCharAt(stop-1) == ':' && GetStyleAt(stop-1) == STYLE_OPERATOR){
+                // :: in variable name;
+                stop--;
+            }
+            else if (c != '*' && c != '&' && c != '<' && c != '>' && c != ','){
                 return false;
             }
         }
         stop--;
+    }
+    
+    if (iColonCount == 1){
+        return false;
     }
     
     if (variableStart < 0 || variableStop < 0){
@@ -671,7 +690,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
     std::set< std::pair<int, int> >::iterator it = localTypes.begin();
     while(it != localTypes.end()){
         wxString text = GetTextRange((*it).first, (*it).second);
-        wxPrintf("Mark %s as type\n", text);
+        // wxPrintf("Mark %s as type\n", text);
         StartStyling((*it).first);
         SetStyling((*it).second - (*it).first, STYLE_TYPE);
         it++;
@@ -698,6 +717,8 @@ int ceEdit::HandleVariable(int pos, int curStyle){
     // int b, d;
     // int a = (b, d);
     // int b,
+    // class test;
+    // test t(100);
     // struct value = {0, 1, {can be a big expresss}, };
     // handle variable when input ,
     // input =
@@ -719,10 +740,65 @@ int ceEdit::HandleVariable(int pos, int curStyle){
     std::vector<std::pair<int, int> > validVariables;
     int startPos = pos - 1;
     int stopPos = pos - 1;
-    bool needEqual = false;
     bool hasEqual = false;
+    bool beforeEqual = false;
     bool hasIde = false;
     int prevStop = stopPos;
+    int iParentheses = false;
+    
+    // check if the express has a equal.
+    while(startPos > 0){
+        c = GetCharAt(startPos);
+        style = GetStyleAt(startPos);
+        if (style != STYLE_COMMENTS && style != STYLE_CSTYLE_COMMENTS || style != STYLE_COMMENT_KEY){
+            hasIde = true;
+        }
+        if (c == ';' && style == STYLE_NORMAL){
+            break;
+        }
+        else if (c == '=' && style == STYLE_OPERATOR){
+            hasEqual = true;
+            break;
+        }
+        else if (c == '}' && style == STYLE_FOLDER){
+            if (hasIde){
+                break;
+            }   
+            // this is the init value of a array variable.
+            startPos = BraceMatch(startPos);
+            // the previously value must be a =, othersize, is not a variable define.
+            while(startPos > 0){
+                if (c == '=' && style == STYLE_OPERATOR){
+                    break;
+                }
+                else if (IsCommentOrWhiteSpace(c, style)){       
+                }
+                else{
+                    // not a variable
+                    return curStyle;
+                }
+                startPos--;
+            }
+            stopPos = startPos - 1;
+        }
+        else if (c == ')' && style == STYLE_FOLDER){
+            startPos = BraceMatch(startPos);
+            if (startPos <= 0){
+                return curStyle;
+            }
+            stopPos = startPos;
+        }
+        else if (c == '{' && STYLE_FOLDER == style){
+            break;
+        }
+        else if (c == '(' && STYLE_FOLDER == style){
+            return curStyle;
+        }
+        startPos--;
+    }
+    
+    hasIde = false;
+    startPos = pos - 1;
     while (startPos > 0){
         c = GetCharAt(startPos);
         style = GetStyleAt(startPos);
@@ -734,50 +810,53 @@ int ceEdit::HandleVariable(int pos, int curStyle){
         }
         else if (style == STYLE_KEYWORD1){
             int start = FindStyleStart(style, startPos);
-            wxString text = GetTextRange(start, startPos+1);
-            if (text == "return" || text == "break" || text == "continue"){
-                return curStyle;
-            }
             startPos = start;
         }
         else if (c == '=' && style == STYLE_OPERATOR){
-            hasEqual = true;
+            beforeEqual = true;
             // todo:fanhongxuan@gmail.com
             // need to support variable define like:
             // int a = 0, b = 0, c = 0;
+            // we don't check the status after '='
             prevStop = startPos - 1;
         }
         else if (c == '>' && style == STYLE_OPERATOR){
+            // if this is after the =, skip this,
+            // if this is before the =, it must be pair,
+            // and we skip the content between <>
             // maybe a template define like:
             // std::map<int, int> map;
-            int start = startPos - 1;
-            bool bFind = false;
-            int count = 0;
-            while(start > 0){
-                c = GetCharAt(start);
-                style = GetStyleAt(start);
-                if (c == '>' && style == STYLE_OPERATOR){
-                    count++;
-                }
-                else if (c == '<' && style == STYLE_OPERATOR){
-                    if (count == 0){
-                        bFind = true;
-                        break;
+            if (beforeEqual || (!hasEqual)){
+                int start = startPos - 1;
+                bool bFind = false;
+                int count = 0;
+                while(start > 0){
+                    c = GetCharAt(start);
+                    style = GetStyleAt(start);
+                    if (c == '>' && style == STYLE_OPERATOR){
+                        count++;
                     }
-                    else{
-                        count--;
+                    else if (c == '<' && style == STYLE_OPERATOR){
+                        if (count == 0){
+                            bFind = true;
+                            break;
+                        }
+                        else{
+                            count--;
+                        }
                     }
+                    start--;
                 }
-                start--;
-            }
-            if (hasEqual){
                 if (!bFind){
-                return curStyle;
+                    return curStyle;
                 }
                 startPos = start;
             }
+            else{
+            }
         }
         else if (c == ',' && style == STYLE_OPERATOR){
+            beforeEqual = false;
             variables.push_back(std::pair<int, int>(startPos, prevStop));
             prevStop = startPos - 1;
         }
@@ -787,7 +866,6 @@ int ceEdit::HandleVariable(int pos, int curStyle){
             }
             
             // this is the init value of a array variable.
-            
             startPos = BraceMatch(startPos);
             // the previously value must be a =, othersize, is not a variable define.
             while(startPos > 0){
@@ -816,7 +894,10 @@ int ceEdit::HandleVariable(int pos, int curStyle){
             if (startPos <= 0){
                 break;
             }
-            needEqual = true;
+            iParentheses++;
+            // if this is the param list of a constructor function call
+            // if this is the init value,
+            // needEqual = true;
             stopPos = startPos;
         }
         startPos--;
@@ -824,9 +905,11 @@ int ceEdit::HandleVariable(int pos, int curStyle){
 	if (startPos < 0){
 		startPos = 0;
 	}
-    if (needEqual && (!hasEqual)){
+    
+    if (iParentheses > 1){
         return curStyle;
     }
+    
     if (startPos >= stopPos){
         return curStyle;
     }
@@ -842,9 +925,19 @@ int ceEdit::HandleVariable(int pos, int curStyle){
     }
     for (int i = 0; i < validVariables.size(); i++){
         wxString text = GetTextRange(validVariables[i].first, validVariables[i].first + validVariables[i].second);
-        wxPrintf("Mark <%s> as variable\n", text);
+        // wxPrintf("Mark <%s> as variable\n", text);
         StartStyling(validVariables[i].first);
         SetStyling(validVariables[i].second, STYLE_VARIABLE);
+        // std::map<wxString, int>::iterator it = mLocalVariable.find(text);
+        mLocalVariable[text] = pos;
+    }
+    return true;
+}
+
+bool ceEdit::IsVariableValid(const wxString &variable, int pos){
+    std::map<wxString, int>::iterator it = mLocalVariable.find(variable);
+    if (it == mLocalVariable.end()){
+        return false;
     }
     return true;
 }
@@ -892,29 +985,18 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
     }
     // todo:fanhongxuan@gmail.com
     // normally we need to skip the comments
-    // later change GetTextRange to skip the comments.
-    wxString param = GetTextRange(startPos, stopPos);
+    // later change GetTextRange to skip the comments and whitespace
+    wxString param; //GetTextRange(startPos, stopPos);
     
     pos = stopPos;
     int keywordCount = 0;
     int typeCount = 0;
     int idCount = 0;
     int iCount = 0;
+    int operatorCount = 0;
     while(pos >= startPos){
         int style = GetStyleAt(pos);
-        if (STYLE_IDENTY == style){
-            idCount++;
-        }
-        else if (STYLE_PARAMETER == style){
-            idCount++;
-        }
-        else if (STYLE_TYPE == style){
-            typeCount++;
-        }
-        else if (STYLE_KEYWORD1 == style){
-            keywordCount++;
-        }
-        else if (STYLE_OPERATOR == style){
+        if (STYLE_OPERATOR == style){
             int start = FindStyleStart(style, pos);
             if (start < startPos){
                 // wxPrintf("<%s> is not a valid param3\n", param);
@@ -927,9 +1009,27 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
                 // wxPrintf("Invalid operator:<%s>, param:<%s>\n", oper, param);
                 return false;
             }
+            operatorCount++;
             if (GetCharAt(pos) == ':'){
                 pos--; // skip the previously ":"
             }
+        }
+        else if (style == STYLE_NUMBER){
+            // the init value is not handled by IsValidVariable
+            // if meet a number, mean this is not a valid function define variable.
+            return false;
+        }
+        else if (STYLE_IDENTY == style){
+            idCount++;
+        }
+        else if (STYLE_PARAMETER == style){
+            idCount++;
+        }
+        else if (STYLE_TYPE == style){
+            typeCount++;
+        }
+        else if (STYLE_KEYWORD1 == style){
+            keywordCount++;
         }
         if (style == STYLE_IDENTY || style == STYLE_TYPE || style == STYLE_KEYWORD1){
             int start = FindStyleStart(style, pos);
@@ -938,10 +1038,19 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
                 return false;
             }
             else{
+                param = GetTextRange(start, pos+1);
                 pos = start;
             }
         }
         pos--;
+    }
+    if ((typeCount + keywordCount + idCount + operatorCount) == 0){
+        // empty param
+        return true;
+    }
+    if (keywordCount == 1 && param == "void"){
+        // single void is a valid param.
+        return true;
     }
     if (idCount < 1){
         // wxPrintf("<%s> is not a valid param1\n", param);
@@ -963,9 +1072,23 @@ int ceEdit::PrepareFunctionParams(int pos){
     if (func.empty()){
         return 0;
     }
+    
     if (start != 0 && start != stop){
+        while (pos > start){
+            char c = GetCharAt(pos);
+            int style = GetStyleAt(pos);
+            if (style == STYLE_VARIABLE){
+                int variableStart = FindStyleStart(style, pos);
+                if (variableStart > 0 && variableStart != pos){
+                    wxString variable = GetTextRange(variableStart, pos+1);
+                    mLocalVariable[variable] = pos;
+                }
+            }
+            pos--;
+        }
         stop = start;
         while(start > 0){
+			char c = GetCharAt(start);
             int style = GetStyleAt(start);
             if (style == STYLE_PARAMETER){
                 int paramStart = FindStyleStart(STYLE_PARAMETER, start);
@@ -976,13 +1099,13 @@ int ceEdit::PrepareFunctionParams(int pos){
                 }
                 start = paramStart - 1;
             }
+            
             else if (style == STYLE_FUNCTION){
                 break;
             }
             start--;
         }
     }
-    
     // wxPrintf("We are in function<%s>\n", func);
     return 0;
 }
@@ -1014,6 +1137,7 @@ int ceEdit::HandleParam(int startPos, int stopPos){
     
     // clear the function param map, first.
     mFunctionParames.clear();
+    mLocalVariable.clear();
     // wxPrintf("Clear function params\n");
     
     bool bParam = true;
@@ -1093,6 +1217,7 @@ int ceEdit::HandleFunctionBody(int pos, int curStyle){
             if(start == mFunctionParames.begin()->second){
                 // wxPrintf("clear function param on function end\n");
                 mFunctionParames.clear();
+                mLocalVariable.clear();
             }
         }
     }
@@ -1186,13 +1311,14 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                     // break;
                 }
                 else if (c == ':' && style == STYLE_OPERATOR){
-                    // todo:fanhongxuan@gmail.com
-                    // public: function xxxx;
-                    int stop = 0;
-                    wxString value = GetPrevValue(prev-1, STYLE_KEYWORD1, &stop);
-                    if (value == "public" || value == "protected" || value == "private"){
+                    // note:fanhongxuan@gmail.com
+                    // single : before the function name will always break the function name.
+                    /*int stop = 0;
+                        wxString value = GetPrevValue(prev-1, STYLE_KEYWORD1, &stop);
+                    if (value == "public" || value == "protected" || value == "private" || value == "default"){
                         break;
-                    }
+                    }*/
+                    break;
                 }
                 else if (c == '~'){
                     // destructor a class, don't need a return type.
@@ -1222,6 +1348,12 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                 hasReturnValue = true;
             }
             else if (style == STYLE_KEYWORD1){
+                int keyStart = FindStyleStart(style, prev);
+                wxString text = GetTextRange(keyStart, prev+1);
+                // wxPrintf("keyword in return is:<%s>\n", text);
+                if (text == "return"){
+                    return curStyle;
+                }
                 hasReturnValue = true;
                 break;
             }
@@ -1297,8 +1429,11 @@ wxString ceEdit::WhichFunction(int pos, long *pStart, long *pStop){
         if (c == ';' && style == STYLE_OPERATOR){
             break;
         }
-        if (c == '}' && style == STYLE_OPERATOR){
+        else if (c == '}' && style == STYLE_FOLDER){
             break;
+        }
+        else if (c == '{' && style == STYLE_FOLDER){
+            startPos = nameStart;
         }
         if (style == STYLE_FUNCTION){
             isFunction = true;
@@ -1315,7 +1450,7 @@ wxString ceEdit::WhichFunction(int pos, long *pStart, long *pStop){
     nameStart = FindStyleStart(STYLE_FUNCTION, nameStop);
     if (NULL != pStop && NULL != pStart){
         *pStart = startPos;
-        *pStop = stopPos;
+        *pStop = BraceMatch(startPos);
     }
     return GetTextRange(nameStart, nameStop);
 }
@@ -1458,36 +1593,17 @@ bool ceEdit::ParseWord(int pos){
             mLocalTypes.insert(text);
             return true;
         }
-        // int start = startPos - 1;
-        // while(start > 0){
-        //     char c = GetCharAt(start);
-        //     int style = GetStyleAt(start);
-        //     if (!IsCommentOrWhiteSpace(c, style)){
-        //         if (style == STYLE_KEYWORD1){
-        //             int keyStart = FindStyleStart(STYLE_KEYWORD1, start);
-        //             if (keyStart >= 0){
-        //                 wxString key = GetTextRange(keyStart, start+1);
-        //                 if (key == "class" || key == "struct"){
-        //                     StartStyling(startPos);
-        //                     SetStyling(pos+1 - startPos, STYLE_TYPE);
-        //                     mLocalTypes.insert(text);
-        //                     return true;
-        //                 }
-        //             }
-        //         }
-        //         break;
-        //     }
-        //     // else{
-        //     //     break;
-        //     // }
-        //     start--;
-        // }
     }
     
     std::set<wxString>::iterator tIt = mLocalTypes.find(text);
     if (tIt != mLocalTypes.end()){
         StartStyling(startPos);
         SetStyling(pos+1 - startPos, STYLE_TYPE);
+        return true;
+    }
+    if (IsVariableValid(text, pos)){
+        StartStyling(startPos);
+        SetStyling(pos+1 - startPos, STYLE_VARIABLE);
         return true;
     }
     

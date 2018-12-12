@@ -53,7 +53,7 @@ protected:
     void OnEndBrace(int currentLine);
     void InsertPair(int currentLine, char c = '{');
     int CalcLineIndentByFoldLevel(int line, int level);
-        wxString GetPrevValue(int stopPos, int style, int *pStop = NULL);
+    wxString GetPrevValue(int stopPos, int style, int *pStop = NULL);
     bool IsInPreproces(int stopPos);
     bool IsKeyWord1(const wxString &value, const wxString &language);
     bool IsKeyWord2(const wxString &value, const wxString &language);
@@ -89,13 +89,16 @@ protected:
     bool IsFunctionDefination(int pos);
     wxString FindType(const wxString &value, int line = -1, int pos = -1);
     std::vector<wxAutoCompProvider *> mAllProviders;
-    
+        bool IsVariableValid(const wxString &variable, int pos);
+        
 private:
     std::map<wxString, std::set<ceSymbol *>* > mSymbolMap;
     std::set<ceSymbol *> mLocalSymbolMap;    
     std::set<wxString> mLocalTypes;
         std::map<wxString, int> mLocalVariable; // key is the name, second is the start pos
         std::map<wxString, int> mFunctionParames; // key is the name, seconds is the start pos
+        // std::map<int, wxString> mVariables; // key is the pos, becase multi variable may have the same, name.
+        std::map<wxString, std::vector<int> > mVariables; // 
     wxString mFilename;
     wxString mDefaultName;
     wxString mLanguage;
