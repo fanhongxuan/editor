@@ -85,9 +85,6 @@ ceEdit::ceEdit(wxWindow *parent)
     mLinenuMargin = 0;
     mDeviderMargin = 1;
     mFoldingMargin = 2;
-    
-    SetLexer(wxSTC_LEX_CONTAINER);
-    // SetLexer(wxSTC_LEX_CPP);
 }
 
 wxString ceEdit::GetFilename(){
@@ -402,7 +399,12 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetWrapMode(wxSTC_WRAP_WORD);
     
     mLanguage = GuessLanguage(filename);
-    
+    if (mLanguage != "JAVA"  && mLanguage != "C++" && mLanguage != "C" && mLanguage != "BP"){
+        SetLexer(wxSTC_LEX_NULL);
+    }
+    else{
+        SetLexer(wxSTC_LEX_CONTAINER);
+    }
     // about autocomp
     LoadAutoComProvider(mLanguage);
     AutoCompSetMaxWidth(50);
@@ -2196,6 +2198,11 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
     if (CallTipActive()){
         CallTipCancel();
     }
+ 
+    if (GetLexer() != wxSTC_LEX_CONTAINER){
+        event.Skip();
+        return;
+    }
     
     if (WXK_RETURN == event.GetKeyCode()){
         if (AutoCompActive()){
@@ -2403,7 +2410,9 @@ void ceEdit::MoveCharBeforeRightParentheses(int currentLine){
     if (pos <= 0){
         return;
     }
-    
+    if (GetLexer() != wxSTC_LEX_CONTAINER){
+        return;
+    }
     // wxString line = GetLineText(currentLine);
     
     int offset = 0;
@@ -2476,6 +2485,9 @@ void ceEdit::InsertPair(int currentLine, char c)
 {
     int pos = GetCurrentPos();
     int style = GetStyleAt(pos);
+    if (GetLexer() != wxSTC_LEX_CONTAINER){
+        return;
+    }
     if (style == STYLE_COMMENTS || style == STYLE_CSTYLE_COMMENTS && c == '\''){
         // skip ' in comments
         return;
@@ -2965,6 +2977,9 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
         char chr = (char)event.GetKey();
         int currentLine = GetCurrentLine();
         // Change this if support for mac files with \r is needed
+        if (GetLexer() != wxSTC_LEX_CONTAINER){
+            return;
+        }
         if (chr == '\n' || chr == '\r'){
             AutoIndentWithNewline(currentLine);
         }

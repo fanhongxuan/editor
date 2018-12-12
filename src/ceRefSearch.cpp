@@ -97,9 +97,12 @@ bool ceRefSearch::StartSearch(const wxString &input, const wxString &fullInput)
             ceSyncExec(cmd, outputs);
             for (int i = 0; i < outputs.size(); i++){
                 count++;
-                ParseLine(outputs[i], (*it));
+                wxSearchFileResult *pRet = ParseLine(outputs[i], (*it));
+                if (NULL != pRet){
+                    AddSearchResult(pRet);
+                }
             }
-            if (count == 0){
+            if (1){
                 // in this case try -s (other symbol, which mean don't find the defination.
                 cmd = buildGlobalCmd(fullInput, (*it), "-s");
                 outputs.clear();
