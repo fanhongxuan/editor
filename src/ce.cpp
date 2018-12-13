@@ -230,10 +230,29 @@ void MyFrame::UpdateWorkDirs(ceEdit *pActiveEdit, bool showWorkSpace, bool showE
     }
 }
 
-void MyFrame::ShowStatus(const wxString &status)
+void MyFrame::ShowStatus(const wxString &status, int index)
 {
+    // use a stack to show more status.
+    // max has 10 status.
+    if (index > 10){
+        return;
+    }
+    else if (mStatus.size() <= index){
+        mStatus.resize(index+1);
+    }
+    
+    mStatus[index] = status;
     if (NULL != mpCmd){
-        mpCmd->SetValue(status);
+        wxString value;
+        for (int i = 0; i < mStatus.size(); i++){
+            if (!mStatus[i].empty()){
+                if (!value.empty()){
+                    value.Append("\t");
+                }
+                value.Append(mStatus[i]);
+            }
+        }
+        mpCmd->SetValue(value);
     }
 }
 

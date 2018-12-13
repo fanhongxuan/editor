@@ -199,11 +199,11 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mBackgrounds[STYLE_MACRO] = *wxBLACK;
         
         
-        mForegrounds[STYLE_OPERATOR] = wxColor("BLUE");
-        mBackgrounds[STYLE_OPERATOR] = *wxBLACK;
+        // mForegrounds[STYLE_OPERATOR] = wxColor("BLUE");
+        // mBackgrounds[STYLE_OPERATOR] = *wxBLACK;
         
-        mForegrounds[STYLE_FOLDER] = wxColor("RED");
-        mBackgrounds[STYLE_FOLDER] = *wxBLACK;
+        // mForegrounds[STYLE_FOLDER] = wxColor("RED");
+        // mBackgrounds[STYLE_FOLDER] = *wxBLACK;
         
         
         mForegrounds[STYLE_NUMBER] = wxColor("YELLOW");
@@ -1033,7 +1033,7 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
         else if (STYLE_KEYWORD1 == style){
             keywordCount++;
         }
-        if (style == STYLE_IDENTY || style == STYLE_TYPE || style == STYLE_KEYWORD1){
+        if (style == STYLE_IDENTY || style == STYLE_TYPE || style == STYLE_KEYWORD1 || style == STYLE_PARAMETER){
             int start = FindStyleStart(style, pos);
             if (start < startPos){
                 // // wxPrintf("<%s> is not a valid param2\n", param);
@@ -1435,7 +1435,7 @@ wxString ceEdit::WhichFunction(int pos, long *pStart, long *pStop){
             break;
         }
         else if (c == '{' && style == STYLE_FOLDER){
-            startPos = nameStart;
+            startPos = nameStart-1;
         }
         if (style == STYLE_FUNCTION){
             isFunction = true;
@@ -2153,11 +2153,16 @@ void ceEdit::OnSize( wxSizeEvent& event ) {
 void ceEdit::OnUpdateUI(wxStyledTextEvent &evt){
     wxString func = WhichFunction(GetCurrentPos());
     if (NULL != wxGetApp().frame()){
+        long x, y;
+        PositionToXY(GetCurrentPos(), &x, &y);
+        wxString value = wxString::Format("Line:%ld(%ld)", y+1,x+1);
+        wxGetApp().frame()->ShowStatus(value, 0);
+        
         if (!func.empty()){
-            wxGetApp().frame()->ShowStatus(wxString::Format(wxT("CurrentFunction:[%s]"), func));
+            wxGetApp().frame()->ShowStatus(wxString::Format(wxT("CurrentFunction:[%s]"), func), 5);
         }
         else{
-            wxGetApp().frame()->ShowStatus("");
+            wxGetApp().frame()->ShowStatus("", 5);
         }
     }
 }
@@ -2198,7 +2203,7 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
     if (CallTipActive()){
         CallTipCancel();
     }
- 
+    
     if (GetLexer() != wxSTC_LEX_CONTAINER){
         event.Skip();
         return;
@@ -2231,6 +2236,7 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
     }
     
     if ('R' == event.GetKeyCode() && event.ControlDown()){
+        SetAdditionalSelectionTyping(true);
         StartReplaceInRegion();
         return;
     }
@@ -2242,10 +2248,11 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
         }
         if (mbReplace){
             mbReplace = false;
+            SetAdditionalSelectionTyping(true);
             SetSelForeground(true, *wxBLACK);
             SetSelBackground(true, *wxWHITE);
             if (NULL != wxGetApp().frame()){
-                wxGetApp().frame()->ShowStatus("");
+                wxGetApp().frame()->ShowStatus("", 1);
             }
         }
     }
@@ -2308,10 +2315,11 @@ void ceEdit::OnMouseLeftDown(wxMouseEvent &evt)
     if (mbReplace){
         mbReplace = false;
         SetSelection(pos, pos);
+        SetAdditionalSelectionTyping(true);
         SetSelBackground(true, *wxWHITE);
         SetSelForeground(true, *wxBLACK);
         if (NULL != wxGetApp().frame()){
-            wxGetApp().frame()->ShowStatus("");
+            wxGetApp().frame()->ShowStatus("", 1);
         }
     }
     evt.Skip();
@@ -2326,8 +2334,9 @@ void ceEdit::OnMouseLeftUp(wxMouseEvent &evt)
 
 void ceEdit::OnMouseLeftDclick(wxMouseEvent &evt){
     // first select the key;
-    // StartReplaceInRegion();
-    evt.Skip();
+    SetAdditionalSelectionTyping(false);
+    StartReplaceInRegion();
+    //evt.Skip();
 }
 
 void ceEdit::OnMouseWheel(wxMouseEvent &evt)
@@ -2686,7 +2695,8 @@ bool ceEdit::StartReplaceInRegion(){
         SetSelection(start, stop);
     }
     
-    wxString text = GetSelectedText();
+    // wxString text = GetSelectedText();
+    wxString text= GetTextRange(start, stop);
     if (text.empty()){
         return false;
     }
@@ -2696,8 +2706,46 @@ bool ceEdit::StartReplaceInRegion(){
     if (lowText != text){
         flag |= wxSTC_FIND_MATCHCASE;
     }
-    
-    GetMatchRange(GetCurrentPos(), startPos, stopPos, '{', '}');
+    int style = GetStyleAt(start);
+    if (style == STYLE_PARAMETER){
+        WhichFunction(start, &startPos, &stopPos);
+        if (startPos == 0 && stopPos == 0){
+            // we are in the param list of the function.
+            // goto next to include the function body.
+            startPos = start;
+            long last = GetLastPosition();
+            while(startPos < last){
+                if (GetCharAt(startPos) == '{' && GetStyleAt(startPos) == STYLE_FOLDER){
+                    stopPos = BraceMatch(startPos);
+                    break;
+                }
+                startPos++;
+            }
+            startPos = start;
+        }
+        else{
+            // we are in the body of the function. go ahead to include the function param list.
+            while(startPos > 0){
+                if (GetStyleAt(startPos) == STYLE_FUNCTION){
+                    break;
+                }
+                startPos--;
+            }
+        }
+    }
+    else if (style == STYLE_VARIABLE){
+        WhichFunction(start, &startPos, &stopPos);
+        if (startPos == 0 && stopPos == 0){
+            GetMatchRange(GetCurrentPos(), startPos, stopPos, '{', '}');
+        }
+    }
+    else{
+        GetMatchRange(GetCurrentPos(), startPos, stopPos, '{', '}');
+    }
+    long sx, sy, ex, ey;
+    PositionToXY(startPos, &sx, &sy);
+    PositionToXY(stopPos, &ex, &ey);
+    wxPrintf("Replace in:%ld:%ld<-->%ld:%ld(%ld<->%ld)\n", sy+1, sx+1, ey+1, ex+1, startPos, stopPos);
     SetSelForeground(false, wxColour("BLUE"));
     SetSelBackground(true, wxColour("BLUE"));
     
@@ -2715,7 +2763,7 @@ bool ceEdit::StartReplaceInRegion(){
     }
     AddSelection(start, stop);
     if (NULL != wxGetApp().frame()){
-        wxGetApp().frame()->ShowStatus(wxString::Format(wxT(" %d match(s) for '%s'"), count, text));
+        wxGetApp().frame()->ShowStatus(wxString::Format(wxT(" %d match(s) for '%s'"), count, text), 1);
     }
     return true;
 }

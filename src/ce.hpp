@@ -77,7 +77,7 @@ public:
     wxAuiDockArt* GetDockArt();
     bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs);
     bool FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename);
-    void ShowStatus(const wxString &status);
+    void ShowStatus(const wxString &status, int index = 0);
     void SetActiveEdit(ceEdit *pEdit);
     void DoUpdate();
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
@@ -134,6 +134,7 @@ private:
     wxArrayString m_perspectives;
     wxMenu* m_perspectives_menu;
     wxTextCtrl *mpCmd;
+        std::vector<wxString> mStatus;
     wxDECLARE_EVENT_TABLE();
 };
 

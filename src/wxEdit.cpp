@@ -454,7 +454,7 @@ void Edit::OnKeyDown (wxKeyEvent &event)
             SetSelForeground(true, *wxBLACK);
             SetSelBackground(true, *wxWHITE);
             if (NULL != wxGetApp().frame()){
-                wxGetApp().frame()->ShowStatus("");
+                wxGetApp().frame()->ShowStatus("", 1);
             }
         }
     }
@@ -505,7 +505,7 @@ void Edit::OnMouseLeftDown(wxMouseEvent &evt)
         SetSelBackground(true, *wxWHITE);
         SetSelForeground(true, *wxBLACK);
         if (NULL != wxGetApp().frame()){
-            wxGetApp().frame()->ShowStatus("");
+            wxGetApp().frame()->ShowStatus("", 1);
         }
     }
     evt.Skip();
@@ -1373,7 +1373,7 @@ bool Edit::StartReplaceInRegion(){
     }
     AddSelection(start, stop);
     if (NULL != wxGetApp().frame()){
-        wxGetApp().frame()->ShowStatus(wxString::Format(wxT(" %d match(s) for '%s'"), count, text));
+        wxGetApp().frame()->ShowStatus(wxString::Format(wxT(" %d match(s) for '%s'"), count, text), 1);
     }
     return true;
 }
