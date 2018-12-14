@@ -134,7 +134,7 @@ private:
     wxArrayString m_perspectives;
     wxMenu* m_perspectives_menu;
     wxTextCtrl *mpCmd;
-        std::vector<wxString> mStatus;
+    std::vector<wxString> mStatus;
     wxDECLARE_EVENT_TABLE();
 };
 

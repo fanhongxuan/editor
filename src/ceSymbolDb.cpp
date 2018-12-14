@@ -3,6 +3,11 @@
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include "ceSymbolDb.hpp"
 #include "ceInclude.hpp"
+#include "ceRocksDb.hpp"
+// note:fanhongxuan@gmail.com
+// store all the content to a rocks db
+// key is the filename:
+// value is the ctags outputs.
 
 bool ceSymbol::IsSame(const ceSymbol &other){
     // todo:fanhongxuan@gmail.com
@@ -72,47 +77,89 @@ bool ceSymbolDb::UpdateSymbol(const std::set<wxString> &dirs){
 }
 
 bool ceSymbolDb::UpdateSymbolByDir(const wxString &dir){
-    static wxString ctags_exec;
-    if (ctags_exec.empty()){
-        ctags_exec = ceGetExecPath();
-        ctags_exec += "/ext/ctags -n --kinds-C++=+p -f  ";
-    }
-    wxString name = GetSymbolDbName(dir);
-    if (name.empty()){
-        return false;
-    }
-    wxString cmd = ctags_exec + name + " -R " + dir;
-    std::vector<wxString> outputs;
-    // fixme: current not used.
-    ceSyncExec(cmd, outputs);
-    // std::vector<wxString> files;
-    // ceFindFiles(dir, files);
-    // std::vector<wxString>::const_iterator it = files.begin();
-    // while(it != files.end()){
-    //     UpdateSymbolByFile(*it);
-    //     it++;
+    // static wxString ctags_exec;
+    // if (ctags_exec.empty()){
+    //     ctags_exec = ceGetExecPath();
+    //     ctags_exec += "/ext/ctags -n --kinds-C++=+p -f  ";
     // }
+    // wxString name = GetSymbolDbName(dir);
+    // if (name.empty()){
+    //     return false;
+    // }
+    // wxString cmd = ctags_exec + name + " -R " + dir;
+    // std::vector<wxString> outputs;
+    // // fixme: current not used.
+    // ceSyncExec(cmd, outputs);
+    std::vector<wxString> files;
+    ceFindFiles(dir, files);
+    std::vector<wxString>::const_iterator it = files.begin();
+    while(it != files.end()){
+        UpdateSymbolByFile(*it);
+        it++;
+    }
     return true;
+}
+
+bool ceSymbolDb::UpdateRecord(const wxString &line){
+    // a symbol record <id, name, filename, line, returntype, signature, access, > 
+    // key is:
+    // type,(d,e,f,m,N,etc) <-- use a table to get the full name
+    // classname::symbolname, (if have namespace, need include the namespace here)
+    
+    // the ctag output is like:
+    // later we need to change the ctags direclty output the data to a database.
+    // FindDef	src/ceRefSearch.cpp	136;"	f	class:ceRefSearch	typeref:typename:bool	signature:(const wxString & symbol,std::vector<wxSearchFileResult * > & results)
+    // 
+    
+    // value is :
+    // filename,
+    // line,
+    // signature
+    // access,
+    
+    // use case:
+    // known class name, find all the member function,
+    // known class name, find all the member function,
+    // know function name, find the signature, and return type.
+    // find all the global function name,
+    // find all the global variable name,
 }
 
 bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename){
     static wxString ctags_exec;
     if (ctags_exec.empty()){
         ctags_exec = ceGetExecPath();
-        ctags_exec += "/ext/ctags -n --kinds-C++=+p -a -f  ";
+        ctags_exec += "/ext/ctags -n --kinds-C++=+p --fields=+a+i+m+S+R+E -f - ";
     }
-    wxString name = GetSymbolDbName(filename);
-    if (name.empty()){
-        return false;
-    }
-    wxString cmd = ctags_exec + name + " " + filename;
+    
+    // todo:fanhongxuan@gmail.com
+    // delete all the record of this file.
+    // wxString name = GetSymbolDbName(filename);
+    // if (name.empty()){
+    //     return false;
+    // }
+    wxString cmd = ctags_exec + " " + filename;
     std::vector<wxString> outputs;
     // fixme: current not used.
     ceSyncExec(cmd, outputs);
+    wxString value;
+    for (int i = 0; i < outputs.size();i++){
+        UpdateRecord(outputs[i]);
+        // ceRocksDb::Instance().WriteValue();
+    }
+    
+    // store the output to db.
+    ceRocksDb::Instance().WriteValue(filename, value);
     return true;
 }
 
 bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename){
+    
+    // fixme:fanhongxuan@gmail.com
+    // test code begin
+    wxPrintf("Call ceRocksDb::Dump\n");
+    ceRocksDb::Instance().Dump("", "");
+    // test code end
     static wxString ag_exec;
     if (ag_exec.empty()){
         ag_exec = ceGetExecPath();
@@ -179,7 +226,6 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols, const wxString &name, con
     }
     return true;
 }
-
 
 extern const wxString &getFullTypeName(const wxString &input, const wxString &language);
 ceSymbol *ceSymbolDb::ParseLine(const wxString &line, const wxString &name, const wxString &type, std::set<wxString> &files){

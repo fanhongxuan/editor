@@ -95,10 +95,10 @@ private:
     std::map<wxString, std::set<ceSymbol *>* > mSymbolMap;
     std::set<ceSymbol *> mLocalSymbolMap;    
     std::set<wxString> mLocalTypes;
-        std::map<wxString, int> mLocalVariable; // key is the name, second is the start pos
-        std::map<wxString, int> mFunctionParames; // key is the name, seconds is the start pos
-        // std::map<int, wxString> mVariables; // key is the pos, becase multi variable may have the same, name.
-        std::map<wxString, std::vector<int> > mVariables; // 
+    std::map<wxString, int> mLocalVariable; // key is the name, second is the start pos
+    std::map<wxString, int> mFunctionParames; // key is the name, seconds is the start pos
+    // std::map<int, wxString> mVariables; // key is the pos, becase multi variable may have the same, name.
+    std::map<wxString, std::vector<int> > mVariables; // 
     wxString mFilename;
     wxString mDefaultName;
     wxString mLanguage;

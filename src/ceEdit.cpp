@@ -267,7 +267,7 @@ wxString ceEdit::GuessLanguage(const wxString &filename){
     if (ext == "c" || ext == "h"){
         return "C";
     }
-    else if (ext == "cpp" || ext == "hpp" ||
+    else if (ext == "cpp" || ext == "hpp" || ext == "cc" ||
         ext == "cxx" || ext == "hxx"){
         return "C++";
     }
@@ -645,6 +645,8 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
         }
         else if (c == ')' && style == STYLE_FOLDER){
             // skip the content in between
+            // todo:fanhongxuan@gmail.com
+            // if the value between () is a function param list, this is a function defile.
             stop = BraceMatch(stop);
         }
         else if (style == STYLE_TYPE){
@@ -666,6 +668,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             // std::map<int, int> map;
             if (c == ':' && stop > 1 && GetCharAt(stop-1) == ':' && GetStyleAt(stop-1) == STYLE_OPERATOR){
                 // :: in variable name;
+                identyCount--;
                 stop--;
             }
             else if (c != '*' && c != '&' && c != '<' && c != '>' && c != ','){
@@ -813,6 +816,13 @@ int ceEdit::HandleVariable(int pos, int curStyle){
         else if (style == STYLE_KEYWORD1){
             int start = FindStyleStart(style, startPos);
             startPos = start;
+        }
+        else if (style == STYLE_OPERATOR && c == ':' && startPos > 1 && 
+            GetStyleAt(startPos - 1) == STYLE_OPERATOR && GetCharAt(startPos -1) == ':'){
+            startPos--;
+        }
+        else if (style == STYLE_OPERATOR && c == ':'){
+            break;
         }
         else if (c == '=' && style == STYLE_OPERATOR){
             beforeEqual = true;
