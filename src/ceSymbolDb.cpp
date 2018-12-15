@@ -3,11 +3,16 @@
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include "ceSymbolDb.hpp"
 #include "ceInclude.hpp"
-#include "ceRocksDb.hpp"
+extern "C"{
+#include "dbop.h"
+}
+// #include "ceRocksDb.hpp"
 // note:fanhongxuan@gmail.com
 // store all the content to a rocks db
 // key is the filename:
 // value is the ctags outputs.
+
+extern const wxString &getFullTypeName(const wxString &input, const wxString &language);
 
 bool ceSymbol::IsSame(const ceSymbol &other){
     // todo:fanhongxuan@gmail.com
@@ -34,12 +39,12 @@ wxString ceSymbolDb::GetSymbolDbName(const wxString &source_filename){
     static wxString rootdir;
     if (rootdir.empty()){
         rootdir = ceGetExecPath();
-        rootdir += "/symboldb/tags";
+        rootdir += "/symboldb/";
     }
-    // // replace all the / \\ to - and add root dir
-    // wxString ret;
-    // wxString volume, path, filename, ext;
-    // wxFileName::SplitPath(source_filename, &volume, &path, &filename, &ext);
+    // replace all the / \\ to - and add root dir
+    wxString ret;
+    wxString volume, path, filename, ext;
+    wxFileName::SplitPath(source_filename, &volume, &path, &filename, &ext);
     // ext = ext.Lower();
     // if (ext != "cpp" && ext != "hpp" &&
     //     ext != "c" && ext != "h" &&
@@ -47,24 +52,24 @@ wxString ceSymbolDb::GetSymbolDbName(const wxString &source_filename){
     //     // wxPrintf("Unknown ext:%s\n", ext);
     //     return "";
     // }
-    // int i = 0;
-    // ret = volume;
-    // if (!ret.empty()){
-    //     ret += ".";
-    // }
-    // ret += path; 
+    int i = 0;
+    ret = volume;
+    if (!ret.empty()){
+        ret += ".";
+    }
+    ret += path; 
     // ret += "."; ret += filename; 
     // ret += "."; ret += ext;
-    // for (i = 0; i < ret.size(); i++){
-    //     char c = ret[i];
-    //     if (c == '/' || c == '\\'){
-    //         ret[i] = '.';
-    //     }
-    // }
-    // ret = rootdir + ret;
+    for (i = 0; i < ret.size(); i++){
+        char c = ret[i];
+        if (c == '/' || c == '\\'){
+            ret[i] = '.';
+        }
+    }
+    ret = rootdir + ret;
     // ret += ".symbol";
-    // return ret;
-    return rootdir;
+    return ret;
+//     return rootdir;
 }
 
 bool ceSymbolDb::UpdateSymbol(const std::set<wxString> &dirs){
@@ -77,52 +82,27 @@ bool ceSymbolDb::UpdateSymbol(const std::set<wxString> &dirs){
 }
 
 bool ceSymbolDb::UpdateSymbolByDir(const wxString &dir){
-    // static wxString ctags_exec;
-    // if (ctags_exec.empty()){
-    //     ctags_exec = ceGetExecPath();
-    //     ctags_exec += "/ext/ctags -n --kinds-C++=+p -f  ";
-    // }
-    // wxString name = GetSymbolDbName(dir);
-    // if (name.empty()){
-    //     return false;
-    // }
-    // wxString cmd = ctags_exec + name + " -R " + dir;
-    // std::vector<wxString> outputs;
-    // // fixme: current not used.
-    // ceSyncExec(cmd, outputs);
-    std::vector<wxString> files;
-    ceFindFiles(dir, files);
-    std::vector<wxString>::const_iterator it = files.begin();
-    while(it != files.end()){
-        UpdateSymbolByFile(*it);
-        it++;
+    static wxString ctags_exec;
+    if (ctags_exec.empty()){
+        ctags_exec = ceGetExecPath();
+        ctags_exec += "/ext/ctags -n --output-format=rocksdb --kinds-C++=+p --fields=+a+i+m+S+R+E -f  ";
     }
+    wxString name = GetSymbolDbName(dir+"/symbol");
+    if (name.empty()){
+        return false;
+    }
+    wxString cmd = ctags_exec + name + " -R " + dir;
+    std::vector<wxString> outputs;
+    // fixme: current not used.
+    ceSyncExec(cmd, outputs);
+    // std::vector<wxString> files;
+    // ceFindFiles(dir, files);
+    // std::vector<wxString>::const_iterator it = files.begin();
+    // while(it != files.end()){
+    //     UpdateSymbolByFile(*it);
+    //     it++;
+    // }
     return true;
-}
-
-bool ceSymbolDb::UpdateRecord(const wxString &line){
-    // a symbol record <id, name, filename, line, returntype, signature, access, > 
-    // key is:
-    // type,(d,e,f,m,N,etc) <-- use a table to get the full name
-    // classname::symbolname, (if have namespace, need include the namespace here)
-    
-    // the ctag output is like:
-    // later we need to change the ctags direclty output the data to a database.
-    // FindDef	src/ceRefSearch.cpp	136;"	f	class:ceRefSearch	typeref:typename:bool	signature:(const wxString & symbol,std::vector<wxSearchFileResult * > & results)
-    // 
-    
-    // value is :
-    // filename,
-    // line,
-    // signature
-    // access,
-    
-    // use case:
-    // known class name, find all the member function,
-    // known class name, find all the member function,
-    // know function name, find the signature, and return type.
-    // find all the global function name,
-    // find all the global variable name,
 }
 
 bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename){
@@ -141,93 +121,163 @@ bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename){
     wxString cmd = ctags_exec + " " + filename;
     std::vector<wxString> outputs;
     // fixme: current not used.
-    ceSyncExec(cmd, outputs);
-    wxString value;
-    for (int i = 0; i < outputs.size();i++){
-        UpdateRecord(outputs[i]);
-        // ceRocksDb::Instance().WriteValue();
-    }
+    // ceSyncExec(cmd, outputs);
+    // wxString value;
+    // for (int i = 0; i < outputs.size();i++){
+    //     UpdateRecord(outputs[i]);
+    //     // ceRocksDb::Instance().WriteValue();
+    // }
     
     // store the output to db.
-    ceRocksDb::Instance().WriteValue(filename, value);
+    // ceRocksDb::Instance().WriteValue(filename, value);
     return true;
 }
 
-bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename){
-    
-    // fixme:fanhongxuan@gmail.com
-    // test code begin
-    wxPrintf("Call ceRocksDb::Dump\n");
-    ceRocksDb::Instance().Dump("", "");
-    // test code end
-    static wxString ag_exec;
-    if (ag_exec.empty()){
-        ag_exec = ceGetExecPath();
-        ag_exec += "/ext/ag -s -w --ackmate --hidden --nonumbers ";
+enum{
+    VALUE_INDEX_FILE = 0,
+    VALUE_INDEX_LINE_NUMBER,
+    VALUE_INDEX_LINE_END,
+    VALUE_INDEX_LANGUAGE,
+    VALUE_INDEX_ACCESS,
+    VALUE_INDEX_INHERIT,
+    VALUE_INDEX_TYPE_REF,
+    VALUE_INDEX_PARAM,
+    VALUE_INDEX_MAX
+};
+
+static bool GetInherit(std::vector<wxString> &outputs, const wxString &className, DBOP *pDb){
+    if (NULL == pDb){
+        return false;
     }
-    wxString cmd = ag_exec;
-    // if (!filename.empty()){
-    //     wxString symboldb = GetSymbolDbName(filename);
-    //     if (symboldb.empty()){
-    //         return false;
-    //     }
-    //     cmd += name;
-    //     cmd += " ";
-    //     cmd += symboldb;
-    // }
-    // else
-    {
-        cmd += name;
-        cmd += " ";
-        cmd += ceGetExecPath();
-        cmd += "/symboldb/";
+    if (className.empty()){
+        return false;
     }
-    
-    // todo:fanhongxuan@gmail.com
-    // speed is two slow, current not used.
-    std::set<wxString> files;
-    if (!filename.empty()){
-        // ceInclude::Instance().GetIncludeFiles(files, filename);
-        // std::set<wxString>::iterator it = files.begin();
-        // wxPrintf("FileName:%s\n", filename);
-        // while(it != files.end()){
-        //     wxPrintf("include:%s\n", *it);
-        //     it++;
-        // }
+    wxString key = "c//" + className;
+    wxString value = dbop_get(pDb, key);
+    // wxPrintf("GetInherit:<%s>-<%s>\n", key, value);
+    std::vector<wxString> values;
+    ceSplitString(value, values, '\'');
+    if (values.size() < VALUE_INDEX_MAX){
+        return false;
     }
-    
-    std::vector<wxString> outputs;
-    ceSyncExec(cmd, outputs);
-    for (int i = 0; i < outputs.size();i++){
-        ceSymbol *pSymbol = ParseLine(outputs[i], name, type, files);
-        // fixme:fanhongxuan@gmail.com
-        // if user change a anonymous enum define, it maybe generte two define.
-        // so we check if it's duplicate here.
-        // if name, filename, line is same, skip it.
-        if (NULL != pSymbol){
-            std::set<ceSymbol*>::iterator it = symbols.begin();
-            while(it != symbols.end()){
-                if ((*it)->name == pSymbol->name &&
-                    (*it)->file == pSymbol->file &&
-                    (*it)->line == pSymbol->line &&
-                    (*it)->symbolType == pSymbol->symbolType &&
-                    (*it)->type == pSymbol->type){
-                    break;
-                }
-                it++;
-            }
-            if (it != symbols.end()){
-                delete pSymbol;
-            }
-            else{
-                symbols.insert(pSymbol);
-            }
+    value = values[VALUE_INDEX_INHERIT];
+    if ((!value.empty()) && value != "-" && value != "(null)"){
+        std::vector<wxString> base;
+        ceSplitString(value, base, ',');
+        for (int i = 0; i < base.size(); i++){
+            // wxPrintf("Add base <%s>\n", base[i]);
+            outputs.push_back(base[i]);
+            GetInherit(outputs, base[i], pDb);
         }
     }
     return true;
 }
 
-extern const wxString &getFullTypeName(const wxString &input, const wxString &language);
+static bool GetDbValue(std::set<ceSymbol*> &symbols, 
+    const wxString &type, 
+    const wxString &className, 
+    const wxString &name,
+    DBOP *pDb){
+    wxString key = type + "/";
+    key += className + "/";
+    key += name;
+    wxString value = dbop_get(pDb, static_cast<const char *>(key));
+    wxPrintf("Key:<%s>,value:<%s>\n", key, value);
+    if (!value.empty()){
+        std::vector<wxString> sym;
+        ceSplitString(value, sym, '\'');
+        ceSymbol *pRet = new ceSymbol;
+        pRet->symbolType = getFullTypeName(type, sym[VALUE_INDEX_LANGUAGE]); 
+        if (sym[VALUE_INDEX_TYPE_REF] != "-"){
+            pRet->type = sym[VALUE_INDEX_TYPE_REF];
+            if (pRet->type.find("typename:") != pRet->type.npos){
+                pRet->type = pRet->type.substr(strlen("typename:"));
+            }
+        }
+        pRet->name = name;
+        pRet->scope = className;
+        pRet->lineNumber = sym[VALUE_INDEX_LINE_NUMBER];
+        pRet->lineEnd = sym[VALUE_INDEX_LINE_END];
+        pRet->access = sym[VALUE_INDEX_ACCESS];
+        pRet->file = sym[VALUE_INDEX_FILE];
+        pRet->param = sym[VALUE_INDEX_PARAM];
+        if (pRet->access == "public"){
+            pRet->desc = "+";
+        }
+        else if (pRet->access == "private"){
+            pRet->desc = "-";
+        }
+        else if (pRet->access == "protected"){
+            pRet->desc = "*";
+        }
+        pRet->desc += pRet->type;
+        pRet->desc += " ";
+        if (!pRet->scope.empty()){
+            pRet->desc += pRet->scope;
+            pRet->desc += "::";
+        }
+        pRet->desc += name;
+        if (pRet->param != "-"){
+            pRet->desc += pRet->param;
+        }
+        symbols.insert(pRet);
+        // wxPrintf("key:<%s>,value:<%s>\n", keys[i], value);
+    }
+    return true;
+}
+
+bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
+    const wxString &name, 
+    const wxString &className,
+    const wxString &type,
+    const wxString &filename,
+    const wxString &dir){
+    wxString db = GetSymbolDbName(dir + "/symbol");
+    db += ".db";
+    DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, 0);
+    if (NULL == pDb){
+        wxPrintf("Failed to open %s\n", db);
+        return false;
+    }
+    if (type.empty() && className.empty()){
+        // try all global value first.
+        // type and class is all empty
+        GetDbValue(symbols, "d", "" , name, pDb);
+        GetDbValue(symbols, "f", "" , name, pDb);
+        GetDbValue(symbols, "e", "" , name, pDb);
+    }
+    else if (className.empty()){
+        for (int i = 0; i < type.size(); i++){
+            GetDbValue(symbols, type[i], "", name, pDb);
+        }
+    }
+    else if (type.empty()){
+        std::vector<wxString> classNames;
+        classNames.push_back(className);
+        classNames.push_back("");
+        GetInherit(classNames, className, pDb);
+        for (int i = 0; i < classNames.size(); i++){
+            GetDbValue(symbols, "m", classNames[i], name, pDb);
+            GetDbValue(symbols, "f", classNames[i], name, pDb);
+            GetDbValue(symbols, "p", classNames[i], name, pDb);
+        }
+    }
+    else{
+        std::vector<wxString> classNames;
+        classNames.push_back(className);
+        classNames.push_back("");
+        GetInherit(classNames, className, pDb);
+        for (int i = 0; i < classNames.size(); i++){
+            for (int j = 0; j < type.size(); j++){
+                GetDbValue(symbols, type[j], classNames[i], name, pDb);
+            }
+        }
+    }
+    
+    dbop_close(pDb);    
+    return true;
+}
+
 ceSymbol *ceSymbolDb::ParseLine(const wxString &line, const wxString &name, const wxString &type, std::set<wxString> &files){
     int pos = line.find_last_of('"');
     if (pos == line.npos){

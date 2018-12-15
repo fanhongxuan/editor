@@ -17,9 +17,14 @@ public:
     wxString symbolType; // function, class etc, enum,
     wxString type; // for function, this is the return value type, for variable, this is the type.
     wxString name; // text name,
-    wxString desc;
+    wxString desc; // 
     wxString file; // abs filename
     wxString shortFilename; // short filename
+        wxString scope;
+        wxString access;
+        wxString param;
+        wxString lineNumber;
+        wxString lineEnd;
     int line;
 };
 
@@ -37,8 +42,13 @@ public:
     bool GetLocalVariableByFile(std::vector<ceSymbol*> &symbols, const wxString &filename);
     bool GetParamtersByFile(std::set<ceSymbol*> &symbols, const wxString &filename);
     
-    bool FindDef(std::set<ceSymbol *> &symbols, const wxString &name, const wxString &type = "", const wxString &filename = "");
-    
+        bool FindDef(std::set<ceSymbol *> &symbols, 
+            const wxString &name, 
+            const wxString &className = "", 
+            const wxString &type = "", 
+            const wxString &filename = "",
+            const wxString &dir = "");
+        
     bool UpdateSymbol(const std::set<wxString> &dirs);
     bool UpdateSymbolByDir(const wxString &dir);
     bool UpdateSymbolByFile(const wxString &filename);

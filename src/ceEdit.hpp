@@ -40,6 +40,7 @@ public:
     void OnUpdateUI(wxStyledTextEvent &evt);    
         
 protected:
+        wxString GetClassName(int pos);
     bool ShowCallTips();
     bool InsertNewLine(long pos);
     long GetLineStartPosition(long line);

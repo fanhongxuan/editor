@@ -76,7 +76,11 @@ public:
 
     wxAuiDockArt* GetDockArt();
     bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs);
-    bool FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename);
+        bool FindDef(std::set<ceSymbol*> &symbols, 
+            const wxString &name, 
+            const wxString &className = "",
+            const wxString &type = "",
+            const wxString &filename = "");
     void ShowStatus(const wxString &status, int index = 0);
     void SetActiveEdit(ceEdit *pEdit);
     void DoUpdate();

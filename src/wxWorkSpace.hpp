@@ -32,8 +32,12 @@ public:
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
     bool UpdateTagForFile(const wxString &file);
-    bool FindDef(std::set<ceSymbol *> &symbols, const wxString &name, const wxString &type = "", const wxString &filename = "");
-    
+        bool FindDef(std::set<ceSymbol *> &symbols, 
+            const wxString &name,
+            const wxString &className,
+            const wxString &type = "", 
+            const wxString &filename = "");
+            
 private:
     bool GenerateTagFile();
     void GenerateGTagFile(const wxString &dir);

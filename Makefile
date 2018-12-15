@@ -1,6 +1,10 @@
 CC := g++
 wx_inc_dir := import/wxWidgets/include/
 wx_lib_dir := import/wxWidgets/lib/linux
+
+db_inc_dir := import/libdb/include/
+db_lib_idr := import/libdb/lib/linux/
+db_lib_flags := -lgloutil -lglodb
 outdir := build/linux/
 srcdir := src/
 target := $(outdir)ce
@@ -8,10 +12,13 @@ target := $(outdir)ce
 CFLAGS := \
 	-I$(wx_inc_dir) \
 	-I$(wx_lib_dir)/include/ \
+    -I$(db_inc_dir) \
 	-I. -D__WXGTK__ -g
 
 LDFLAGS := \
 	-L$(wx_lib_dir) \
+    -L$(db_lib_idr) \
+    $(db_lib_flags) \
 	-pthread \
 	-lexpat \
 	-lwx_gtk2u-3.1 \

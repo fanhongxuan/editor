@@ -551,18 +551,27 @@ void wxWorkSpace::CreateImageList()
     AssignImageList(images);
 }
 
-bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols, const wxString &name, const wxString &type, const wxString &filename)
+bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols, 
+    const wxString &name, 
+    const wxString &className, 
+    const wxString &type, 
+    const wxString &filename)
 {
     if (NULL == mpSymbolDb){
         mpSymbolDb = new ceSymbolDb;
     }
     
     if (NULL != mpSymbolDb){
-        bool ret = mpSymbolDb->FindDef(symbols, name, type, filename);
+        bool ret = true;
+        std::set<wxString>::const_iterator cit = mDirs.begin();
+        while(cit != mDirs.end()){
+            mpSymbolDb->FindDef(symbols, name, className, type, filename, *cit);
+            cit++;
+        }
         // update the short name
         std::set<ceSymbol *>::iterator it = symbols.begin();
         while(it != symbols.end()){
-            std::set<wxString>::const_iterator cit = mDirs.begin();
+            cit = mDirs.begin();
             ceSymbol *pSymbol = *it;
             while(cit != mDirs.end()){
                 if (pSymbol->file.find(*cit) == 0){

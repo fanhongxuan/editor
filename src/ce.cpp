@@ -423,9 +423,13 @@ void MyFrame::ChangeToBuffer(ceEdit *pEdit, int pos)
     }
 }
 
-bool MyFrame::FindDef(std::set<ceSymbol*> &symbols, const wxString &name, const wxString &type, const wxString &filename){
+bool MyFrame::FindDef(std::set<ceSymbol*> &symbols, 
+    const wxString &name,
+    const wxString &className,
+    const wxString &type,
+    const wxString &filename){
     if (NULL != mpWorkSpace){
-        return mpWorkSpace->FindDef(symbols, name, type, filename);
+        return mpWorkSpace->FindDef(symbols, name, className, type, filename);
     }
     return false;
 }

@@ -1417,6 +1417,34 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
     return curStyle;
 }
 
+wxString ceEdit::GetClassName(int pos){
+    wxString func;
+    int nameStart = pos;
+    int nameStop = pos;
+    bool hasFindClassName = false;
+    while(nameStart > 0){
+        char c = GetCharAt(nameStart-1);
+        int style = GetStyleAt(nameStart-1);
+        if (!IsCommentOrWhiteSpace(c, style)){
+            if (hasFindClassName){
+                if (style == STYLE_IDENTY || style == STYLE_TYPE){
+                    nameStop = FindStyleStart(style, nameStart);
+                    func = GetTextRange(nameStop, nameStart) + "::";
+                }
+                break;
+            }
+            else if ((!hasFindClassName) && c == ':' && style == STYLE_OPERATOR && nameStart > 2 && 
+                GetCharAt(nameStart-2) == ':' && GetStyleAt(nameStart-2) == STYLE_OPERATOR){
+                hasFindClassName = true;
+                nameStart -= 2;
+                continue;
+            }
+            break;
+        }
+        nameStart--;
+    }
+    return func;
+}
 // return the function name of the respond pos;
 // if not in any function, return an empty string.
 wxString ceEdit::WhichFunction(int pos, long *pStart, long *pStop){
@@ -1460,11 +1488,16 @@ wxString ceEdit::WhichFunction(int pos, long *pStart, long *pStop){
     // this is a function, return the real name
     int nameStop = nameStart;
     nameStart = FindStyleStart(STYLE_FUNCTION, nameStop);
+    if (nameStart > 1 && GetCharAt(nameStart-1) == '~' && GetStyleAt(nameStart-1) == STYLE_OPERATOR){
+        // this is the deconstructor.
+        nameStart--;
+    }
     if (NULL != pStop && NULL != pStart){
         *pStart = startPos;
         *pStop = BraceMatch(startPos);
     }
-    return GetTextRange(nameStart, nameStop);
+    
+    return GetClassName(nameStart) +  GetTextRange(nameStart, nameStop);
 }
 
 extern const wxString &getFullTypeName(const wxString &input, const wxString &language);
@@ -2361,6 +2394,7 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
 {
     DoBraceMatch();
     if (WXK_TAB == event.GetKeyCode()){
+        PrepareFunctionParams(GetCurrentPos());
         if (AutoCompActive()){
             AutoCompComplete();
         }
@@ -2573,6 +2607,16 @@ bool ceEdit::HungerBack(){
     return true;
 }
 
+static wxString GetTypeByStyle(int style){
+    if (style == STYLE_IDENTY){
+        return "fpdgem";
+    }
+    if (style == STYLE_FUNCTION){
+        return "fp";
+    }
+    return "";
+}
+
 bool ceEdit::ShowCallTips()
 {
     int start = WordStartPosition(GetCurrentPos(), true);
@@ -2585,31 +2629,35 @@ bool ceEdit::ShowCallTips()
         return false;
     }
     
-    // skip comments, string &keywords, operator,
-    if (GetStyleAt(start) != STYLE_IDENTY){
+    // skip comments, string &keywords, operator
+    wxString type = GetTypeByStyle(GetStyleAt(start));
+    if (type.empty()){
         return false;
     }
     wxString line = GetLineText(GetCurrentLine());
     long x = 0;
     PositionToXY(start, &x, NULL);
     
-    // std::vector<wxSearchFileResult *>outputs;
-    // wxGetApp().frame()->FindDef(value, outputs);
-    // value = "";
-    // for (int i = 0; i < outputs.size();i++){
-    //     if (!(outputs[i]->Target() == GetFilename() && (GetCurrentLine()+1) == outputs[i]->GetLine())){
-    //         // skip ourself
-    //         if (!value.empty()){
-    //             value += "\n";
-    //         }
-    //         value += outputs[i]->Content();
-    //     }
-    //     delete outputs[i];
-    //     outputs[i] = NULL;
-    // }
-    wxString type;
+    wxString className;
+    if (GetStyleAt(start) == STYLE_FUNCTION){
+        if (start > 1 && GetCharAt(start-1) == '~' && GetStyleAt(start-1) == STYLE_OPERATOR){
+            value = "~" + value;
+            start--;
+        }
+        className = GetClassName(start);
+    }
+    else{
+        className = WhichFunction(GetCurrentPos());
+    }
+    int pos = className.find("::");
+    if (pos != className.npos){
+        className = className.substr(0, pos);
+    }
+    else{
+        className = "";
+    }
     std::set<ceSymbol*> outputs;
-    wxGetApp().frame()->FindDef(outputs, value, type, GetFilename());
+    wxGetApp().frame()->FindDef(outputs, value, className, type, GetFilename());
     value = wxEmptyString;
     std::set<ceSymbol*>::iterator it = outputs.begin();
     while(it != outputs.end()){
@@ -2628,7 +2676,7 @@ bool ceEdit::ShowCallTips()
         else{
             value += (*it)->file;
         }
-        value += "(" + wxString::Format("%d", (*it)->line) + "):" + (*it)->desc;
+        value += "(" + (*it)->lineNumber + "):" + (*it)->desc;
         delete (*it);
         it++;
     }
