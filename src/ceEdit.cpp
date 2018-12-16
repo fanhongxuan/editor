@@ -2622,6 +2622,7 @@ bool ceEdit::HungerBack(){
         if ((prevCh == '(' && nextCh == ')') ||
             (prevCh == '{' && nextCh == '}') ||
             (prevCh == '(' && nextCh == ')') || 
+            (prevCh == '[' && nextCh == ']') ||
             (prevCh == '\'' && nextCh =='\'') ||
             (prevCh == '\"' && nextCh =='\"')){
             DeleteRange(start, 1);
