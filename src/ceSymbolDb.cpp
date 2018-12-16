@@ -173,6 +173,65 @@ static bool GetInherit(std::vector<wxString> &outputs, const wxString &className
     return true;
 }
 
+static ceSymbol* BuildSymbol(const wxString &name, const wxString &type, const wxString &scope, const wxString &value){
+    std::vector<wxString> sym;
+    ceSplitString(value, sym, '\'');
+    ceSymbol *pRet = new ceSymbol;
+    // wxPrintf("BuildSymbol:<%s>\n", value);
+    pRet->symbolType = getFullTypeName(type, sym[VALUE_INDEX_LANGUAGE]); 
+    if (sym[VALUE_INDEX_TYPE_REF] != "-"){
+        pRet->type = sym[VALUE_INDEX_TYPE_REF];
+        if (pRet->type.find("typename:") != pRet->type.npos){
+            pRet->type = pRet->type.substr(strlen("typename:"));
+        }
+    }
+    pRet->name = name;
+    pRet->scope = scope;
+    pRet->lineNumber = sym[VALUE_INDEX_LINE_NUMBER];
+    pRet->lineEnd = sym[VALUE_INDEX_LINE_END];
+    pRet->access = sym[VALUE_INDEX_ACCESS];
+    pRet->file = sym[VALUE_INDEX_FILE];
+    pRet->param = sym[VALUE_INDEX_PARAM];
+    if (pRet->access == "public"){
+        pRet->desc = "+";
+    }
+    else if (pRet->access == "private"){
+        pRet->desc = "-";
+    }
+    else if (pRet->access == "protected"){
+        pRet->desc = "*";
+    }
+    pRet->desc += pRet->type;
+    pRet->desc += " ";
+    if (!pRet->scope.empty()){
+        pRet->desc += pRet->scope;
+        pRet->desc += "::";
+    }
+    pRet->desc += name;
+    if (pRet->param != "-"){
+        pRet->desc += pRet->param;
+    }
+    return pRet;
+}
+
+static bool GetDbRange(std::set<ceSymbol*> &symbols, const wxString &type, const wxString &scope, DBOP *pDb)
+{
+    wxString key = type + "/" + scope + "/";
+    const char *pValue = dbop_first(pDb, key, NULL, DBOP_PREFIX | DBOP_KEY);
+    while(NULL != pValue){
+        wxString name = pValue;
+        name = name.substr(key.length());
+        // wxPrintf("name:%s\n", name);
+        // wxPrintf("Value:%s\n", pDb->lastdat);
+        ceSymbol *pRet = BuildSymbol(name, type, scope, pDb->lastdat);
+        if (NULL != pRet){
+            symbols.insert(pRet);
+        }
+        pValue = dbop_next(pDb);
+    }
+    return true;
+}
+
 static bool GetDbValue(std::set<ceSymbol*> &symbols, 
     const wxString &type, 
     const wxString &className, 
@@ -182,47 +241,56 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
     key += className + "/";
     key += name;
     wxString value = dbop_get(pDb, static_cast<const char *>(key));
-    wxPrintf("Key:<%s>,value:<%s>\n", key, value);
+    // wxPrintf("Key:<%s>,value:<%s>\n", key, value);
     if (!value.empty()){
-        std::vector<wxString> sym;
-        ceSplitString(value, sym, '\'');
-        ceSymbol *pRet = new ceSymbol;
-        pRet->symbolType = getFullTypeName(type, sym[VALUE_INDEX_LANGUAGE]); 
-        if (sym[VALUE_INDEX_TYPE_REF] != "-"){
-            pRet->type = sym[VALUE_INDEX_TYPE_REF];
-            if (pRet->type.find("typename:") != pRet->type.npos){
-                pRet->type = pRet->type.substr(strlen("typename:"));
-            }
+        ceSymbol *pRet = BuildSymbol(name, type, className, value);
+        if (NULL != pRet){
+            symbols.insert(pRet);
         }
-        pRet->name = name;
-        pRet->scope = className;
-        pRet->lineNumber = sym[VALUE_INDEX_LINE_NUMBER];
-        pRet->lineEnd = sym[VALUE_INDEX_LINE_END];
-        pRet->access = sym[VALUE_INDEX_ACCESS];
-        pRet->file = sym[VALUE_INDEX_FILE];
-        pRet->param = sym[VALUE_INDEX_PARAM];
-        if (pRet->access == "public"){
-            pRet->desc = "+";
-        }
-        else if (pRet->access == "private"){
-            pRet->desc = "-";
-        }
-        else if (pRet->access == "protected"){
-            pRet->desc = "*";
-        }
-        pRet->desc += pRet->type;
-        pRet->desc += " ";
-        if (!pRet->scope.empty()){
-            pRet->desc += pRet->scope;
-            pRet->desc += "::";
-        }
-        pRet->desc += name;
-        if (pRet->param != "-"){
-            pRet->desc += pRet->param;
-        }
-        symbols.insert(pRet);
         // wxPrintf("key:<%s>,value:<%s>\n", keys[i], value);
     }
+    return true;
+}
+
+bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type, const wxString &dir)
+{
+    wxString db = GetSymbolDbName(dir + "/symbol");
+    
+    db += ".db";
+    DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, DBOP_RAW);
+    if (NULL == pDb){
+        wxPrintf("Failed to open %s\n", db);
+        return false;
+    }
+    wxPrintf("GetSymbols:scope<%s>, type:<%s>,dir<%s>\n", scope, type, dir);
+    if (type.empty() && scope.empty()){
+        // try all global value first.
+        // type and class is all empty
+        GetDbRange(symbols, "d", "" , pDb);
+        GetDbRange(symbols, "f", "" , pDb);
+        GetDbRange(symbols, "e", "" , pDb);
+    }
+    else if (type.empty()){
+        std::vector<wxString> classNames;
+        classNames.push_back(scope);
+        GetInherit(classNames, scope, pDb);
+        for (int i = 0; i < classNames.size(); i++){
+            GetDbRange(symbols, "m", classNames[i], pDb);
+            GetDbRange(symbols, "f", classNames[i], pDb);
+            GetDbRange(symbols, "p", classNames[i], pDb);
+        }
+    }
+    else{
+        std::vector<wxString> classNames;
+        classNames.push_back(scope);
+        GetInherit(classNames, scope, pDb);
+        for (int i = 0; i < classNames.size(); i++){
+            for (int j = 0; j < type.size(); j++){
+                GetDbRange(symbols, type[j], classNames[i], pDb);
+            }
+        }
+    }
+    dbop_close(pDb);    
     return true;
 }
 
@@ -234,7 +302,7 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     const wxString &dir){
     wxString db = GetSymbolDbName(dir + "/symbol");
     db += ".db";
-    DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, 0);
+    DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, DBOP_RAW);
     if (NULL == pDb){
         wxPrintf("Failed to open %s\n", db);
         return false;

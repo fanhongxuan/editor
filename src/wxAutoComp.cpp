@@ -1,7 +1,9 @@
 #include "wxAutoComp.hpp"
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include "ceUtils.hpp"
-
+#include "ce.hpp"
+#include "ceSymbolDb.hpp"
+#include <set>
 std::vector<wxAutoCompProvider*> wxAutoCompProvider::mAllProviders;
 
 wxAutoCompProvider::wxAutoCompProvider()
@@ -154,7 +156,7 @@ bool wxAutoCompProviderKeyword::GetCandidate(const wxString &input, std::set<wxS
     return true;
 }
 
-wxAutoCompWordInBufferProvider &g_wordinbuffer = wxAutoCompWordInBufferProvider::Instance();
+static wxAutoCompWordInBufferProvider &g_wordinbuffer = wxAutoCompWordInBufferProvider::Instance();
 wxAutoCompWordInBufferProvider *wxAutoCompWordInBufferProvider::mpInstance = NULL;
 wxAutoCompWordInBufferProvider &wxAutoCompWordInBufferProvider::Instance()
 {
@@ -166,6 +168,13 @@ wxAutoCompWordInBufferProvider &wxAutoCompWordInBufferProvider::Instance()
 
 wxAutoCompWordInBufferProvider::wxAutoCompWordInBufferProvider()
 {
+    
+}
+
+bool wxAutoCompWordInBufferProvider::IsValidForFile(const wxString &filename) const
+{
+    // return true;
+    return false;
 }
 
 bool wxAutoCompWordInBufferProvider::IsValidChar(char c) const
@@ -254,6 +263,7 @@ bool wxAutoCompWordInBufferProvider::AddCandidate(const wxString &candidate, con
         // the input is two short.
         return false;
     }
+    
     std::map<wxString, std::set<wxString> * >::iterator it = mCandidateMap.find(opt);
     std::set<wxString> *pSet = NULL;
     if (it == mCandidateMap.end()){
@@ -276,3 +286,97 @@ bool wxAutoCompWordInBufferProvider::DelCandidate(const wxString &file, const wx
     // todo:fanhongxuan@gmail.com
     return true;
 }
+
+
+static wxAutoCompMemberProvider &gMemberProvier = wxAutoCompMemberProvider::Instance();
+wxAutoCompMemberProvider *wxAutoCompMemberProvider::mpInstance = NULL;
+
+wxAutoCompMemberProvider &wxAutoCompMemberProvider::Instance(){
+    if (NULL == mpInstance){
+        mpInstance = new wxAutoCompMemberProvider;
+    }
+    return *mpInstance;
+}
+
+wxAutoCompMemberProvider::wxAutoCompMemberProvider()
+{
+}
+
+void wxAutoCompMemberProvider::SetClassName(const wxString &className){
+    mClassName = className;
+    std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.find(className);
+    if (it != mCandidateMap.end()){
+        return;
+    }
+    if (NULL == wxGetApp().frame()){
+        return;
+    }
+    
+    // wxPrintf("SetClassName:<%s>\n", className);
+    std::set<wxString> *pSet = new std::set<wxString>;
+    std::set<ceSymbol*> symbols;
+    wxGetApp().frame()->GetSymbols(symbols, className, "");
+    std::set<ceSymbol*>::iterator sit = symbols.begin();
+    while(sit != symbols.end()){
+        ceSymbol *pSymbol = (*sit);
+        wxString candidate = pSymbol->name;
+        if (pSymbol->param != "-"){
+            candidate += pSymbol->param;
+        }
+        else if (pSymbol->type != "-"){
+            candidate += "[" + pSymbol->type + "," + pSymbol->access + "," + pSymbol->scope + "]";
+        }
+        pSet->insert(candidate);
+        delete pSymbol;
+        pSymbol = NULL;
+        sit++;
+    }
+    mCandidateMap[className] = pSet;
+}
+
+void wxAutoCompMemberProvider::Reset(){
+    std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.begin();
+    while(it != mCandidateMap.end()){
+        delete it->second;
+        it++;
+    }
+    mCandidateMap.clear();
+}
+
+bool wxAutoCompMemberProvider::IsValidChar(char c) const
+{
+    // if (c == ':' || c == '-'  || c == '~' || c == '>'){
+    //     return true;
+    // }
+    return wxAutoCompProvider::IsValidChar(c);
+}
+
+bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt)
+{
+    std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.find(mClassName);
+    if (it == mCandidateMap.end()){
+        return false;
+    }
+    wxPrintf("wxAutoCompMemberProvider::GetCandidate:<%s>\n", input);
+    std::set<wxString> *pSet = it->second;
+    std::set<wxString>::iterator sit = pSet->begin();
+    if (input == "::" || input == "." || input == "->"){
+        // load all the member from the class
+        while(sit != pSet->end()){
+            output.insert((*sit));
+            sit++;
+        }
+    }
+    else{
+        while(sit != pSet->end()){
+            if ((*sit).find(input) != input.npos){
+                // wxPrintf("Candidate:%s;\n", (*sit));
+                output.insert((*sit));
+            }
+            sit++;
+        }        
+    }
+    return true;
+}
+
+

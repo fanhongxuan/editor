@@ -25,6 +25,7 @@ public:
     void OnStyleNeeded(wxStyledTextEvent &evt);
     void OnModified(wxStyledTextEvent &evt);
     void OnMarginClick(wxStyledTextEvent &evt);
+    void OnAutoCompSelection(wxStyledTextEvent &evt);
     void OnSize(wxSizeEvent& event);
     
     void OnCharAdded  (wxStyledTextEvent &event);

@@ -42,6 +42,7 @@ public:
     bool GetLocalVariableByFile(std::vector<ceSymbol*> &symbols, const wxString &filename);
     bool GetParamtersByFile(std::set<ceSymbol*> &symbols, const wxString &filename);
     
+        bool GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type, const wxString &dir);
         bool FindDef(std::set<ceSymbol *> &symbols, 
             const wxString &name, 
             const wxString &className = "", 

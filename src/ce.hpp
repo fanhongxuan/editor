@@ -81,6 +81,7 @@ public:
             const wxString &className = "",
             const wxString &type = "",
             const wxString &filename = "");
+        bool GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type = "");
     void ShowStatus(const wxString &status, int index = 0);
     void SetActiveEdit(ceEdit *pEdit);
     void DoUpdate();

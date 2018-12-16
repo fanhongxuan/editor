@@ -773,7 +773,6 @@ void wxSearch::OnDelItem(uint8_t index)
 
 void wxSearch::OnPercent(uint8_t percent)
 {
-    
 }
 
 bool wxSearch::AddHandler(wxSearchHandler *pHandler)

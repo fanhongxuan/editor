@@ -32,6 +32,7 @@ public:
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
     bool UpdateTagForFile(const wxString &file);
+        bool GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type = "");
         bool FindDef(std::set<ceSymbol *> &symbols, 
             const wxString &name,
             const wxString &className,

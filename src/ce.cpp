@@ -423,6 +423,13 @@ void MyFrame::ChangeToBuffer(ceEdit *pEdit, int pos)
     }
 }
 
+bool MyFrame::GetSymbols(std::set<ceSymbol *> &symbols, const wxString &scope, const wxString &type){
+    if (NULL != mpWorkSpace){
+        return mpWorkSpace->GetSymbols(symbols, scope, type);
+    }
+    return false;
+}
+
 bool MyFrame::FindDef(std::set<ceSymbol*> &symbols, 
     const wxString &name,
     const wxString &className,

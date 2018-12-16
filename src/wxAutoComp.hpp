@@ -52,6 +52,7 @@ class wxAutoCompWordInBufferProvider: public wxAutoCompProvider
 public:
     static wxAutoCompWordInBufferProvider &Instance();
     virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
+        virtual bool IsValidForFile(const wxString &filename) const;
     bool AddFileContent(const wxString &file, const wxString &opt);
     bool DelFile(const wxString &file, const wxString &opt);
     bool AddCandidate(const wxString &word, const wxString &opt);
@@ -67,6 +68,23 @@ private:
     static wxAutoCompWordInBufferProvider *mpInstance;
 };
 
+    class wxAutoCompMemberProvider: public wxAutoCompProvider
+    {
+    public:
+        static wxAutoCompMemberProvider &Instance();
+        virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
+        virtual bool IsValidChar(char c) const;
+        void SetClassName(const wxString &name);
+        void Reset();
+    private:
+        std::map<wxString, std::set<wxString> *> mCandidateMap;
+        wxString mClassName;
+    private:
+        wxAutoCompMemberProvider();
+        wxAutoCompMemberProvider (const wxAutoCompMemberProvider &other);
+        wxAutoCompMemberProvider &operator=(const wxAutoCompMemberProvider &other);
+        static wxAutoCompMemberProvider *mpInstance;
+    };
 // todo:fanhongxuan@gmail.com
 // add wxAutoCompSystmIncludeProvider
 

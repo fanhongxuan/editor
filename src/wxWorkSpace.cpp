@@ -551,6 +551,42 @@ void wxWorkSpace::CreateImageList()
     AssignImageList(images);
 }
 
+bool wxWorkSpace::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type){
+    if (NULL == mpSymbolDb){
+        mpSymbolDb = new ceSymbolDb;
+    }
+    if (NULL == mpSymbolDb){
+        mpSymbolDb = new ceSymbolDb;
+    }
+    
+    bool ret = true;
+    std::set<wxString>::const_iterator cit = mDirs.begin();
+    while(cit != mDirs.end()){
+        mpSymbolDb->GetSymbols(symbols, scope, type, *cit);
+        cit++;
+    }
+    // update the short name
+    std::set<ceSymbol *>::iterator it = symbols.begin();
+    while(it != symbols.end()){
+        cit = mDirs.begin();
+        ceSymbol *pSymbol = *it;
+        while(cit != mDirs.end()){
+            if (pSymbol->file.find(*cit) == 0){
+                pSymbol->shortFilename = pSymbol->file.substr((*cit).length());
+                if ((pSymbol->shortFilename.size() > 0) && 
+                    (pSymbol->shortFilename[0] == '/' || pSymbol->shortFilename[0] == '\\')){
+                    pSymbol->shortFilename = pSymbol->shortFilename.substr(1);
+                }
+                break;
+            }
+            cit++;
+        }
+        it++;
+    }
+    return ret;
+}
+        
+
 bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols, 
     const wxString &name, 
     const wxString &className, 
@@ -561,34 +597,31 @@ bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols,
         mpSymbolDb = new ceSymbolDb;
     }
     
-    if (NULL != mpSymbolDb){
-        bool ret = true;
-        std::set<wxString>::const_iterator cit = mDirs.begin();
+    bool ret = true;
+    std::set<wxString>::const_iterator cit = mDirs.begin();
+    while(cit != mDirs.end()){
+        mpSymbolDb->FindDef(symbols, name, className, type, filename, *cit);
+        cit++;
+    }
+    // update the short name
+    std::set<ceSymbol *>::iterator it = symbols.begin();
+    while(it != symbols.end()){
+        cit = mDirs.begin();
+        ceSymbol *pSymbol = *it;
         while(cit != mDirs.end()){
-            mpSymbolDb->FindDef(symbols, name, className, type, filename, *cit);
+            if (pSymbol->file.find(*cit) == 0){
+                pSymbol->shortFilename = pSymbol->file.substr((*cit).length());
+                if ((pSymbol->shortFilename.size() > 0) && 
+                    (pSymbol->shortFilename[0] == '/' || pSymbol->shortFilename[0] == '\\')){
+                    pSymbol->shortFilename = pSymbol->shortFilename.substr(1);
+                }
+                break;
+            }
             cit++;
         }
-        // update the short name
-        std::set<ceSymbol *>::iterator it = symbols.begin();
-        while(it != symbols.end()){
-            cit = mDirs.begin();
-            ceSymbol *pSymbol = *it;
-            while(cit != mDirs.end()){
-                if (pSymbol->file.find(*cit) == 0){
-                    pSymbol->shortFilename = pSymbol->file.substr((*cit).length());
-                    if ((pSymbol->shortFilename.size() > 0) && 
-                        (pSymbol->shortFilename[0] == '/' || pSymbol->shortFilename[0] == '\\')){
-                        pSymbol->shortFilename = pSymbol->shortFilename.substr(1);
-                    }
-                    break;
-                }
-                cit++;
-            }
-            it++;
-        }
-        return ret;
+        it++;
     }
-    return false;
+    return ret;
 }
 
 int wxWorkSpace::OnCompareItems(const wxTreeItemId &first, const wxTreeItemId &second)

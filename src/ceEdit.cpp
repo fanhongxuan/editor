@@ -12,9 +12,11 @@
 #include "ce.hpp"
 #include "wxSearch.hpp"
 #include "ceSymbolDb.hpp"
+#include "ceAutoComp.hpp"
 
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
+EVT_STC_AUTOCOMP_SELECTION(wxID_ANY, ceEdit::OnAutoCompSelection)
 EVT_STC_MODIFIED(wxID_ANY,    ceEdit::OnModified)
 EVT_STC_MARGINCLICK(wxID_ANY, ceEdit::OnMarginClick)
 EVT_STC_UPDATEUI(wxID_ANY, ceEdit::OnUpdateUI)
@@ -405,9 +407,10 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     else{
         SetLexer(wxSTC_LEX_CONTAINER);
     }
+    
     // about autocomp
     LoadAutoComProvider(mLanguage);
-    AutoCompSetMaxWidth(50);
+    AutoCompSetSeparator('\1');
     return true;
 }
 
@@ -2132,6 +2135,28 @@ void ceEdit::UpdateLineNumberMargin()
     SetMarginWidth(mLinenuMargin, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
 }
 
+void ceEdit::OnAutoCompSelection(wxStyledTextEvent &evt)
+{
+    wxPrintf("String:<%s>\n", evt.GetString());
+    wxString value = evt.GetString();
+    int pos = value.find('(');
+    if (pos != value.npos){
+        value = value.substr(0, pos);
+        value += "()";
+        // InsertText(evt.GetPosition(), value);
+        Replace(evt.GetPosition(), GetCurrentPos(), value);
+        GotoPos(evt.GetPosition() + value.length() - 1);
+        AutoCompCancel();
+    }
+    pos = value.find('[');
+    if (pos != value.npos){
+        value = value.substr(0, pos);
+        Replace(evt.GetPosition(), GetCurrentPos(), value);
+        GotoPos(evt.GetPosition() + value.length());
+        AutoCompCancel();
+    }
+}
+
 void ceEdit::OnModified(wxStyledTextEvent &evt)
 {
     int type = evt.GetModificationType();
@@ -2449,6 +2474,15 @@ bool ceEdit::IsValidChar(char ch, const wxString &validCharList)
 
 bool ceEdit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
 {
+    wxString func = WhichFunction(GetCurrentPos());
+    int pos = func.find("::");
+    if (pos != func.npos){
+        func = func.substr(0, pos);
+        wxAutoCompMemberProvider::Instance().SetClassName(func);
+    }
+    else{
+        wxAutoCompMemberProvider::Instance().SetClassName("");
+    }
     int i = 0;
     for (i = 0; i < mAllProviders.size(); i++){
         mAllProviders[i]->GetCandidate(input, candidate, mLanguage);
@@ -2458,7 +2492,6 @@ bool ceEdit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
 }
 
 void ceEdit::MoveCharBeforeRightParentheses(int currentLine){
-    
     int pos = GetCurrentPos();
     if (pos <= 0){
         return;
@@ -2668,7 +2701,7 @@ bool ceEdit::ShowCallTips()
             continue;
         }
         if (!value.empty()){
-            value += "\n";
+            value += "\n\002";
         }
         if (!(*it)->shortFilename.empty()){
             value += (*it)->shortFilename;
@@ -3113,12 +3146,22 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
     if (!candidate.empty()){
         wxString candidateStr;
         std::set<wxString>::iterator it = candidate.begin();
+        int max = 20;
         while(it != candidate.end()){
-            candidateStr += (*it);
-            candidateStr += " ";
+            wxString item = (*it);
+            if (item.length() >= max){
+                max = item.length();
+            }
+            candidateStr += item;
+            candidateStr += '\1';
             it++;
         }
+        if (max > 100){
+            max = 100;
+        }
+        AutoCompSetMaxWidth(max+1);
         AutoCompShow(inputWord.length(), candidateStr);
+        // ceAutoComp::Instance().ShowCandidates(this, candidate, inputWord);
     }
 }
 
