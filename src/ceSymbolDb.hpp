@@ -13,6 +13,7 @@ public:
     
     bool operator==(const ceSymbol &other);
     bool IsSame(const ceSymbol &other);
+        wxString ToAutoCompString();
 public:
     wxString symbolType; // function, class etc, enum,
     wxString type; // for function, this is the return value type, for variable, this is the type.

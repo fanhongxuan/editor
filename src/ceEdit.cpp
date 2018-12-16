@@ -12,7 +12,6 @@
 #include "ce.hpp"
 #include "wxSearch.hpp"
 #include "ceSymbolDb.hpp"
-#include "ceAutoComp.hpp"
 
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
@@ -3156,8 +3155,9 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
             candidateStr += '\1';
             it++;
         }
-        if (max > 100){
-            max = 100;
+        max = max * 1.3;
+        if (max > 200){
+            max = 200;
         }
         AutoCompSetMaxWidth(max+1);
         AutoCompShow(inputWord.length(), candidateStr);

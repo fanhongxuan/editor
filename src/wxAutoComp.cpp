@@ -319,14 +319,8 @@ void wxAutoCompMemberProvider::SetClassName(const wxString &className){
     std::set<ceSymbol*>::iterator sit = symbols.begin();
     while(sit != symbols.end()){
         ceSymbol *pSymbol = (*sit);
-        wxString candidate = pSymbol->name;
-        if (pSymbol->param != "-"){
-            candidate += pSymbol->param;
-        }
-        else if (pSymbol->type != "-"){
-            candidate += "[" + pSymbol->type + "," + pSymbol->access + "," + pSymbol->scope + "]";
-        }
-        pSet->insert(candidate);
+        wxString candidate = pSymbol->ToAutoCompString();
+        pSet->insert(pSymbol->ToAutoCompString());
         delete pSymbol;
         pSymbol = NULL;
         sit++;

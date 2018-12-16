@@ -19,6 +19,31 @@ bool ceSymbol::IsSame(const ceSymbol &other){
     return true;
 }
 
+wxString ceSymbol::ToAutoCompString()
+{
+    wxString ret = name;
+    if (param != "-" && param != ""){
+        // function
+        ret += param;
+        if (scope != "-" && scope != ""){
+            ret += "[" + scope + "]";
+        }
+        else{
+            ret += "[" + shortFilename +"]";
+        }
+    }
+    else{
+        // other type
+        if (symbolType == "Member"){
+            ret += "[" + type + "," + access + "," + scope +"]";
+        }
+        else{
+            ret += "[" + symbolType + "," + shortFilename + "]";
+        }
+    }
+    return ret;
+}
+
 bool ceSymbol::operator==(const ceSymbol &other){
     return IsSame(other);
 }
