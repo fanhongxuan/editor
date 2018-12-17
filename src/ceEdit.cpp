@@ -2061,6 +2061,7 @@ void ceEdit::OnStyleNeeded(wxStyledTextEvent &evt)
     // set the mpParseState->currentStyle right
     int pos = startPos;
     int curStyle = STYLE_DEFAULT;
+    PrepareFunctionParams(pos);
     while(pos > 0){
         char c = GetCharAt(pos);
         if (c != '\r' && c != '\t' && c != '\n' && c != ' '){
@@ -2140,11 +2141,15 @@ void ceEdit::OnAutoCompSelection(wxStyledTextEvent &evt)
     wxString value = evt.GetString();
     int pos = value.find('(');
     if (pos != value.npos){
+        int offset = -1;
+        if (value.find("()") != value.npos){
+            offset = 0;
+        }
         value = value.substr(0, pos);
         value += "()";
         // InsertText(evt.GetPosition(), value);
         Replace(evt.GetPosition(), GetCurrentPos(), value);
-        GotoPos(evt.GetPosition() + value.length() - 1);
+        GotoPos(evt.GetPosition() + value.length() + offset);
         AutoCompCancel();
     }
     pos = value.find('[');
@@ -2333,12 +2338,12 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
         }
     }
     
-    if (WXK_DELETE == event.GetKeyCode() || WXK_BACK == event.GetKeyCode()){
-        // note:fanhongxuan@gmail.com
-        // when backspace, will not call OnCharAdded
-        // we need to prepare the function params here.
-        PrepareFunctionParams(GetCurrentPos());    
-    }
+    // if (WXK_DELETE == event.GetKeyCode() || WXK_BACK == event.GetKeyCode()){
+    //     // note:fanhongxuan@gmail.com
+    //     // when backspace, will not call OnCharAdded
+    //     // we need to prepare the function params here.
+    //     PrepareFunctionParams(GetCurrentPos());    
+    // }
     event.Skip();
 }
 
@@ -2418,7 +2423,7 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
 {
     DoBraceMatch();
     if (WXK_TAB == event.GetKeyCode()){
-        PrepareFunctionParams(GetCurrentPos());
+        // PrepareFunctionParams(GetCurrentPos());
         if (AutoCompActive()){
             AutoCompComplete();
         }
@@ -2614,7 +2619,6 @@ void ceEdit::OnEndBrace(int currentLine)
 bool ceEdit::HungerBack(){
     int start = GetCurrentPos();
     int end = start;
-    
     // if we are in middle of (), {}, "", ''; we will delete the last char.
     if (start > 1){
         char prevCh = GetCharAt(start - 1);
@@ -3075,6 +3079,7 @@ void ceEdit::AutoIndentWithNewline(int currentLine)
             }
         }
     }
+    
 }
 
 void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
@@ -3083,13 +3088,14 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
     // don't use inputWord, we find the word backword start from current pos
     // todo:fanhongxuan@gmail.com
     // 1, fill the mFunctionParames table.
-    PrepareFunctionParams(GetCurrentPos());
+    // PrepareFunctionParams(GetCurrentPos());
     
     bool bNewCandidate = false;
     long pos = GetInsertionPoint();
     if (pos > 0){
         pos--;
     }
+    
     long start = pos;
     int ch = GetCharAt(pos);
     if (!IsValidChar(ch)){
@@ -3156,7 +3162,7 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
             candidateStr += '\1';
             it++;
         }
-        max = max * 1.3;
+        max = max * 1.1;
         if (max > 200){
             max = 200;
         }

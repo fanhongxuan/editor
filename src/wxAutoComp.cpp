@@ -143,7 +143,7 @@ bool wxAutoCompProviderKeyword::GetCandidate(const wxString &input, std::set<wxS
         int i = 0;
         for (i = 0; i < mCPPKeyWordList.size(); i++){
             const wxString &value = mCPPKeyWordList[i];
-            if (value.find(input) != input.npos){
+            if (value.find(input) == 0){
                 output.insert(value);
             }
         }
@@ -342,6 +342,9 @@ bool wxAutoCompMemberProvider::IsValidChar(char c) const
     // if (c == ':' || c == '-'  || c == '~' || c == '>'){
     //     return true;
     // }
+    if (c == '_' || c == '~'){
+        return true;
+    }
     return wxAutoCompProvider::IsValidChar(c);
 }
 
@@ -363,7 +366,7 @@ bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxSt
     }
     else{
         while(sit != pSet->end()){
-            if ((*sit).find(input) != input.npos){
+            if ((*sit).find(input) == 0){
                 // wxPrintf("Candidate:%s;\n", (*sit));
                 output.insert((*sit));
             }

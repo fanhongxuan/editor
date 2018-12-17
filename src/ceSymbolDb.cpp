@@ -265,6 +265,7 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
     wxString key = type + "/";
     key += className + "/";
     key += name;
+    
     wxString value = dbop_get(pDb, static_cast<const char *>(key));
     // wxPrintf("Key:<%s>,value:<%s>\n", key, value);
     if (!value.empty()){
@@ -298,6 +299,7 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope,
     else if (type.empty()){
         std::vector<wxString> classNames;
         classNames.push_back(scope);
+        classNames.push_back("");
         GetInherit(classNames, scope, pDb);
         for (int i = 0; i < classNames.size(); i++){
             GetDbRange(symbols, "m", classNames[i], pDb);
@@ -308,6 +310,7 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope,
     else{
         std::vector<wxString> classNames;
         classNames.push_back(scope);
+        classNames.push_back("");
         GetInherit(classNames, scope, pDb);
         for (int i = 0; i < classNames.size(); i++){
             for (int j = 0; j < type.size(); j++){
