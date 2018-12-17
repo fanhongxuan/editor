@@ -104,6 +104,7 @@ wxAutoCompProviderKeyword::wxAutoCompProviderKeyword()
 {
     ceSplitString(gCppKeyWord, mCPPKeyWordList, ' ');
     ceSplitString(gCPreKeyWord, mCPPKeyWordList, ' ');
+    ceSplitString(gJavaKeyWord, mJavaKeyWordList);
 }
 
 static bool isCpp(const wxString &opt){
@@ -113,7 +114,7 @@ static bool isCpp(const wxString &opt){
     return false;
 }
 static bool isJava(const wxString &opt){
-    if (opt == "java" || opt == "JAVA" || opt == ".class"){
+    if (opt == "java" || opt == "JAVA" || opt == ".class" || opt == ".aidl"){
         return true;
     }
     return false;
@@ -121,6 +122,9 @@ static bool isJava(const wxString &opt){
 bool wxAutoCompProviderKeyword::IsValidForFile(const wxString &opt) const
 {
     if (isCpp(opt)){
+        return true;
+    }
+    if (isJava(opt)){
         return true;
     }
     return false;
@@ -142,13 +146,22 @@ bool wxAutoCompProviderKeyword::GetCandidate(const wxString &input, std::set<wxS
     if (isCpp(opt)){
         int i = 0;
         for (i = 0; i < mCPPKeyWordList.size(); i++){
-            const wxString &value = mCPPKeyWordList[i];
+            wxString value = mCPPKeyWordList[i];
             if (value.find(input) == 0){
+                value += "[Keyworkd]";
                 output.insert(value);
             }
         }
     }
     else if (isJava(opt)){
+        int i = 0;
+        for (i = 0; i < mJavaKeyWordList.size(); i++){
+            wxString value = mJavaKeyWordList[i];
+            if (value.find(input) == 0){
+                value += "[Keyworkd]";
+                output.insert(value);
+            }
+        }
     }
     else{
         
@@ -168,7 +181,6 @@ wxAutoCompWordInBufferProvider &wxAutoCompWordInBufferProvider::Instance()
 
 wxAutoCompWordInBufferProvider::wxAutoCompWordInBufferProvider()
 {
-    
 }
 
 bool wxAutoCompWordInBufferProvider::IsValidForFile(const wxString &filename) const
@@ -302,7 +314,7 @@ wxAutoCompMemberProvider::wxAutoCompMemberProvider()
 {
 }
 
-void wxAutoCompMemberProvider::SetClassName(const wxString &className){
+void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxString &language, const wxString &filename){
     mClassName = className;
     std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.find(className);
     if (it != mCandidateMap.end()){
@@ -312,10 +324,10 @@ void wxAutoCompMemberProvider::SetClassName(const wxString &className){
         return;
     }
     
-    // wxPrintf("SetClassName:<%s>\n", className);
+    wxPrintf("SetClassName:<%s>(%s)\n", className, language);
     std::set<wxString> *pSet = new std::set<wxString>;
     std::set<ceSymbol*> symbols;
-    wxGetApp().frame()->GetSymbols(symbols, className, "");
+    wxGetApp().frame()->GetSymbols(symbols, className, "", language, filename);
     std::set<ceSymbol*>::iterator sit = symbols.begin();
     while(sit != symbols.end()){
         ceSymbol *pSymbol = (*sit);

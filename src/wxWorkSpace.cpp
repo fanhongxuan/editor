@@ -548,21 +548,38 @@ void wxWorkSpace::CreateImageList()
             images->Add(wxBitmap(wxBitmap(icons[i]).ConvertToImage().Rescale(size, size)));
         }
     }
+    
     AssignImageList(images);
 }
 
-bool wxWorkSpace::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type){
+bool wxWorkSpace::GetSymbols(std::set<ceSymbol*> &symbols, 
+    const wxString &scope, 
+    const wxString &type,
+    const wxString &language,
+    const wxString &filename){
     if (NULL == mpSymbolDb){
         mpSymbolDb = new ceSymbolDb;
     }
     if (NULL == mpSymbolDb){
         mpSymbolDb = new ceSymbolDb;
     }
-    
     bool ret = true;
     std::set<wxString>::const_iterator cit = mDirs.begin();
+    
+    // if the file is not belong to the worksapce, return false;
     while(cit != mDirs.end()){
-        mpSymbolDb->GetSymbols(symbols, scope, type, *cit);
+        if (filename.find((*cit)) == 0){
+            break;
+        }
+        cit++;
+    }
+    if (cit == mDirs.end()){
+        return false;
+    }
+    
+    cit = mDirs.begin();
+    while(cit != mDirs.end()){
+        mpSymbolDb->GetSymbols(symbols, scope, type, language, *cit);
         cit++;
     }
     // update the short name
@@ -590,7 +607,8 @@ bool wxWorkSpace::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope
 bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols, 
     const wxString &name, 
     const wxString &className, 
-    const wxString &type, 
+    const wxString &type,
+    const wxString &language,
     const wxString &filename)
 {
     if (NULL == mpSymbolDb){
@@ -600,7 +618,7 @@ bool wxWorkSpace::FindDef(std::set<ceSymbol *> &symbols,
     bool ret = true;
     std::set<wxString>::const_iterator cit = mDirs.begin();
     while(cit != mDirs.end()){
-        mpSymbolDb->FindDef(symbols, name, className, type, filename, *cit);
+        mpSymbolDb->FindDef(symbols, name, className, type, language, filename, *cit);
         cit++;
     }
     // update the short name

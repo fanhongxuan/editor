@@ -26,7 +26,7 @@ public:
         wxString param;
         wxString lineNumber;
         wxString lineEnd;
-    int line;
+    long line;
 };
 
 class ceSymbolDb
@@ -39,15 +39,19 @@ public:
     
     wxString GetType(const wxString &symbol, const wxString &type, const wxString &filename = "");
     bool IsType(const wxString &symbol, const wxString &type, const wxString &filename = "");
-    
     bool GetLocalVariableByFile(std::vector<ceSymbol*> &symbols, const wxString &filename);
     bool GetParamtersByFile(std::set<ceSymbol*> &symbols, const wxString &filename);
     
-        bool GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type, const wxString &dir);
+        bool GetSymbols(std::set<ceSymbol*> &symbols, 
+            const wxString &scope, 
+            const wxString &type, 
+            const wxString &language,
+            const wxString &dir);
         bool FindDef(std::set<ceSymbol *> &symbols, 
             const wxString &name, 
             const wxString &className = "", 
             const wxString &type = "", 
+            const wxString &language = "",
             const wxString &filename = "",
             const wxString &dir = "");
         

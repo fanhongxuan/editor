@@ -26,9 +26,12 @@ public:
     void OnModified(wxStyledTextEvent &evt);
     void OnMarginClick(wxStyledTextEvent &evt);
     void OnAutoCompSelection(wxStyledTextEvent &evt);
+    void OnCallTipClick(wxStyledTextEvent &evt);
+        void OnDwellStart(wxStyledTextEvent &evt);
+        void OnDwellEnd(wxStyledTextEvent &evt);
     void OnSize(wxSizeEvent& event);
     
-    void OnCharAdded  (wxStyledTextEvent &event);
+    void OnCharAdded(wxStyledTextEvent &event);
     
     void OnMouseLeftDown(wxMouseEvent &evt);
     void OnMouseLeftUp(wxMouseEvent &evt);
@@ -41,8 +44,11 @@ public:
     void OnUpdateUI(wxStyledTextEvent &evt);    
         
 protected:
-        wxString GetClassName(int pos);
-    bool ShowCallTips();
+    wxString GetClassName(int pos);
+    bool OnUpdateFunctionParam(wxKeyEvent &evt);
+    bool HighLightNextParam(const wxString &desc);
+    bool ShowFunctionParam(int pos, const wxString &desc);
+    bool ShowCallTips(int pos);
     bool InsertNewLine(long pos);
     long GetLineStartPosition(long line);
     bool StartReplaceInRegion();
@@ -102,6 +108,11 @@ private:
     // std::map<int, wxString> mVariables; // key is the pos, becase multi variable may have the same, name.
     std::map<wxString, std::vector<int> > mVariables; // 
     wxString mFilename;
+    wxString mActiveFunctionParam;
+    int mActiveFunctionParamStart;
+    std::vector<ceSymbol *> mActiveCallTips;
+    int mActiveCallTipsIndex;
+    int mActiveCallTipsPosition;
     wxString mDefaultName;
     wxString mLanguage;
     int mLinenuMargin;

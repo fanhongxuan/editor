@@ -26,10 +26,10 @@ wxString ceSymbol::ToAutoCompString()
         // function
         ret += param;
         if (scope != "-" && scope != ""){
-            ret += "[" + scope + "]";
+            ret += "[<" + type + ">"+ scope + "]";
         }
         else{
-            ret += "[" + shortFilename +"]";
+            ret += "[<" + type + ">" + shortFilename +"]";
         }
     }
     else{
@@ -162,7 +162,6 @@ enum{
     VALUE_INDEX_FILE = 0,
     VALUE_INDEX_LINE_NUMBER,
     VALUE_INDEX_LINE_END,
-    VALUE_INDEX_LANGUAGE,
     VALUE_INDEX_ACCESS,
     VALUE_INDEX_INHERIT,
     VALUE_INDEX_TYPE_REF,
@@ -170,14 +169,14 @@ enum{
     VALUE_INDEX_MAX
 };
 
-static bool GetInherit(std::vector<wxString> &outputs, const wxString &className, DBOP *pDb){
+static bool GetInherit(std::vector<wxString> &outputs, const wxString &className, const wxString &language, DBOP *pDb){
     if (NULL == pDb){
         return false;
     }
     if (className.empty()){
         return false;
     }
-    wxString key = "c//" + className;
+    wxString key = "c/" + language + "//" + className;
     wxString value = dbop_get(pDb, key);
     // wxPrintf("GetInherit:<%s>-<%s>\n", key, value);
     std::vector<wxString> values;
@@ -192,18 +191,23 @@ static bool GetInherit(std::vector<wxString> &outputs, const wxString &className
         for (int i = 0; i < base.size(); i++){
             // wxPrintf("Add base <%s>\n", base[i]);
             outputs.push_back(base[i]);
-            GetInherit(outputs, base[i], pDb);
+            GetInherit(outputs, base[i], language, pDb);
         }
     }
     return true;
 }
 
-static ceSymbol* BuildSymbol(const wxString &name, const wxString &type, const wxString &scope, const wxString &value){
+static ceSymbol* BuildSymbol(const wxString &name, 
+    const wxString &type, const wxString &scope, 
+    const wxString &language, const wxString &value){
     std::vector<wxString> sym;
     ceSplitString(value, sym, '\'');
     ceSymbol *pRet = new ceSymbol;
     // wxPrintf("BuildSymbol:<%s>\n", value);
-    pRet->symbolType = getFullTypeName(type, sym[VALUE_INDEX_LANGUAGE]); 
+    if (sym.size() < VALUE_INDEX_MAX){
+        return NULL;
+    }
+    pRet->symbolType = getFullTypeName(type, language); 
     if (sym[VALUE_INDEX_TYPE_REF] != "-"){
         pRet->type = sym[VALUE_INDEX_TYPE_REF];
         if (pRet->type.find("typename:") != pRet->type.npos){
@@ -213,6 +217,7 @@ static ceSymbol* BuildSymbol(const wxString &name, const wxString &type, const w
     pRet->name = name;
     pRet->scope = scope;
     pRet->lineNumber = sym[VALUE_INDEX_LINE_NUMBER];
+    pRet->lineNumber.ToLong(&pRet->line);
     pRet->lineEnd = sym[VALUE_INDEX_LINE_END];
     pRet->access = sym[VALUE_INDEX_ACCESS];
     pRet->file = sym[VALUE_INDEX_FILE];
@@ -239,16 +244,20 @@ static ceSymbol* BuildSymbol(const wxString &name, const wxString &type, const w
     return pRet;
 }
 
-static bool GetDbRange(std::set<ceSymbol*> &symbols, const wxString &type, const wxString &scope, DBOP *pDb)
+static bool GetDbRange(std::set<ceSymbol*> &symbols, 
+    const wxString &type, 
+    const wxString &scope, 
+    const wxString &language, 
+    DBOP *pDb)
 {
-    wxString key = type + "/" + scope + "/";
+    wxString key = type + "/" + language +  "/" + scope + "/";
     const char *pValue = dbop_first(pDb, key, NULL, DBOP_PREFIX | DBOP_KEY);
     while(NULL != pValue){
         wxString name = pValue;
         name = name.substr(key.length());
         // wxPrintf("name:%s\n", name);
         // wxPrintf("Value:%s\n", pDb->lastdat);
-        ceSymbol *pRet = BuildSymbol(name, type, scope, pDb->lastdat);
+        ceSymbol *pRet = BuildSymbol(name, type, scope, language, pDb->lastdat);
         if (NULL != pRet){
             symbols.insert(pRet);
         }
@@ -261,15 +270,16 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
     const wxString &type, 
     const wxString &className, 
     const wxString &name,
+    const wxString &language,
     DBOP *pDb){
-    wxString key = type + "/";
+    wxString key = type + "/" + language + "/";
     key += className + "/";
     key += name;
     
     wxString value = dbop_get(pDb, static_cast<const char *>(key));
     // wxPrintf("Key:<%s>,value:<%s>\n", key, value);
     if (!value.empty()){
-        ceSymbol *pRet = BuildSymbol(name, type, className, value);
+        ceSymbol *pRet = BuildSymbol(name, type, className, language, value);
         if (NULL != pRet){
             symbols.insert(pRet);
         }
@@ -278,7 +288,11 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
     return true;
 }
 
-bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope, const wxString &type, const wxString &dir)
+bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, 
+    const wxString &scope, 
+    const wxString &type, 
+    const wxString &language, 
+    const wxString &dir)
 {
     wxString db = GetSymbolDbName(dir + "/symbol");
     
@@ -292,29 +306,29 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, const wxString &scope,
     if (type.empty() && scope.empty()){
         // try all global value first.
         // type and class is all empty
-        GetDbRange(symbols, "d", "" , pDb);
-        GetDbRange(symbols, "f", "" , pDb);
-        GetDbRange(symbols, "e", "" , pDb);
+        GetDbRange(symbols, "d", "" , language, pDb);
+        GetDbRange(symbols, "f", "" , language, pDb);
+        GetDbRange(symbols, "e", "" , language, pDb);
     }
     else if (type.empty()){
         std::vector<wxString> classNames;
         classNames.push_back(scope);
         classNames.push_back("");
-        GetInherit(classNames, scope, pDb);
+        GetInherit(classNames, scope, language, pDb);
         for (int i = 0; i < classNames.size(); i++){
-            GetDbRange(symbols, "m", classNames[i], pDb);
-            GetDbRange(symbols, "f", classNames[i], pDb);
-            GetDbRange(symbols, "p", classNames[i], pDb);
+            GetDbRange(symbols, "m", classNames[i], language, pDb);
+            GetDbRange(symbols, "f", classNames[i], language, pDb);
+            GetDbRange(symbols, "p", classNames[i], language, pDb);
         }
     }
     else{
         std::vector<wxString> classNames;
         classNames.push_back(scope);
         classNames.push_back("");
-        GetInherit(classNames, scope, pDb);
+        GetInherit(classNames, scope, language, pDb);
         for (int i = 0; i < classNames.size(); i++){
             for (int j = 0; j < type.size(); j++){
-                GetDbRange(symbols, type[j], classNames[i], pDb);
+                GetDbRange(symbols, type[j], classNames[i], language, pDb);
             }
         }
     }
@@ -326,6 +340,7 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     const wxString &name, 
     const wxString &className,
     const wxString &type,
+    const wxString &language,
     const wxString &filename,
     const wxString &dir){
     wxString db = GetSymbolDbName(dir + "/symbol");
@@ -338,34 +353,34 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     if (type.empty() && className.empty()){
         // try all global value first.
         // type and class is all empty
-        GetDbValue(symbols, "d", "" , name, pDb);
-        GetDbValue(symbols, "f", "" , name, pDb);
-        GetDbValue(symbols, "e", "" , name, pDb);
+        GetDbValue(symbols, "d", "" , name, language, pDb);
+        GetDbValue(symbols, "f", "" , name, language, pDb);
+        GetDbValue(symbols, "e", "" , name, language, pDb);
     }
     else if (className.empty()){
         for (int i = 0; i < type.size(); i++){
-            GetDbValue(symbols, type[i], "", name, pDb);
+            GetDbValue(symbols, type[i], "", name, language, pDb);
         }
     }
     else if (type.empty()){
         std::vector<wxString> classNames;
         classNames.push_back(className);
         classNames.push_back("");
-        GetInherit(classNames, className, pDb);
+        GetInherit(classNames, className, language, pDb);
         for (int i = 0; i < classNames.size(); i++){
-            GetDbValue(symbols, "m", classNames[i], name, pDb);
-            GetDbValue(symbols, "f", classNames[i], name, pDb);
-            GetDbValue(symbols, "p", classNames[i], name, pDb);
+            GetDbValue(symbols, "m", classNames[i], name, language, pDb);
+            GetDbValue(symbols, "f", classNames[i], name, language, pDb);
+            GetDbValue(symbols, "p", classNames[i], name, language, pDb);
         }
     }
     else{
         std::vector<wxString> classNames;
         classNames.push_back(className);
         classNames.push_back("");
-        GetInherit(classNames, className, pDb);
+        GetInherit(classNames, className, language, pDb);
         for (int i = 0; i < classNames.size(); i++){
             for (int j = 0; j < type.size(); j++){
-                GetDbValue(symbols, type[j], classNames[i], name, pDb);
+                GetDbValue(symbols, type[j], classNames[i], name, language, pDb);
             }
         }
     }

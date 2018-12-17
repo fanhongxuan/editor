@@ -1255,7 +1255,7 @@ bool Edit::ShowCallTips()
     std::set<ceSymbol*> outputs;
     // todo:fanhongxuan@gmail.com
     // later, we need to check if this file is include.
-    wxGetApp().frame()->FindDef(outputs, value, type, GetFilename());
+    wxGetApp().frame()->FindDef(outputs, value, type, "", GetFilename());
     value = wxEmptyString;
     std::set<ceSymbol*>::iterator it = outputs.begin();
     while(it != outputs.end()){

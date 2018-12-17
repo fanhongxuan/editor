@@ -16,6 +16,9 @@
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
 EVT_STC_STYLENEEDED(wxID_ANY, ceEdit::OnStyleNeeded)
 EVT_STC_AUTOCOMP_SELECTION(wxID_ANY, ceEdit::OnAutoCompSelection)
+EVT_STC_CALLTIP_CLICK(wxID_ANY, ceEdit::OnCallTipClick)
+EVT_STC_DWELLSTART(wxID_ANY, ceEdit::OnDwellStart)
+EVT_STC_DWELLEND(wxID_ANY, ceEdit::OnDwellEnd)
 EVT_STC_MODIFIED(wxID_ANY,    ceEdit::OnModified)
 EVT_STC_MARGINCLICK(wxID_ANY, ceEdit::OnMarginClick)
 EVT_STC_UPDATEUI(wxID_ANY, ceEdit::OnUpdateUI)
@@ -86,6 +89,7 @@ ceEdit::ceEdit(wxWindow *parent)
     mLinenuMargin = 0;
     mDeviderMargin = 1;
     mFoldingMargin = 2;
+    SetMouseDwellTime(500);
 }
 
 wxString ceEdit::GetFilename(){
@@ -333,6 +337,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     
     // about call tips
     CallTipSetBackground(*wxYELLOW);
+    CallTipSetForegroundHighlight(*wxRED);
     CallTipSetForeground(*wxBLUE);
     
     // set style for brace light and bad
@@ -1082,6 +1087,7 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
 int ceEdit::PrepareFunctionParams(int pos){
     long start, stop;
     mFunctionParames.clear();
+    mLocalVariable.clear();
     wxString func = WhichFunction(pos, &start, &stop);
     if (func.empty()){
         return 0;
@@ -1096,6 +1102,7 @@ int ceEdit::PrepareFunctionParams(int pos){
                 if (variableStart > 0 && variableStart != pos){
                     wxString variable = GetTextRange(variableStart, pos+1);
                     mLocalVariable[variable] = pos;
+                    pos = variableStart;
                 }
             }
             pos--;
@@ -2062,6 +2069,7 @@ void ceEdit::OnStyleNeeded(wxStyledTextEvent &evt)
     int pos = startPos;
     int curStyle = STYLE_DEFAULT;
     PrepareFunctionParams(pos);
+    
     while(pos > 0){
         char c = GetCharAt(pos);
         if (c != '\r' && c != '\t' && c != '\n' && c != ' '){
@@ -2135,9 +2143,59 @@ void ceEdit::UpdateLineNumberMargin()
     SetMarginWidth(mLinenuMargin, TextWidth (wxSTC_STYLE_LINENUMBER, linenumber));
 }
 
+void ceEdit::OnCallTipClick(wxStyledTextEvent &evt){
+    wxPrintf("OnCallTipClick<%d>\n", evt.GetPosition());
+    if (evt.GetPosition() == 0){
+        if (wxGetApp().frame() != NULL && mActiveCallTipsIndex < mActiveCallTips.size() && 
+            mActiveCallTips[mActiveCallTipsIndex] != NULL){
+            wxGetApp().frame()->OpenFile(mActiveCallTips[mActiveCallTipsIndex]->file,
+                mActiveCallTips[mActiveCallTipsIndex]->file, true, mActiveCallTips[mActiveCallTipsIndex]->line-1);
+        }
+        return;
+    }
+    
+    if (evt.GetPosition() == 1){
+        mActiveCallTipsIndex--;
+    }
+    else if (evt.GetPosition() == 2){
+        mActiveCallTipsIndex++;
+    }
+    if (mActiveCallTipsIndex >= mActiveCallTips.size()){
+        mActiveCallTipsIndex = 0;
+    }
+    if (mActiveCallTipsIndex < 0){
+        mActiveCallTipsIndex = mActiveCallTips.size()-1;
+    }
+    
+    wxString value = "\001\002";
+    ceSymbol *pSymbol = mActiveCallTips[mActiveCallTipsIndex];
+    if (!pSymbol->shortFilename.empty()){
+        value += pSymbol->shortFilename;
+    }
+    else{
+        value += pSymbol->file;
+    }
+    value += "(" + pSymbol->lineNumber + "):" + pSymbol->desc;
+    if (value.empty()){
+        return;
+    }
+    CallTipShow(mActiveCallTipsPosition, value);
+}
+
+void ceEdit::OnDwellStart(wxStyledTextEvent &evt){
+    ShowCallTips(evt.GetPosition());
+    evt.Skip();
+}
+
+void ceEdit::OnDwellEnd(wxStyledTextEvent &evt){
+    // if (CallTipActive()){
+    //     CallTipCancel();
+    // }
+    evt.Skip();
+}
+
 void ceEdit::OnAutoCompSelection(wxStyledTextEvent &evt)
 {
-    wxPrintf("String:<%s>\n", evt.GetString());
     wxString value = evt.GetString();
     int pos = value.find('(');
     if (pos != value.npos){
@@ -2151,6 +2209,9 @@ void ceEdit::OnAutoCompSelection(wxStyledTextEvent &evt)
         Replace(evt.GetPosition(), GetCurrentPos(), value);
         GotoPos(evt.GetPosition() + value.length() + offset);
         AutoCompCancel();
+        if (offset != 0){
+            ShowFunctionParam(evt.GetPosition(), evt.GetString());
+        }
     }
     pos = value.find('[');
     if (pos != value.npos){
@@ -2272,10 +2333,6 @@ void ceEdit::OnKillFocus(wxFocusEvent &evt)
 
 void ceEdit::OnKeyDown (wxKeyEvent &event)
 {
-    if (CallTipActive()){
-        CallTipCancel();
-    }
-    
     if (GetLexer() != wxSTC_LEX_CONTAINER){
         event.Skip();
         return;
@@ -2290,6 +2347,12 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
         }
     }
 
+    if ('C' == event.GetKeyCode() && event.ControlDown()){
+        long start, stop;
+        GetSelection(&start, &stop);
+        ClearSelections();
+        SetSelection(start, stop);
+    }
     // todo:fanhongxuan@gmail.com
     // store all the goto target in a stack, use ctrl-right/left to go throw the stack
     // in this case, can easyly return to the previously viewed 
@@ -2308,6 +2371,7 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
     }
     
     if ('R' == event.GetKeyCode() && event.ControlDown()){
+        SetMultiPaste(wxSTC_MULTIPASTE_EACH);
         SetAdditionalSelectionTyping(true);
         StartReplaceInRegion();
         return;
@@ -2320,6 +2384,7 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
         }
         if (mbReplace){
             mbReplace = false;
+            SetMultiPaste(wxSTC_MULTIPASTE_EACH);
             SetAdditionalSelectionTyping(true);
             SetSelForeground(true, *wxBLACK);
             SetSelBackground(true, *wxWHITE);
@@ -2338,12 +2403,12 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
         }
     }
     
-    // if (WXK_DELETE == event.GetKeyCode() || WXK_BACK == event.GetKeyCode()){
-    //     // note:fanhongxuan@gmail.com
-    //     // when backspace, will not call OnCharAdded
-    //     // we need to prepare the function params here.
-    //     PrepareFunctionParams(GetCurrentPos());    
-    // }
+    if (WXK_DELETE == event.GetKeyCode() || WXK_BACK == event.GetKeyCode()){
+        // note:fanhongxuan@gmail.com
+        // when backspace, will not call OnCharAdded
+        // we need to prepare the function params here.
+        PrepareFunctionParams(GetCurrentPos());    
+    }
     event.Skip();
 }
 
@@ -2387,6 +2452,7 @@ void ceEdit::OnMouseLeftDown(wxMouseEvent &evt)
     if (mbReplace){
         mbReplace = false;
         SetSelection(pos, pos);
+        SetMultiPaste(wxSTC_MULTIPASTE_EACH);
         SetAdditionalSelectionTyping(true);
         SetSelBackground(true, *wxWHITE);
         SetSelForeground(true, *wxBLACK);
@@ -2400,13 +2466,13 @@ void ceEdit::OnMouseLeftDown(wxMouseEvent &evt)
 void ceEdit::OnMouseLeftUp(wxMouseEvent &evt)
 {
     DoBraceMatch();
-    ShowCallTips();
     evt.Skip();
 }
 
 void ceEdit::OnMouseLeftDclick(wxMouseEvent &evt){
     // first select the key;
     SetAdditionalSelectionTyping(false);
+    SetMultiPaste(wxSTC_MULTIPASTE_ONCE);
     StartReplaceInRegion();
     //evt.Skip();
 }
@@ -2416,6 +2482,9 @@ void ceEdit::OnMouseWheel(wxMouseEvent &evt)
     if (CallTipActive()){
         CallTipCancel();
     }
+    if (AutoCompActive()){
+        AutoCompCancel();
+    }
     evt.Skip();
 }
 
@@ -2423,7 +2492,7 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
 {
     DoBraceMatch();
     if (WXK_TAB == event.GetKeyCode()){
-        // PrepareFunctionParams(GetCurrentPos());
+        PrepareFunctionParams(GetCurrentPos());
         if (AutoCompActive()){
             AutoCompComplete();
         }
@@ -2449,7 +2518,14 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
                 AutoIndentWithTab(GetCurrentLine());
             }
         }
-    } 
+    }
+    
+    if (OnUpdateFunctionParam(event)){
+    }
+    else if (CallTipActive()){
+        CallTipCancel();
+    }
+    
     event.Skip();
 }
 
@@ -2479,14 +2555,52 @@ bool ceEdit::IsValidChar(char ch, const wxString &validCharList)
 bool ceEdit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
 {
     wxString func = WhichFunction(GetCurrentPos());
+    wxString lan = mLanguage;
+    if (lan == "C++"){
+        lan = "C";
+    }
     int pos = func.find("::");
     if (pos != func.npos){
         func = func.substr(0, pos);
-        wxAutoCompMemberProvider::Instance().SetClassName(func);
+        wxAutoCompMemberProvider::Instance().SetClassName(func, lan, GetFilename());
     }
     else{
-        wxAutoCompMemberProvider::Instance().SetClassName("");
+        wxAutoCompMemberProvider::Instance().SetClassName("", lan, GetFilename());
     }
+    
+    // add local variable
+    std::map<wxString, int>::iterator it = mLocalVariable.begin();
+    while(it != mLocalVariable.end()){
+        if (it->first.find(input) == 0){
+            wxString value = it->first + "[Local variable]";
+            candidate.insert(value);
+        }
+        it++;
+    }
+    
+    // add function param
+    it = mFunctionParames.begin();
+    while (it != mFunctionParames.end()){
+        if (it->first.find(input) == 0){
+            wxString value = it->first + "[Function Param]";
+            candidate.insert(value);
+        }
+        it++;
+    }
+    
+    // add local type
+    std::set<wxString>::iterator sit = mLocalTypes.begin();
+    while(sit != mLocalTypes.end()){
+        if ((*sit).find(input) == 0){
+            wxString value = (*sit) + "[Local Type]";
+            candidate.insert(value);
+        }
+        sit++;
+    }
+    
+    // todo:fanhongxuan@gmail.com
+    // in comments and string, disable wxAutoCompMemberProvider
+    // use wxAutoCompWordInBufferProvider instead.
     int i = 0;
     for (i = 0; i < mAllProviders.size(); i++){
         mAllProviders[i]->GetCandidate(input, candidate, mLanguage);
@@ -2654,10 +2768,116 @@ static wxString GetTypeByStyle(int style){
     return "";
 }
 
-bool ceEdit::ShowCallTips()
+bool ceEdit::HighLightNextParam(const wxString &desc)
 {
-    int start = WordStartPosition(GetCurrentPos(), true);
-    int stop = WordEndPosition(GetCurrentPos(), true);
+    // auto highlith from ( to the first ',' 
+    // update the mAcitveFunctionParamIndex by the position.
+    int paramIndex = 0;
+    int pos = GetCurrentPos();
+    if (pos < mActiveFunctionParamStart){
+        // wxPrintf("HighLightNextParam, cancel\n");
+        CallTipCancel();
+        mActiveFunctionParamStart = 0;
+        mActiveFunctionParam = "";
+        return false;
+    }
+    while(pos-1 >  mActiveFunctionParamStart){
+        // wxPrintf("HighLightNextParam:<%c>\n", (char)GetCharAt(pos-1));
+        if (GetCharAt(pos-1) == ',' && GetStyleAt(pos-1) == STYLE_OPERATOR){
+            paramIndex++;
+        }
+        pos--;
+    }
+    // wxPrintf("paramIndex:%d\n", paramIndex);
+    int start = desc.find("(");
+    int stop = desc.find(")");
+    if (start == desc.npos || stop == desc.npos || (start+1 == stop)){
+        return true;
+    }
+    int highlightStart = start+1;
+    int highlightStop = stop;
+    int iCommaCount = 0;
+    bool bSkipComma = false;
+    bool bBeforeEqual = true;
+    while(start <= stop){
+        if (desc[start] == '<'){
+            if (bBeforeEqual){
+                bSkipComma = true;
+            }
+        }
+        else if (bSkipComma){
+            if (desc[start] == '>'){
+                bSkipComma = false;
+            }
+        }
+        else if (desc[start] == ','){
+            bBeforeEqual = true;
+            iCommaCount++;
+            if (iCommaCount == paramIndex){
+                highlightStart = start+1;
+            }
+            else if (iCommaCount == (paramIndex+1)){
+                highlightStop = start;
+            }
+        }
+        else if (desc[start] == '='){
+            bBeforeEqual = false;
+        }
+        start++;
+    }
+    
+    // int value1, int value2, int value3,
+    // std::map<int, test> &input, std::map<int,test> &output
+    mActiveFunctionParam = desc;
+    CallTipSetHighlight(highlightStart, highlightStop);
+    return true;
+}
+
+bool ceEdit::OnUpdateFunctionParam(wxKeyEvent &event)
+{
+    if (mActiveFunctionParam.empty()){
+        return false;
+    }
+    if (WXK_DOWN == event.GetKeyCode() || WXK_UP == event.GetKeyCode() ||
+        WXK_ESCAPE == event.GetKeyCode() || WXK_HOME == event.GetKeyCode() || WXK_END == event.GetKeyCode() ||
+        WXK_PAGEUP == event.GetKeyCode() || WXK_PAGEDOWN == event.GetKeyCode() ||
+        '{' == event.GetKeyCode() || ';' == event.GetKeyCode()){
+        if (CallTipActive()){
+            CallTipCancel();
+            mActiveFunctionParam = "";
+            mActiveFunctionParamStart = 0;
+            return true;
+        }
+    }
+    if (WXK_BACK == event.GetKeyCode() || WXK_DELETE == event.GetKeyCode() || 
+        WXK_LEFT == event.GetKeyCode() || WXK_RIGHT == event.GetKeyCode() || 
+        ',' == event.GetKeyCode()){
+        HighLightNextParam(mActiveFunctionParam);
+    }
+    return true;
+}
+
+bool ceEdit::ShowFunctionParam(int pos, const wxString &desc)
+{
+    if (CallTipActive()){
+        CallTipCancel();
+    }
+    mActiveFunctionParam = "";
+    mActiveFunctionParamStart = 0;
+    CallTipShow(pos, desc);
+    int start = desc.find("(");
+    if (start == desc.npos){
+        return false;
+    }
+    mActiveFunctionParamStart = pos + start;
+    HighLightNextParam(desc);
+    return true;
+}
+
+bool ceEdit::ShowCallTips(int curPos)
+{
+    int start = WordStartPosition(curPos, true);
+    int stop = WordEndPosition(curPos, true);
     wxString value = GetTextRange(start, stop);
     if (NULL == wxGetApp().frame()){
         return false;
@@ -2684,7 +2904,7 @@ bool ceEdit::ShowCallTips()
         className = GetClassName(start);
     }
     else{
-        className = WhichFunction(GetCurrentPos());
+        className = WhichFunction(curPos);
     }
     int pos = className.find("::");
     if (pos != className.npos){
@@ -2693,34 +2913,49 @@ bool ceEdit::ShowCallTips()
     else{
         className = "";
     }
+    
+    for (int i = 0; i < mActiveCallTips.size(); i++){
+        delete mActiveCallTips[i];
+    }
+    mActiveCallTips.clear();
+    
     std::set<ceSymbol*> outputs;
-    wxGetApp().frame()->FindDef(outputs, value, className, type, GetFilename());
-    value = wxEmptyString;
+    wxString lan = mLanguage; if (lan == "C++"){ lan = "C";}
+    wxGetApp().frame()->FindDef(outputs, value, className, type, lan, GetFilename());
+    long curLine;
+    PositionToXY(curPos, NULL, &curLine); curLine++;
     std::set<ceSymbol*>::iterator it = outputs.begin();
     while(it != outputs.end()){
-        if ((*it)->file == GetFilename() && (GetCurrentLine()+1) == (*it)->line){
+        if ((*it)->file == GetFilename() && curLine == (*it)->line){
             delete (*it);
-            it++;
-            // skip ourself
-            continue;
-        }
-        if (!value.empty()){
-            value += "\n\002";
-        }
-        if (!(*it)->shortFilename.empty()){
-            value += (*it)->shortFilename;
         }
         else{
-            value += (*it)->file;
+            mActiveCallTips.push_back(*it);
         }
-        value += "(" + (*it)->lineNumber + "):" + (*it)->desc;
-        delete (*it);
         it++;
     }
+    if (mActiveCallTips.size() == 0){
+        return false;
+    }
+    
+    value = wxEmptyString;
+    if (mActiveCallTips.size() > 1){
+        value = "\001\002";
+    }
+    mActiveCallTipsIndex = 0;
+    mActiveCallTipsPosition = start;
+    ceSymbol *pSymbol = mActiveCallTips[mActiveCallTipsIndex];
+    if (!pSymbol->shortFilename.empty()){
+        value += pSymbol->shortFilename;
+    }
+    else{
+        value += pSymbol->file;
+    }
+    value += "(" + pSymbol->lineNumber + "):" + pSymbol->desc;
     if (value.empty()){
         return false;
     }
-    CallTipShow(start, value);
+    CallTipShow(mActiveCallTipsPosition, value);
     return true;
 }
 
@@ -2840,7 +3075,7 @@ bool ceEdit::StartReplaceInRegion(){
     long sx, sy, ex, ey;
     PositionToXY(startPos, &sx, &sy);
     PositionToXY(stopPos, &ex, &ey);
-    wxPrintf("Replace in:%ld:%ld<-->%ld:%ld(%ld<->%ld)\n", sy+1, sx+1, ey+1, ex+1, startPos, stopPos);
+    // wxPrintf("Replace in:%ld:%ld<-->%ld:%ld(%ld<->%ld)\n", sy+1, sx+1, ey+1, ex+1, startPos, stopPos);
     SetSelForeground(false, wxColour("BLUE"));
     SetSelBackground(true, wxColour("BLUE"));
     
@@ -2872,7 +3107,6 @@ bool ceEdit::TriggerCommentRange(long start, long stop)
     stopLine = endLine;
     
     // wxPrintf("select line:<%ld-%ld>\n", startLine+1, endLine+1);
-    
     wxString comment = "// ";
     if (start == stop){
         // no selection, add comments at the line end
@@ -3088,7 +3322,7 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
     // don't use inputWord, we find the word backword start from current pos
     // todo:fanhongxuan@gmail.com
     // 1, fill the mFunctionParames table.
-    // PrepareFunctionParams(GetCurrentPos());
+    PrepareFunctionParams(GetCurrentPos());
     
     bool bNewCandidate = false;
     long pos = GetInsertionPoint();
@@ -3146,6 +3380,10 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
         return;
     }
     
+    if (CallTipActive()){
+        // when calltip is active, don't show autocomp;
+        return;
+    }
     inputWord = GetTextRange(start, pos+1);
     std::set<wxString> candidate;
     GetCandidate(inputWord, candidate);

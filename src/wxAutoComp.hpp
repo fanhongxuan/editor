@@ -44,6 +44,7 @@ private:
     wxAutoCompProviderKeyword &operator=(const wxAutoCompProviderKeyword &other);
 private:
     std::vector<wxString> mCPPKeyWordList;
+        std::vector<wxString> mJavaKeyWordList;
     static wxAutoCompProviderKeyword *mpInstance;
 };
 
@@ -74,7 +75,7 @@ private:
         static wxAutoCompMemberProvider &Instance();
         virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
         virtual bool IsValidChar(char c) const;
-        void SetClassName(const wxString &name);
+        void SetClassName(const wxString &name, const wxString &language, const wxString &filename);
         void Reset();
     private:
         std::map<wxString, std::set<wxString> *> mCandidateMap;

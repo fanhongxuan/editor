@@ -423,9 +423,13 @@ void MyFrame::ChangeToBuffer(ceEdit *pEdit, int pos)
     }
 }
 
-bool MyFrame::GetSymbols(std::set<ceSymbol *> &symbols, const wxString &scope, const wxString &type){
+bool MyFrame::GetSymbols(std::set<ceSymbol *> &symbols, 
+    const wxString &scope, 
+    const wxString &type, 
+    const wxString &language, 
+    const wxString &filename){
     if (NULL != mpWorkSpace){
-        return mpWorkSpace->GetSymbols(symbols, scope, type);
+        return mpWorkSpace->GetSymbols(symbols, scope, type, language, filename);
     }
     return false;
 }
@@ -434,9 +438,10 @@ bool MyFrame::FindDef(std::set<ceSymbol*> &symbols,
     const wxString &name,
     const wxString &className,
     const wxString &type,
+    const wxString &language,
     const wxString &filename){
     if (NULL != mpWorkSpace){
-        return mpWorkSpace->FindDef(symbols, name, className, type, filename);
+        return mpWorkSpace->FindDef(symbols, name, className, type, language, filename);
     }
     return false;
 }
