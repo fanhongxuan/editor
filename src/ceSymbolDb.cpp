@@ -25,6 +25,9 @@ wxString ceSymbol::ToAutoCompString()
     if (param != "-" && param != ""){
         // function
         ret += param;
+        if (symbolType != "Function"){
+            ret += "[Defination]";
+        }
         if (scope != "-" && scope != ""){
             ret += "[<" + type + ">"+ scope + "]";
         }
@@ -222,15 +225,16 @@ static ceSymbol* BuildSymbol(const wxString &name,
     pRet->access = sym[VALUE_INDEX_ACCESS];
     pRet->file = sym[VALUE_INDEX_FILE];
     pRet->param = sym[VALUE_INDEX_PARAM];
-    if (pRet->access == "public"){
-        pRet->desc = "+";
-    }
-    else if (pRet->access == "private"){
-        pRet->desc = "-";
-    }
-    else if (pRet->access == "protected"){
-        pRet->desc = "*";
-    }
+    pRet->desc += "(" + pRet->access+ ")";
+    // if (pRet->access == "public"){
+    //     pRet->desc = "+";
+    // }
+    // else if (pRet->access == "private"){
+    //     pRet->desc = "-";
+    // }
+    // else if (pRet->access == "protected"){
+    //     pRet->desc = "*";
+    // }
     pRet->desc += pRet->type;
     pRet->desc += " ";
     if (!pRet->scope.empty()){
@@ -250,7 +254,12 @@ static bool GetDbRange(std::set<ceSymbol*> &symbols,
     const wxString &language, 
     DBOP *pDb)
 {
-    wxString key = type + "/" + language +  "/" + scope + "/";
+    wxString lan = language;
+    if (lan == "C++"){
+        lan = "C";
+    }
+    wxString key = type + "/" + lan +  "/" + scope + "/";
+    // wxPrintf("Key:%s\n", key);
     const char *pValue = dbop_first(pDb, key, NULL, DBOP_PREFIX | DBOP_KEY);
     while(NULL != pValue){
         wxString name = pValue;
@@ -272,7 +281,11 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
     const wxString &name,
     const wxString &language,
     DBOP *pDb){
-    wxString key = type + "/" + language + "/";
+    wxString lan = language;
+    if (lan == "C++"){
+        lan = "C";
+    }
+    wxString key = type + "/" + lan + "/";
     key += className + "/";
     key += name;
     
@@ -288,14 +301,18 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
     return true;
 }
 
-bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols, 
+bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols,
     const wxString &scope, 
-    const wxString &type, 
+    const wxString &types, 
     const wxString &language, 
     const wxString &dir)
 {
+    wxString lan = language;
+    if (lan == "C++"){
+        lan = "C";
+    }
+    wxString type = types;
     wxString db = GetSymbolDbName(dir + "/symbol");
-    
     db += ".db";
     DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, DBOP_RAW);
     if (NULL == pDb){
@@ -303,33 +320,25 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols,
         return false;
     }
     wxPrintf("GetSymbols:scope<%s>, type:<%s>,dir<%s>\n", scope, type, dir);
+    std::vector<wxString> classNames;
     if (type.empty() && scope.empty()){
         // try all global value first.
         // type and class is all empty
-        GetDbRange(symbols, "d", "" , language, pDb);
-        GetDbRange(symbols, "f", "" , language, pDb);
-        GetDbRange(symbols, "e", "" , language, pDb);
-    }
-    else if (type.empty()){
-        std::vector<wxString> classNames;
-        classNames.push_back(scope);
+        type = "dfec";
         classNames.push_back("");
-        GetInherit(classNames, scope, language, pDb);
-        for (int i = 0; i < classNames.size(); i++){
-            GetDbRange(symbols, "m", classNames[i], language, pDb);
-            GetDbRange(symbols, "f", classNames[i], language, pDb);
-            GetDbRange(symbols, "p", classNames[i], language, pDb);
-        }
+        classNames.push_back("__anon");
     }
     else{
-        std::vector<wxString> classNames;
         classNames.push_back(scope);
-        classNames.push_back("");
-        GetInherit(classNames, scope, language, pDb);
-        for (int i = 0; i < classNames.size(); i++){
-            for (int j = 0; j < type.size(); j++){
-                GetDbRange(symbols, type[j], classNames[i], language, pDb);
-            }
+        GetInherit(classNames, scope, lan, pDb);
+        if (type.empty()){
+            type = "mfpce";
+        }
+    }
+    
+    for (int i = 0; i < classNames.size(); i++){
+        for (int j = 0; j < type.size(); j++){
+            GetDbRange(symbols, type[j], classNames[i], lan, pDb);
         }
     }
     dbop_close(pDb);    
@@ -339,7 +348,7 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols,
 bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     const wxString &name, 
     const wxString &className,
-    const wxString &type,
+    const wxString &types,
     const wxString &language,
     const wxString &filename,
     const wxString &dir){
@@ -350,43 +359,48 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
         wxPrintf("Failed to open %s\n", db);
         return false;
     }
+    wxPrintf("FindDef:name<%s>,className<%s>, type<%s>, language:<%s>\n", name, className, types, language);
+    wxString type = types;
+    std::vector<wxString> classNames;
     if (type.empty() && className.empty()){
         // try all global value first.
         // type and class is all empty
-        GetDbValue(symbols, "d", "" , name, language, pDb);
-        GetDbValue(symbols, "f", "" , name, language, pDb);
-        GetDbValue(symbols, "e", "" , name, language, pDb);
-    }
-    else if (className.empty()){
-        for (int i = 0; i < type.size(); i++){
-            GetDbValue(symbols, type[i], "", name, language, pDb);
-        }
-    }
-    else if (type.empty()){
-        std::vector<wxString> classNames;
-        classNames.push_back(className);
-        classNames.push_back("");
-        GetInherit(classNames, className, language, pDb);
-        for (int i = 0; i < classNames.size(); i++){
-            GetDbValue(symbols, "m", classNames[i], name, language, pDb);
-            GetDbValue(symbols, "f", classNames[i], name, language, pDb);
-            GetDbValue(symbols, "p", classNames[i], name, language, pDb);
-        }
+        type = "dfe";
     }
     else{
-        std::vector<wxString> classNames;
         classNames.push_back(className);
-        classNames.push_back("");
         GetInherit(classNames, className, language, pDb);
-        for (int i = 0; i < classNames.size(); i++){
-            for (int j = 0; j < type.size(); j++){
-                GetDbValue(symbols, type[j], classNames[i], name, language, pDb);
-            }
+        if (type.empty()){
+            type = "mfpe";
         }
     }
+    if (className != ""){
+        classNames.push_back("");
+    }
+    if (className != ""){
+        classNames.push_back("__anon");
+    }
     
+    for (int i = 0; i < classNames.size(); i++){
+        for (int j = 0; j < type.size(); j++){
+            GetDbValue(symbols, type[j], classNames[i], name, language, pDb);
+        }
+    }
     dbop_close(pDb);    
     return true;
+}
+
+wxString ceSymbolDb::GetDbRecordByKey(const wxString &key, const wxString &dir){
+    wxString db = GetSymbolDbName(dir + "/symbol");
+    db += ".db";
+    DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, DBOP_RAW);
+    if (NULL == pDb){
+        wxPrintf("Failed to open %s\n", db);
+        return "";
+    }
+    wxString ret = dbop_get(pDb, static_cast<const char*>(key));
+    dbop_close(pDb);
+    return ret;
 }
 
 ceSymbol *ceSymbolDb::ParseLine(const wxString &line, const wxString &name, const wxString &type, std::set<wxString> &files){

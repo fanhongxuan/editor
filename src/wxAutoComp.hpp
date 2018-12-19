@@ -12,7 +12,7 @@ public:
     ~wxAutoCompProvider();
     
     // find the candidate list according the input
-    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt) = 0;
+    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode) = 0;
     virtual bool IsValidForFile(const wxString &filename) const;
     virtual bool IsValidChar(char c)const;
 
@@ -27,14 +27,14 @@ private:
 class wxAutoCompProviderAllWord: public wxAutoCompProvider
 {
 public:
-    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
+    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode);
 };
 
 class wxAutoCompProviderKeyword: public wxAutoCompProvider
 {
 public:
     static wxAutoCompProviderKeyword &Instance();
-    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
+    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode);
     virtual bool IsValidChar(char c) const;
     virtual bool IsValidForFile(const wxString &filename) const;
     
@@ -52,7 +52,7 @@ class wxAutoCompWordInBufferProvider: public wxAutoCompProvider
 {
 public:
     static wxAutoCompWordInBufferProvider &Instance();
-    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
+    virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode);
         virtual bool IsValidForFile(const wxString &filename) const;
     bool AddFileContent(const wxString &file, const wxString &opt);
     bool DelFile(const wxString &file, const wxString &opt);
@@ -73,7 +73,7 @@ private:
     {
     public:
         static wxAutoCompMemberProvider &Instance();
-        virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt);
+        virtual bool GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode);
         virtual bool IsValidChar(char c) const;
         void SetClassName(const wxString &name, const wxString &language, const wxString &filename);
         void Reset();

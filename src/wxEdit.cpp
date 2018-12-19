@@ -853,7 +853,7 @@ bool Edit::GetCandidate(const wxString &input, std::set<wxString> &candidate)
     }
     
     for (i = 0; i < mAllProviders.size(); i++){
-        mAllProviders[i]->GetCandidate(input, candidate, opt);
+        mAllProviders[i]->GetCandidate(input, candidate, opt, 0);
     }
     
     return true;

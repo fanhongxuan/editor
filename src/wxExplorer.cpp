@@ -225,7 +225,7 @@ void wxExplorer::OnKeyDown(wxKeyEvent &evt)
     int key = evt.GetKeyCode();
     if (WXK_LEFT == key){
         wxTreeItemId id = GetFocusedItem();
-        if (id.IsOk() && IsExpanded(id)){
+        if (id.IsOk() && id != GetRootItem() && IsExpanded(id)){
             Collapse(id);
             return;
         }

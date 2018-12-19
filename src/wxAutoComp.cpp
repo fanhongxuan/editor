@@ -107,14 +107,16 @@ wxAutoCompProviderKeyword::wxAutoCompProviderKeyword()
     ceSplitString(gJavaKeyWord, mJavaKeyWordList);
 }
 
-static bool isCpp(const wxString &opt){
-    if (opt == "C" || opt == "CPP" || opt == "c" || opt == "cpp" || opt == "cxx" || opt == "c++" || opt == "C++"){
+static bool isCpp(const wxString &name){
+    wxString opt = name.Lower();
+    if (opt == "c" || opt == "cpp" || opt == "cxx" || opt == "c++" || opt == "cxx"){
         return true;
     }
     return false;
 }
-static bool isJava(const wxString &opt){
-    if (opt == "java" || opt == "JAVA" || opt == ".class" || opt == ".aidl"){
+static bool isJava(const wxString &name){
+    wxString opt = name.Lower();
+    if (opt == "java" || opt == ".class" || opt == ".aidl"){
         return true;
     }
     return false;
@@ -138,8 +140,11 @@ bool wxAutoCompProviderKeyword::IsValidChar(char c) const
     return wxAutoCompProvider::IsValidChar(c);
 }
 
-bool wxAutoCompProviderKeyword::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt)
+bool wxAutoCompProviderKeyword::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode)
 {
+    if (mode == 2){
+        return false;
+    }
     if (input.empty()){
         return false;
     }
@@ -181,24 +186,28 @@ wxAutoCompWordInBufferProvider &wxAutoCompWordInBufferProvider::Instance()
 
 wxAutoCompWordInBufferProvider::wxAutoCompWordInBufferProvider()
 {
+    // fanhongxuan   
 }
 
 bool wxAutoCompWordInBufferProvider::IsValidForFile(const wxString &filename) const
 {
-    // return true;
-    return false;
+    return true;
 }
 
 bool wxAutoCompWordInBufferProvider::IsValidChar(char c) const
 {
-    if (c == '_' || c == '@' /*|| c == '.' || c == ':' || c == '-'*/ || c == '/' || c == '\\'){
+    if (c == '_' || c == '@' /*|| c == '.' || c == ':' || c == '-' || c == '/' || c == '\\'*/){
         return true;
     }
     return wxAutoCompProvider::IsValidChar(c);
 }
 
-bool wxAutoCompWordInBufferProvider::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt)
+bool wxAutoCompWordInBufferProvider::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode)
 {
+    if (mode != 0){
+        return false;
+    }
+    
     if (input.length() < 3){
         return false;
     }
@@ -217,7 +226,8 @@ bool wxAutoCompWordInBufferProvider::GetCandidate(const wxString &input, std::se
     while(sit != pSet->end()){
         if ((*sit).find(input) != input.npos){
             // wxPrintf("Candidate:%s;\n", (*sit));
-            output.insert((*sit));
+            wxString candidate = (*sit) + "[WordInBuffer]";
+            output.insert(candidate);
         }
         sit++;
     }
@@ -226,14 +236,9 @@ bool wxAutoCompWordInBufferProvider::GetCandidate(const wxString &input, std::se
 
 bool wxAutoCompWordInBufferProvider::AddFileContent(const wxString &file, const wxString &opt)
 {
-    // note:fanhongxuan@gmail.com
-    // when to update the content of one opt?
-    // option 1:
-    //    when user save one file, reparse it.
-    //    when user close one file, destory it.
-    // option 2:
-    //    when use input one word, add it
-
+    // todo:fanhongxuan@gmail.com
+    // remove the duplicate value with wxAutoCompMemberProvider
+    
     std::map<wxString, std::set<wxString> * >::iterator it = mCandidateMap.find(opt);
     std::set<wxString> *pSet = NULL;
     if (it == mCandidateMap.end()){
@@ -315,7 +320,9 @@ wxAutoCompMemberProvider::wxAutoCompMemberProvider()
 }
 
 void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxString &language, const wxString &filename){
+    wxPrintf("SetClassName:<%s>(%s)\n", className, language);
     mClassName = className;
+    
     std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.find(className);
     if (it != mCandidateMap.end()){
         return;
@@ -323,8 +330,7 @@ void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxS
     if (NULL == wxGetApp().frame()){
         return;
     }
-    
-    wxPrintf("SetClassName:<%s>(%s)\n", className, language);
+    wxPrintf("GetSymbols for <%s>(%s)\n", className, language);
     std::set<wxString> *pSet = new std::set<wxString>;
     std::set<ceSymbol*> symbols;
     wxGetApp().frame()->GetSymbols(symbols, className, "", language, filename);
@@ -332,6 +338,7 @@ void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxS
     while(sit != symbols.end()){
         ceSymbol *pSymbol = (*sit);
         wxString candidate = pSymbol->ToAutoCompString();
+        // wxPrintf("candidate:%s\n", candidate);
         pSet->insert(pSymbol->ToAutoCompString());
         delete pSymbol;
         pSymbol = NULL;
@@ -360,17 +367,40 @@ bool wxAutoCompMemberProvider::IsValidChar(char c) const
     return wxAutoCompProvider::IsValidChar(c);
 }
 
-bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt)
+bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxString> &output, const wxString &opt, int mode)
 {
+    if (mode != 1 && mode != 2){
+        // note:fanhongxuan@gmail.com
+        // mode 1 can include global value, mode 2 don't include global value
+        return false;
+    }
+    
     std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.find(mClassName);
     if (it == mCandidateMap.end()){
         return false;
     }
-    wxPrintf("wxAutoCompMemberProvider::GetCandidate:<%s>\n", input);
+    wxPrintf("wxAutoCompMemberProvider::GetCandidate:<%s><%s>\n", mClassName, input);
     std::set<wxString> *pSet = it->second;
     std::set<wxString>::iterator sit = pSet->begin();
-    if (input == "::" || input == "." || input == "->"){
-        // load all the member from the class
+    bool bShowAll = false;
+    // if (input.length() > 0){
+    //     if (input[input.length()-1] == '.'){
+    //         bShowAll = true;
+    //     }
+    //     if (input.length() > 1){
+    //         if (input[input.length()-1] == ':' && input[input.length()-2] == ':'){
+    //             bShowAll = true;
+    //         }
+    //         if (input[input.length()-1] == '>' && input[input.length()-2] == '-'){
+    //             bShowAll = true;
+    //         }
+    //     }
+    // }
+    if (input.find_first_of(".>:") != input.npos){
+        bShowAll = true;
+    }
+    
+    if (bShowAll){
         while(sit != pSet->end()){
             output.insert((*sit));
             sit++;
@@ -384,6 +414,37 @@ bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxSt
             }
             sit++;
         }        
+    }
+    
+    if (mode == 1 && input.length() >= 3){
+        // load the global value
+        it = mCandidateMap.find("");
+        if (it == mCandidateMap.end()){
+            return true;
+        }
+        pSet = it->second;
+        sit = pSet->begin();
+        while(sit != pSet->end()){
+            if ((*sit).find(input) == 0){
+                output.insert(*sit);
+            }
+            sit++;
+        }
+        
+        it = mCandidateMap.find("__anon");
+        if (it == mCandidateMap.end()){
+            return true;
+        }
+        pSet = it->second;
+        sit = pSet->begin();
+        while(sit != pSet->end()){
+            // wxPrintf("__anon:%s\n", (*sit));
+            if ((*sit).find(input) == 0){
+                output.insert(*sit);
+            }
+            sit++;
+        }
+        
     }
     return true;
 }

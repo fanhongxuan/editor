@@ -37,6 +37,7 @@ public:
     
     bool GetSymbolByType(std::set<ceSymbol*> &symbols, const wxString &type, const wxString &filename = "");
     
+    wxString GetDbRecordByKey(const wxString &key, const wxString &dir);
     wxString GetType(const wxString &symbol, const wxString &type, const wxString &filename = "");
     bool IsType(const wxString &symbol, const wxString &type, const wxString &filename = "");
     bool GetLocalVariableByFile(std::vector<ceSymbol*> &symbols, const wxString &filename);

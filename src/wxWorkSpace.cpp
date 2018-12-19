@@ -201,7 +201,7 @@ bool wxWorkSpace::UpdateTagForFile(const wxString &file)
             cmd += ceGetExecPath();
             cmd += "/ext/gtags --single-update ";
             cmd += file;
-            ceSyncExec(wxString::Format("sync %s", file), outputs);
+            // ceSyncExec(wxString::Format("sync %s", file), outputs);
 #endif
             ceSyncExec(cmd, outputs);       
             if (NULL == mpSymbolDb){
@@ -392,7 +392,7 @@ void wxWorkSpace::OnKeyDown(wxKeyEvent &evt)
     int key = evt.GetKeyCode();
     if (WXK_LEFT == key){
         wxTreeItemId id = GetFocusedItem();
-        if (id.IsOk() && IsExpanded(id)){
+        if (id.IsOk()  && id != GetRootItem() && IsExpanded(id)){
             Collapse(id);
             return;
         }
@@ -550,6 +550,25 @@ void wxWorkSpace::CreateImageList()
     }
     
     AssignImageList(images);
+}
+
+wxString wxWorkSpace::GetDbRecordByKey(const wxString &key){
+    if (NULL != mpSymbolDb){
+        mpSymbolDb = new ceSymbolDb;
+    }
+    wxString ret;
+    std::set<wxString>::const_iterator cit = mDirs.begin();
+    while(cit != mDirs.end()){
+        wxString value = mpSymbolDb->GetDbRecordByKey(key, *cit);
+        if (!value.empty()){
+            if (!ret.empty()){
+                ret += "\n";
+            }
+            ret += value;
+        }
+        cit++;
+    }
+    return ret;
 }
 
 bool wxWorkSpace::GetSymbols(std::set<ceSymbol*> &symbols, 

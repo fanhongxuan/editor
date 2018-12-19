@@ -32,6 +32,7 @@ public:
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
     bool UpdateTagForFile(const wxString &file);
+        wxString GetDbRecordByKey(const wxString &key);
         bool GetSymbols(std::set<ceSymbol*> &symbols, 
                         const wxString &scope, 
                         const wxString &type = "", 

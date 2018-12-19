@@ -87,6 +87,8 @@ EVT_MENU(ID_ShowSymbolList, MyFrame::OnShowSymbolList)
 EVT_MENU(ID_ShowReference, MyFrame::OnShowReference)
 EVT_MENU(ID_ShowGrepText, MyFrame::OnShowGrepText)
 EVT_MENU(ID_GotoDefine, MyFrame::OnGotoDefine)
+EVT_MENU(ID_GoBack, MyFrame::OnGoBack)
+EVT_MENU(ID_GoForward, MyFrame::OnGoForward)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
 wxEND_EVENT_TABLE()
@@ -132,6 +134,7 @@ MyFrame::MyFrame(wxWindow* parent,
 	mpAgSearch = NULL;
     mpRefSearch = NULL;
     mpActiveEdit = NULL;
+    mGotoIndex = -1;
     mpCmd = NULL;
     // tell wxAuiManager to manage this frame
     m_mgr.SetArtProvider(new wxMyDockArt);
@@ -170,7 +173,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  13  
+#define ACCE_COUNT  15  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[ 1].Set(wxACCEL_ALT, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -185,6 +188,8 @@ void MyFrame::CreateAcceTable()
     e[10].Set(wxACCEL_ALT,  (int)'R', ID_ShowReference); // ALT+R to show reference of current symbol
     e[11].Set(wxACCEL_ALT,  (int)'.', ID_GotoDefine); // ALT+. to show the define of current symbol
     e[12].Set(wxACCEL_ALT,  (int)'T', ID_ShowGrepText); // ALT+T to grep the currenty symbol
+    e[13].Set(wxACCEL_ALT, WXK_RIGHT, ID_GoForward);
+    e[14].Set(wxACCEL_ALT, WXK_LEFT, ID_GoBack);
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -358,13 +363,51 @@ public:
     }
 };
 
-void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bActive, int line)
+void MyFrame::OnGoBack(wxCommandEvent &evt){
+    // std::vector< std::pair<wxString, int> > mGotoHistory;
+    if (mGotoHistory.empty()){
+        return;
+    }
+    mGotoIndex--;
+    if (mGotoIndex < 0){
+        mGotoIndex = 0;
+    }
+    // wxPrintf("OnGoBack<%d>(%ld)\n", mGotoIndex, mGotoHistory.size());
+    OpenFile(mGotoHistory[mGotoIndex].first, 
+        mGotoHistory[mGotoIndex].first, true, mGotoHistory[mGotoIndex].second, false);
+}
+
+void MyFrame::OnGoForward(wxCommandEvent &evt){
+    if (mGotoHistory.empty()){
+        return;
+    }
+    mGotoIndex++;
+    if (mGotoIndex >= mGotoHistory.size()){
+        mGotoIndex = mGotoHistory.size() - 1;
+    }
+    // wxPrintf("OnGoForward:<%d>(%ld)\n", mGotoIndex, mGotoHistory.size());
+    OpenFile(mGotoHistory[mGotoIndex].first, 
+        mGotoHistory[mGotoIndex].first, true, mGotoHistory[mGotoIndex].second, false);
+}
+
+void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bActive, int line, bool updateGotoHistory)
 {
     if (NULL == mpBufferList){
         return;
     }
     int i = 0;
     ceEdit *pEdit = NULL;
+    if (updateGotoHistory && bActive){
+        mGotoHistory.resize(mGotoIndex+1);
+        ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetCurrentPage());
+        if (NULL != pEdit && (!pEdit->GetFilename().empty())){
+            mGotoHistory.push_back(std::pair<wxString, int>(pEdit->GetFilename(), pEdit->GetCurrentLine()));
+        }
+        mGotoIndex = mGotoHistory.size();
+        // wxPrintf("GotoHistory:<%s><%d>\n", path, line);
+        mGotoHistory.push_back(std::pair<wxString, int>(path, line));
+    }
+    
     wxString name, ext;
     wxFileName::SplitPath(filename, NULL, NULL, &name, &ext);
     if (!ext.empty()){
@@ -406,6 +449,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     if (bActive && NULL != pEdit){
         pEdit->SetFocus();
     }
+    // wxPrintf("Open file:<%s><%d>\n", filename, line);
     m_mgr.Update();
 }
 
@@ -421,6 +465,13 @@ void MyFrame::ChangeToBuffer(ceEdit *pEdit, int pos)
             break;
         }
     }
+}
+
+wxString MyFrame::GetDbRecordByKey(const wxString &key){
+    if (NULL != mpWorkSpace){
+        return mpWorkSpace->GetDbRecordByKey(key);
+    }
+    return "";
 }
 
 bool MyFrame::GetSymbols(std::set<ceSymbol *> &symbols, 
@@ -501,7 +552,11 @@ void MyFrame::LoadInfo()
         if (!config.HasEntry(entry)){
             int selection = config.ReadLong("/Config/LastOpenFile/Selection", 0);
             if (selection < mpBufferList->GetPageCount()){
-                mpBufferList->SetSelection(selection);
+                ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(selection));
+                if (NULL != pEdit){
+                    OpenFile(pEdit->GetFilename(), pEdit->GetFilename(), true);
+                }
+                // mpBufferList->SetSelection(selection);
             }    
             break;
         }
