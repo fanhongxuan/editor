@@ -2333,6 +2333,10 @@ bool ceEdit::UpdateCallTip(int direction){
         return false;
     }
     
+    if (mActiveCallTips.size() == 1){
+        return false;
+    }
+    
     if (direction == 1){
         mActiveCallTipsIndex--;
     }
