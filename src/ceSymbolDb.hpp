@@ -58,7 +58,8 @@ public:
         
     bool UpdateSymbol(const std::set<wxString> &dirs);
     bool UpdateSymbolByDir(const wxString &dir);
-    bool UpdateSymbolByFile(const wxString &filename);
+        
+    bool UpdateSymbolByFile(const wxString &filename, const wxString &dir);
     
     static bool GetFileSymbol(const wxString &file, std::set<ceSymbol*> &symbols);
         

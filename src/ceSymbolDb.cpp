@@ -133,31 +133,21 @@ bool ceSymbolDb::UpdateSymbolByDir(const wxString &dir){
     return true;
 }
 
-bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename){
+bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename, const wxString &dir){
     static wxString ctags_exec;
     if (ctags_exec.empty()){
         ctags_exec = ceGetExecPath();
-        ctags_exec += "/ext/ctags -n --kinds-C++=+p --fields=+a+i+m+S+R+E -f - ";
+        ctags_exec += "/ext/ctags -n --output-format=rocksdb --kinds-C++=+p -a --fields=+a+i+m+S+R+E -f ";
+    }
+    wxString name = GetSymbolDbName(dir + "/symbol");
+    if (name.empty()){
+        return false;
     }
     
-    // todo:fanhongxuan@gmail.com
-    // delete all the record of this file.
-    // wxString name = GetSymbolDbName(filename);
-    // if (name.empty()){
-    //     return false;
-    // }
-    wxString cmd = ctags_exec + " " + filename;
+    wxString cmd = ctags_exec + name + " " + filename;
+    wxPrintf("exec<%s>\n", cmd);
     std::vector<wxString> outputs;
-    // fixme: current not used.
-    // ceSyncExec(cmd, outputs);
-    // wxString value;
-    // for (int i = 0; i < outputs.size();i++){
-    //     UpdateRecord(outputs[i]);
-    //     // ceRocksDb::Instance().WriteValue();
-    // }
-    
-    // store the output to db.
-    // ceRocksDb::Instance().WriteValue(filename, value);
+    ceSyncExec(cmd, outputs);
     return true;
 }
 
@@ -225,7 +215,9 @@ static ceSymbol* BuildSymbol(const wxString &name,
     pRet->access = sym[VALUE_INDEX_ACCESS];
     pRet->file = sym[VALUE_INDEX_FILE];
     pRet->param = sym[VALUE_INDEX_PARAM];
-    pRet->desc += "(" + pRet->access+ ")";
+    if (pRet->symbolType == "Prototype"){
+        pRet->desc += "(" + pRet->access+ ")";
+    }
     // if (pRet->access == "public"){
     //     pRet->desc = "+";
     // }
@@ -244,6 +236,9 @@ static ceSymbol* BuildSymbol(const wxString &name,
     pRet->desc += name;
     if (pRet->param != "-"){
         pRet->desc += pRet->param;
+    }
+    else{
+        pRet->desc += "[" + pRet->symbolType + "]";
     }
     return pRet;
 }
@@ -359,7 +354,11 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
         wxPrintf("Failed to open %s\n", db);
         return false;
     }
-    wxPrintf("FindDef:name<%s>,className<%s>, type<%s>, language:<%s>\n", name, className, types, language);
+    // wxPrintf("FindDef:name<%s>,className<%s>, type<%s>, language:<%s>\n", name, className, types, language);
+    wxString lan = language;
+    if (lan == "C++"){
+        lan = "C";
+    }
     wxString type = types;
     std::vector<wxString> classNames;
     if (type.empty() && className.empty()){
@@ -369,7 +368,7 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     }
     else{
         classNames.push_back(className);
-        GetInherit(classNames, className, language, pDb);
+        GetInherit(classNames, className, lan, pDb);
         if (type.empty()){
             type = "mfpe";
         }
@@ -380,10 +379,9 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     if (className != ""){
         classNames.push_back("__anon");
     }
-    
     for (int i = 0; i < classNames.size(); i++){
         for (int j = 0; j < type.size(); j++){
-            GetDbValue(symbols, type[j], classNames[i], name, language, pDb);
+            GetDbValue(symbols, type[j], classNames[i], name, lan, pDb);
         }
     }
     dbop_close(pDb);    

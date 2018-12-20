@@ -320,7 +320,9 @@ wxAutoCompMemberProvider::wxAutoCompMemberProvider()
 }
 
 void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxString &language, const wxString &filename){
-    wxPrintf("SetClassName:<%s>(%s)\n", className, language);
+    if (className != "" && className != "__anon"){
+        wxPrintf("SetClassName:<%s>(%s)\n", className, language);
+    }
     mClassName = className;
     
     std::map<wxString, std::set<wxString> *>::iterator it = mCandidateMap.find(className);
@@ -333,7 +335,12 @@ void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxS
     wxPrintf("GetSymbols for <%s>(%s)\n", className, language);
     std::set<wxString> *pSet = new std::set<wxString>;
     std::set<ceSymbol*> symbols;
-    wxGetApp().frame()->GetSymbols(symbols, className, "", language, filename);
+    if (!wxGetApp().frame()->GetSymbols(symbols, className, "", language, filename)){
+        // note:fanhongxuan@gmail.com 
+        // maybe this file is not belong to the workspace, 
+        // directly return, DO NOT update the cache.
+        return;
+    }
     std::set<ceSymbol*>::iterator sit = symbols.begin();
     while(sit != symbols.end()){
         ceSymbol *pSymbol = (*sit);
@@ -379,7 +386,7 @@ bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxSt
     if (it == mCandidateMap.end()){
         return false;
     }
-    wxPrintf("wxAutoCompMemberProvider::GetCandidate:<%s><%s>\n", mClassName, input);
+    wxPrintf("wxAutoCompMemberProvider::GetCandidate:class<%s>,input<%s>,mode<%d>\n", mClassName, input, mode);
     std::set<wxString> *pSet = it->second;
     std::set<wxString>::iterator sit = pSet->begin();
     bool bShowAll = false;
@@ -402,6 +409,7 @@ bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxSt
     
     if (bShowAll){
         while(sit != pSet->end()){
+            // wxPrintf("All Candidate:%s;\n", (*sit));
             output.insert((*sit));
             sit++;
         }

@@ -13,7 +13,7 @@ class ceEdit: public wxStyledTextCtrl
 {
 public:
     ceEdit(wxWindow *parent);
-    
+        ~ceEdit();
     bool NewFile(const wxString &defaultName);
     bool LoadFile ();
     bool LoadFile (const wxString &filename);

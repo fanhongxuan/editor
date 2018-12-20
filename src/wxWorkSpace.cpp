@@ -207,7 +207,7 @@ bool wxWorkSpace::UpdateTagForFile(const wxString &file)
             if (NULL == mpSymbolDb){
                 mpSymbolDb = new ceSymbolDb;
             }
-            mpSymbolDb->UpdateSymbolByFile(file);
+            mpSymbolDb->UpdateSymbolByFile(file, (*it));
         }
         it++;
     }
@@ -236,7 +236,6 @@ void wxWorkSpace::GenerateGTagFile(const wxString &dir)
     cmd += ceGetExecPath();
     cmd += "/ext/gtags";
 #endif
-    wxPrintf("exec:<%s>\n", cmd);
     std::vector<wxString> outputs;
     ceSyncExec(cmd, outputs);
     
