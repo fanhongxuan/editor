@@ -13,6 +13,7 @@
 #include "ceUtils.hpp"
 #include "ceSymbolDb.hpp"
 #include "ceInclude.hpp"
+#include "wxAutoComp.hpp"
 #include "ce.hpp"
 
 enum workspace_icon{
@@ -211,6 +212,8 @@ bool wxWorkSpace::UpdateTagForFile(const wxString &file)
         }
         it++;
     }
+    
+    wxAutoCompMemberProvider::Instance().Reset();
     return true;
 }
 
@@ -253,6 +256,7 @@ bool wxWorkSpace::GenerateTagFile()
         mpSymbolDb = new ceSymbolDb;
     }
     mpSymbolDb->UpdateSymbol(mDirs);
+    wxAutoCompMemberProvider::Instance().Reset();
     return true;
 }
     

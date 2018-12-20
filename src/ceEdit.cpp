@@ -976,7 +976,8 @@ int ceEdit::HandleVariable(int pos, int curStyle){
         StartStyling(validVariables[i].first);
         SetStyling(validVariables[i].second, STYLE_VARIABLE);
         // std::map<wxString, int>::iterator it = mLocalVariable.find(text);
-        mLocalVariable[text] = std::make_pair<int, wxString>(pos, GetVariableType(pos));
+        // mLocalVariable[text] = std::make_pair<int, wxString>(pos, GetVariableType(pos));
+        mLocalVariable[text] = std::pair<int, wxString>(pos, GetVariableType(pos));
     }
     return true;
 }
@@ -1409,7 +1410,8 @@ int ceEdit::HandleParam(int startPos, int stopPos){
                 bParam = false;
                 wxString text = GetTextRange(start, pos+1);
                 // wxPrintf("AddFunction param:%s(%d)\n", text, LineFromPosition(pos+1) + 1);
-                mFunctionParames[text] = std::make_pair(-1, GetParamType(start));
+                // mFunctionParames[text] = std::make_pair(-1, GetParamType(start));
+                mFunctionParames[text] = std::pair<int, wxString>(-1, GetParamType(start));
             }
             else{
                 wxString text = GetTextRange(start, pos+1);

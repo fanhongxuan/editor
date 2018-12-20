@@ -376,7 +376,7 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     if (className != ""){
         classNames.push_back("");
     }
-    if (className != ""){
+    if (className != "__anon"){
         classNames.push_back("__anon");
     }
     for (int i = 0; i < classNames.size(); i++){
