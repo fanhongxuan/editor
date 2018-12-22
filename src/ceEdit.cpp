@@ -693,7 +693,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             int keywordStop = stop+1;
             stop = FindStyleStart(style, stop);
             wxString text = GetTextRange(stop, keywordStop);
-            if (text == "return"){
+            if (text == "return" || text == "delete"){
                 return false;
             }
         }
@@ -3640,7 +3640,7 @@ bool ceEdit::ShowCallTips(int curPos)
     // wxGetApp().frame()->FindDef(outputs, value, className, type, , GetFilename());
     PrepareFunctionParams(curPos);
     wxString typeClass = GetType(curPos, *this, className, mLanguage, GetFilename());
-    // wxPrintf("ShowCallTips: GetType:<%s><%s>\n", typeClass, className);
+    wxPrintf("ShowCallTips: GetType:<%s><%s>\n", typeClass, className);
     if (!typeClass.empty()){
         // wxPrintf("typeClass:%s\n", typeClass);
         className = typeClass;
