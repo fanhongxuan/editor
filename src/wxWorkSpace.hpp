@@ -32,19 +32,19 @@ public:
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
     bool UpdateTagForFile(const wxString &file);
-        wxString GetDbRecordByKey(const wxString &key);
-        bool GetSymbols(std::set<ceSymbol*> &symbols, 
-                        const wxString &scope, 
-                        const wxString &type = "", 
-                        const wxString &language = "",
-                        const wxString &filename = "");
-        bool FindDef(std::set<ceSymbol *> &symbols, 
-            const wxString &name,
-            const wxString &className,
-            const wxString &type = "", 
-            const wxString &language = "",
-            const wxString &filename = "");
-            
+    wxString GetDbRecordByKey(const wxString &key);
+    bool GetSymbols(std::set<ceSymbol*> &symbols, 
+                    const wxString &scope, 
+                    const wxString &type = "", 
+                    const wxString &language = "",
+                    const wxString &filename = "");
+    bool FindDef(std::set<ceSymbol *> &symbols, 
+                 const wxString &name,
+                 const wxString &className,
+                 const wxString &type = "", 
+                 const wxString &language = "",
+                 const wxString &filename = "");
+    
 private:
     bool GenerateTagFile();
     void GenerateGTagFile(const wxString &dir);

@@ -70,7 +70,7 @@ bool MyApp::OnInit()
 }
 
 wxBEGIN_EVENT_TABLE(MyFrame, wxFrame)
-EVT_STC_SAVEPOINTREACHED(wxID_ANY, MyFrame::OnFileSaved)
+// EVT_STC_SAVEPOINTREACHED(wxID_ANY, MyFrame::OnFileSaved)
 EVT_STC_SAVEPOINTLEFT(wxID_ANY, MyFrame::OnFileModified)
 EVT_CLOSE(MyFrame::OnClose)
 EVT_AUI_PANE_CLOSE(MyFrame::OnPaneClose)

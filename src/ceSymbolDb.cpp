@@ -3,9 +3,18 @@
 #include <wx/wxcrtvararg.h> // for wxPrintf
 #include "ceSymbolDb.hpp"
 #include "ceInclude.hpp"
+#ifndef WIN32
+#define USE_DB
+#endif
+
+#ifdef USE_DB
 extern "C"{
 #include "dbop.h"
 }
+#else
+class DBOP;
+#endif
+
 // #include "ceRocksDb.hpp"
 // note:fanhongxuan@gmail.com
 // store all the content to a rocks db
@@ -148,6 +157,9 @@ bool ceSymbolDb::UpdateSymbolByFile(const wxString &filename, const wxString &di
     wxPrintf("exec<%s>\n", cmd);
     std::vector<wxString> outputs;
     ceSyncExec(cmd, outputs);
+    for (int i = 0; i < outputs.size(); i++){
+        wxPrintf("<%s>\n", outputs[i]);
+    }
     return true;
 }
 
@@ -163,6 +175,7 @@ enum{
 };
 
 static bool GetInherit(std::vector<wxString> &outputs, const wxString &className, const wxString &language, DBOP *pDb){
+#ifdef USE_DB    
     if (NULL == pDb){
         return false;
     }
@@ -187,12 +200,14 @@ static bool GetInherit(std::vector<wxString> &outputs, const wxString &className
             GetInherit(outputs, base[i], language, pDb);
         }
     }
+#endif    
     return true;
 }
 
 static ceSymbol* BuildSymbol(const wxString &name, 
-    const wxString &type, const wxString &scope, 
-    const wxString &language, const wxString &value){
+                              const wxString &type, const wxString &scope, 
+                              const wxString &language, const wxString &value)
+{
     std::vector<wxString> sym;
     ceSplitString(value, sym, '\'');
     ceSymbol *pRet = new ceSymbol;
@@ -244,11 +259,12 @@ static ceSymbol* BuildSymbol(const wxString &name,
 }
 
 static bool GetDbRange(std::set<ceSymbol*> &symbols, 
-    const wxString &type, 
-    const wxString &scope, 
-    const wxString &language, 
-    DBOP *pDb)
+                        const wxString &type, 
+                        const wxString &scope, 
+                        const wxString &language, 
+                        DBOP *pDb)
 {
+#ifdef USE_DB  
     wxString lan = language;
     if (lan == "C++"){
         lan = "C";
@@ -267,15 +283,18 @@ static bool GetDbRange(std::set<ceSymbol*> &symbols,
         }
         pValue = dbop_next(pDb);
     }
+#endif    
     return true;
 }
 
 static bool GetDbValue(std::set<ceSymbol*> &symbols, 
-    const wxString &type, 
-    const wxString &className, 
-    const wxString &name,
-    const wxString &language,
-    DBOP *pDb){
+                        const wxString &type, 
+                        const wxString &className, 
+                        const wxString &name,
+                        const wxString &language,
+                        DBOP *pDb)
+{
+#ifdef USE_DB
     wxString lan = language;
     if (lan == "C++"){
         lan = "C";
@@ -293,15 +312,17 @@ static bool GetDbValue(std::set<ceSymbol*> &symbols,
         }
         // wxPrintf("key:<%s>,value:<%s>\n", keys[i], value);
     }
+#endif    
     return true;
 }
 
 bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols,
-    const wxString &scope, 
-    const wxString &types, 
-    const wxString &language, 
-    const wxString &dir)
+                             const wxString &scope, 
+                             const wxString &types, 
+                             const wxString &language, 
+                             const wxString &dir)
 {
+#ifdef USE_DB    
     wxString lan = language;
     if (lan == "C++"){
         lan = "C";
@@ -336,17 +357,20 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols,
             GetDbRange(symbols, type[j], classNames[i], lan, pDb);
         }
     }
-    dbop_close(pDb);    
+    dbop_close(pDb); 
+#endif    
     return true;
 }
 
 bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
-    const wxString &name, 
-    const wxString &className,
-    const wxString &types,
-    const wxString &language,
-    const wxString &filename,
-    const wxString &dir){
+                          const wxString &name, 
+                          const wxString &className,
+                          const wxString &types,
+                          const wxString &language,
+                          const wxString &filename,
+                          const wxString &dir)
+{
+#ifdef USE_DB
     wxString db = GetSymbolDbName(dir + "/symbol");
     db += ".db";
     DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, DBOP_RAW);
@@ -384,11 +408,15 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
             GetDbValue(symbols, type[j], classNames[i], name, lan, pDb);
         }
     }
-    dbop_close(pDb);    
+    dbop_close(pDb);
+#endif
     return true;
 }
 
-wxString ceSymbolDb::GetDbRecordByKey(const wxString &key, const wxString &dir){
+wxString ceSymbolDb::GetDbRecordByKey(const wxString &key, const wxString &dir)
+{
+    wxString ret;
+#ifdef USE_DB
     wxString db = GetSymbolDbName(dir + "/symbol");
     db += ".db";
     DBOP *pDb = dbop_open(static_cast<const char*>(db), 0, 0644, DBOP_RAW);
@@ -396,8 +424,9 @@ wxString ceSymbolDb::GetDbRecordByKey(const wxString &key, const wxString &dir){
         wxPrintf("Failed to open %s\n", db);
         return "";
     }
-    wxString ret = dbop_get(pDb, static_cast<const char*>(key));
+    ret = dbop_get(pDb, static_cast<const char*>(key));
     dbop_close(pDb);
+#endif    
     return ret;
 }
 
