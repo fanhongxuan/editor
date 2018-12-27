@@ -70,7 +70,7 @@ bool MyApp::OnInit()
 }
 
 wxBEGIN_EVENT_TABLE(MyFrame, wxFrame)
-// EVT_STC_SAVEPOINTREACHED(wxID_ANY, MyFrame::OnFileSaved)
+EVT_STC_SAVEPOINTREACHED(wxID_ANY, MyFrame::OnFileUnModified)
 EVT_STC_SAVEPOINTLEFT(wxID_ANY, MyFrame::OnFileModified)
 EVT_CLOSE(MyFrame::OnClose)
 EVT_AUI_PANE_CLOSE(MyFrame::OnPaneClose)
@@ -556,8 +556,10 @@ void MyFrame::LoadInfo()
                 if (NULL != pEdit){
                     OpenFile(pEdit->GetFilename(), pEdit->GetFilename(), true);
                 }
-                // mpBufferList->SetSelection(selection);
-            }    
+                wxPrintf("Selection page:%d\n", selection);
+                mpBufferList->SetSelection(selection);
+                m_mgr.Update();
+            }
             break;
         }
         else{
@@ -574,7 +576,11 @@ void MyFrame::LoadInfo()
                     pEdit->SetSelection(insertionPoint, insertionPoint);
                     pEdit->GotoPos(insertionPoint);
                 }
-                
+                if (i == 0){
+                    wxPrintf("Select page 0\n");
+                    mpBufferList->SetSelection(0);
+                    m_mgr.Update();
+                }
             }
         }
     }
@@ -740,6 +746,23 @@ void MyFrame::OnFileSaved(wxStyledTextEvent &evt)
             }
         }
     }   
+}
+
+void MyFrame::OnFileUnModified(wxStyledTextEvent &evt)
+{
+    if (NULL == mpBufferList){
+        return;
+    }
+    int id = mpBufferList->GetPageIndex(dynamic_cast<wxWindow*>(evt.GetEventObject()));
+    if (id == wxNOT_FOUND){
+        return;
+    }
+    wxString title = mpBufferList->GetPageText(id);
+    int pos = title.find("*");
+    if (pos == 0){
+        title = title.substr(1);
+    }
+    mpBufferList->SetPageText(id, title);
 }
 
 void MyFrame::OnFileModified(wxStyledTextEvent &evt)

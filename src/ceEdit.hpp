@@ -23,6 +23,7 @@ public:
     wxString GetFilename ();
     void SetFilename (const wxString &filename);
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
+    int FindTemplateParamStart(int stop);
     int FindStyleStart(int style, int curPos, bool bSkipNewline = false);
     wxString GetParamType(int pos);
     wxString GetVariableType(int pos);
@@ -104,7 +105,7 @@ protected:
     bool BuildLocalSymbl();
     int PrepareFunctionParams(int pos);
     int HandleClass(int pos, int curStyle);
-    int HandleParam(int startPos, int stopPos);
+    bool HandleParam(int startPos, int stopPos);
     bool IsValidParam(int startPos, int stopPos);
     bool IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *pStart = NULL, int *pLen = NULL);    
     bool IsFunctionDeclare(int pos);

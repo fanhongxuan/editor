@@ -121,6 +121,7 @@ public:
     void OnClose(wxCloseEvent &evt);
     void OnFileSaved(wxStyledTextEvent &evt);
     void OnFileModified(wxStyledTextEvent &evt);
+    void OnFileUnModified(wxStyledTextEvent &evt);
     
 
 private:

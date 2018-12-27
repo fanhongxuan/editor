@@ -5,7 +5,7 @@
 #include <wx/renderer.h>
 #include <wx/menu.h>
 #include <wx/dcclient.h>
-
+#include <map>
 
 wxMyDockArt::wxMyDockArt()
 {
@@ -250,13 +250,13 @@ void wxMyTabArt::DrawBackground(wxDC& dc,
 // x_extent - the advance x; where the next tab should start
 
 void wxMyTabArt::DrawTab(wxDC& dc,
-                                wxWindow* wnd,
-                                const wxAuiNotebookPage& page,
-                                const wxRect& in_rect,
-                                int close_button_state,
-                                wxRect* out_tab_rect,
-                                wxRect* out_button_rect,
-                                int* x_extent)
+                         wxWindow* wnd,
+                         const wxAuiNotebookPage& page,
+                         const wxRect& in_rect,
+                         int close_button_state,
+                         wxRect* out_tab_rect,
+                         wxRect* out_button_rect,
+                         int* x_extent)
 {
     wxCoord normal_textx, normal_texty;
     wxCoord selected_textx, selected_texty;
@@ -524,16 +524,22 @@ void wxMyTabArt::DrawButton(wxDC& dc,
 }
 
 int wxMyTabArt::ShowDropDown(wxWindow* wnd,
-                                    const wxAuiNotebookPageArray& pages,
-                                    int active_idx)
+                             const wxAuiNotebookPageArray& pages,
+                             int active_idx)
 {
     wxMenu menuPopup;
 
     size_t i, count = pages.GetCount();
-    for (i = 0; i < count; ++i)
-    {
-        const wxAuiNotebookPage& page = pages.Item(i);
-        menuPopup.AppendCheckItem(1000+i, page.caption);
+    std::map<wxString, int> items;
+    for (i = 0; i < count; ++i){
+        const wxAuiNotebookPage &page = pages.Item(i);
+        items[page.caption] = i;
+    }
+    
+    std::map<wxString, int>::iterator it = items.begin();
+    while(it != items.end()){
+        menuPopup.AppendCheckItem(1000+it->second, it->first);
+        it++;
     }
 
     if (active_idx != -1)

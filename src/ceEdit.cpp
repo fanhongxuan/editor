@@ -129,6 +129,7 @@ bool ceEdit::LoadFile(const wxString &filename){
     mbLoadFinish = true;
     EmptyUndoBuffer();
     LoadStyleByFileName(filename);
+    UpdateLineNumberMargin();
     wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), mLanguage);
     return true;
 }
@@ -827,9 +828,11 @@ int ceEdit::HandleVariable(int pos, int curStyle){
     while(startPos > 0){
         c = GetCharAt(startPos);
         style = GetStyleAt(startPos);
-        if (style != STYLE_COMMENTS && style != STYLE_CSTYLE_COMMENTS || style != STYLE_COMMENT_KEY){
+        if (style != STYLE_COMMENTS && style != STYLE_CSTYLE_COMMENTS && style != STYLE_COMMENT_KEY &&
+            style != STYLE_DEFAULT && style != STYLE_NORMAL && style != STYLE_FOLDER && style != STYLE_OPERATOR){
             hasIde = true;
         }
+        
         if (c == ';' && style == STYLE_NORMAL){
             break;
         }
@@ -840,11 +843,13 @@ int ceEdit::HandleVariable(int pos, int curStyle){
         else if (c == '}' && style == STYLE_FOLDER){
             if (hasIde){
                 break;
-            }   
+            }
             // this is the init value of a array variable.
             startPos = BraceMatch(startPos);
             // the previously value must be a =, othersize, is not a variable define.
             while(startPos > 0){
+                c = GetCharAt(startPos-1);
+                style = GetStyleAt(startPos-1);
                 if (c == '=' && style == STYLE_OPERATOR){
                     break;
                 }
@@ -879,7 +884,8 @@ int ceEdit::HandleVariable(int pos, int curStyle){
     while (startPos > 0){
         c = GetCharAt(startPos);
         style = GetStyleAt(startPos);
-        if (style != STYLE_COMMENTS && style != STYLE_CSTYLE_COMMENTS || style != STYLE_COMMENT_KEY){
+        if (style != STYLE_COMMENTS && style != STYLE_CSTYLE_COMMENTS && style != STYLE_COMMENT_KEY &&
+            style != STYLE_DEFAULT && style != STYLE_NORMAL && style != STYLE_FOLDER && style != STYLE_OPERATOR){
             hasIde = true;
         }
         if (c == ';' && style == STYLE_NORMAL){
@@ -911,27 +917,8 @@ int ceEdit::HandleVariable(int pos, int curStyle){
             // maybe a template define like:
             // std::map<int, int> map;
             if (beforeEqual || (!hasEqual)){
-                int start = startPos - 1;
-                bool bFind = false;
-                int count = 0;
-                while(start > 0){
-                    c = GetCharAt(start);
-                    style = GetStyleAt(start);
-                    if (c == '>' && style == STYLE_OPERATOR){
-                        count++;
-                    }
-                    else if (c == '<' && style == STYLE_OPERATOR){
-                        if (count == 0){
-                            bFind = true;
-                            break;
-                        }
-                        else{
-                            count--;
-                        }
-                    }
-                    start--;
-                }
-                if (!bFind){
+                int start = FindTemplateParamStart(startPos);
+                if (start < 0){
                     return curStyle;
                 }
                 startPos = start;
@@ -953,6 +940,8 @@ int ceEdit::HandleVariable(int pos, int curStyle){
             startPos = BraceMatch(startPos);
             // the previously value must be a =, othersize, is not a variable define.
             while(startPos > 0){
+                c = GetCharAt(startPos -1 );
+                style = GetStyleAt(startPos - 1);
                 if (c == '=' && style == STYLE_OPERATOR){
                     break;
                 }
@@ -1072,7 +1061,7 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
     // normally we need to skip the comments
     // later change GetTextRange to skip the comments and whitespace
     wxString param = GetTextRange(startPos, stopPos);
-    
+    // wxPrintf("param:%s\n", param);
     pos = stopPos;
     int keywordCount = 0;
     int typeCount = 0;
@@ -1084,21 +1073,9 @@ bool ceEdit::IsValidParam(int startPos, int stopPos){
         char c = GetCharAt(pos);
         if (STYLE_OPERATOR == style){
             if (c == '>'){
-                int start = pos;
-                int count = 0;
-                while(start >= startPos){
-                    c = GetCharAt(start);
-                    style = GetStyleAt(start);
-                    if (c == '>' && style == STYLE_OPERATOR){
-                        count++;
-                    }
-                    else if (c == '<' && style == STYLE_OPERATOR){
-                        count--;
-                        if (count == 0){
-                            break;
-                        }
-                    }
-                    start--;
+                int start = FindTemplateParamStart(pos);
+                if (start < 0){
+                    return false;
                 }
                 pos = start-1;
                 continue;
@@ -1379,10 +1356,8 @@ int ceEdit::PrepareFunctionParams(int pos){
     return 0;
 }
 
-int ceEdit::HandleParam(int startPos, int stopPos){
+bool ceEdit::HandleParam(int startPos, int stopPos){
     // param should like:
-    // todo:fanhongxuan@gmail.com
-    // the text should not include the comments and string, char style.
     wxString text = GetTextRange(startPos, stopPos);
     // wxPrintf("handleParam:<%s>(%d)\n", text, LineFromPosition(startPos)+1);
     int pos = stopPos;
@@ -1395,6 +1370,13 @@ int ceEdit::HandleParam(int startPos, int stopPos){
                 return false;
             }
             paramStop = pos - 1;
+        }
+        else if (c == '>' && style == STYLE_OPERATOR){
+            int start = FindTemplateParamStart(pos);
+            if (start < 0){
+                return false;
+            }
+            pos = start;
         }
         else if (c == '(' && style == STYLE_FOLDER){
             if (!IsValidParam(pos+1, paramStop)){
@@ -1409,6 +1391,7 @@ int ceEdit::HandleParam(int startPos, int stopPos){
     mLocalVariable.clear();
     // wxPrintf("Clear function params\n");
     
+    // mark the last value before the =, as the param.
     bool bParam = true;
     pos = stopPos;
     while(pos >= startPos){
@@ -1464,6 +1447,13 @@ int ceEdit::HandleParam(int startPos, int stopPos){
         else if (c == ',' && style == STYLE_OPERATOR){
             bParam = true;
         }
+        else if (c == '>' && style == STYLE_OPERATOR){
+            int start = FindTemplateParamStart(pos);
+            if (start < 0){
+                return false;
+            }
+            pos = start;
+        }
         pos--;
         //
     }
@@ -1501,10 +1491,34 @@ int ceEdit::HandleFunctionBody(int pos, int curStyle){
     return curStyle;
 }
 
-// todo:fanhongxuan@gmail.com
-// if before . is a function(), 
-// it's a fake function like:
-// wxAutoCompProvider::Instance().Dosomething.
+// stop is point to the '>'
+// return the pos of <, if no valid start find, return -1;
+int ceEdit::FindTemplateParamStart(int stop)
+{
+    int start = stop;
+    int count = 0;
+    while(start > 0){
+        char c = GetCharAt(start);
+        int style = GetStyleAt(start);
+        if (c == '>' && (style == STYLE_OPERATOR || style == STYLE_DEFAULT)){
+            count++;
+        }
+        else if (c == '<' && (style == STYLE_OPERATOR || style == STYLE_DEFAULT)){
+            count--;
+        }
+        if (style == STYLE_FOLDER){
+            // in template param, can not have {,}, (,)'
+            return -1;
+        }
+        if (count == 0){
+            break;
+        }
+        start--;
+    }
+    return start;
+}
+
+
 int ceEdit::HandleFunctionStart(int pos, int curStyle){
     if (pos == 0){
         return curStyle;
@@ -1525,8 +1539,10 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
     int startPos = paramStart - 1;
     bool bNeedReturn = true;
     if (mLanguage == "Java"){
-        bNeedReturn = false; // Java function can have no return value.
+        // bNeedReturn = false; // Java function can have no return value.
     }
+    
+    // 1, find the function name start.
     while(startPos > 0){
         style = GetStyleAt(startPos);
         c = GetCharAt(startPos);
@@ -1565,10 +1581,10 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
         startPos--;
     }
     
-    // start should be the start of function
+    // 
     int returnStart = -1;
     int returnStop = -1;
-    if (startPos >= 0 && stopPos > startPos){
+    if (startPos > 0){
         bool hasReturnValue = false;
         int prev = startPos - 1;
         while(prev > 0){
@@ -1581,13 +1597,6 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                     // break;
                 }
                 else if (c == ':' && style == STYLE_OPERATOR){
-                    // note:fanhongxuan@gmail.com
-                    // single : before the function name will always break the function name.
-                    /*int stop = 0;
-                        wxString value = GetPrevValue(prev-1, STYLE_KEYWORD1, &stop);
-                    if (value == "public" || value == "protected" || value == "private" || value == "default"){
-                        break;
-                    }*/
                     break;
                 }
                 else if (c == '~'){
@@ -1603,22 +1612,11 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                     // return type is a pointer
                 }
                 else if (c == '>'){
-                    // return type is a template<>
-                    int start = prev;
-                    int count = 0;
-                    while(start > 0){
-                        c = GetCharAt(start);
-                        style = GetStyleAt(start);
-                        if (c == '>' && style == STYLE_OPERATOR){
-                            count++;
-                        }
-                        else if (c == '<' && style == STYLE_OPERATOR){
-                            count--;
-                            if (count == 0){
-                                break;
-                            }
-                        }
-                        start--;
+                    // maybe return type is a template<>
+                    int start = FindTemplateParamStart(prev);
+                    if (start < 0){
+                        // not a valid template.
+                        return curStyle;
                     }
                     prev = start;
                 }
@@ -1641,7 +1639,7 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
                 int keyStart = FindStyleStart(style, prev);
                 wxString text = GetTextRange(keyStart, prev+1);
                 // wxPrintf("keyword in return is:<%s>\n", text);
-                if (text == "return"){
+                if (text == "return" || text == "new" || text == "delete"){
                     return curStyle;
                 }
                 hasReturnValue = true;
@@ -3016,7 +3014,7 @@ void ceEdit::RestartIdleTimer()
 {
     if (NULL != mpIdleTimer){
         mpIdleTimer->Stop();
-        mpIdleTimer->Start(1000);
+        mpIdleTimer->Start(3000);
         // mpIdleTimer->StartOnce(5000);
     }
 }
