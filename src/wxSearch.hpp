@@ -152,11 +152,12 @@ public:
     ~wxSearchFile(){}
     
     wxString GetFileName() const {return mFileName;}
-    
+    wxString GetLanguage() const {return mLanguage;}
     void ChangeSearchTarget(ceEdit *pEdit);
     
     void SetEdit(ceEdit *pEdit);
     void SetFileName(const wxString &fileName);
+    void SetLanguage(const wxString &language);
     void SetBuffer(const wxString &buffer);
     
     virtual wxString GetShortHelp() const;
@@ -168,6 +169,7 @@ public:
 private:
     int mCurLine;
     wxString mFileName;
+    wxString mLanguage;
     wxString mBuffer;
     ceEdit *mpEdit;
 };

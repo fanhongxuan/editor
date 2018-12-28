@@ -162,9 +162,9 @@ wxSearchListCtrl::wxSearchListCtrl(wxSearch *parent, wxSize size)
     
     SetFoldFlags (wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | 
 #ifdef DEBUG_FOLD        
-        wxSTC_FOLDFLAG_LEVELNUMBERS |
+                  wxSTC_FOLDFLAG_LEVELNUMBERS |
 #endif        
-        wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
+                  wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
     
     SetLexer(wxSTC_LEX_CONTAINER);
     // setup about the 
@@ -499,8 +499,7 @@ bool wxSearchResult::ConvertToRichText(wxSearch *pSearch, const wxString &input,
 }
 
 wxSearch::wxSearch(wxWindow *pParent)
-    :wxPanel(pParent), mCurrentLine(-1), mMinStartLen(1), mMaxCandidate(10000),
-     mbStartSearch(false)
+:wxPanel(pParent), mCurrentLine(-1), mMinStartLen(1), mMaxCandidate(10000), mbStartSearch(false)
 {
     wxSizer *pSizer = new wxBoxSizer(wxVERTICAL);
     mpInput = new wxSearchInputCtrl(this);
@@ -1147,6 +1146,10 @@ void wxSearchFile::SetFileName(const wxString &fileName)
     // update the summary.
     // mpStatus->SetLabel();
     mpStatus->SetLabel(GetShortHelp());
+}
+void wxSearchFile::SetLanguage(const wxString &language)
+{
+    mLanguage = language;
 }
 
 void wxSearchFile::SetBuffer(const wxString &buffer)

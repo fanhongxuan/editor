@@ -42,6 +42,14 @@ const wxString &getFullTypeName(const wxString &input, const wxString &language)
         theCMaps['z'] = "Parameter";
     }
     if (theJavaMaps.size() == 0){
+        theJavaMaps['a'] = "Annotation";
+        theJavaMaps['c'] = "Class";
+        theJavaMaps['e'] = "Enum";
+        theJavaMaps['f'] = "Field";
+        theJavaMaps['g'] = "EnumTypes";
+        theJavaMaps['i'] = "Interface";
+        theJavaMaps['m'] = "Method";
+        theJavaMaps['p'] = "Package";
     }
     if (language == "C++" || language == "C"){
         std::map<wxString, wxString>::iterator it = theCMaps.find(input);
@@ -52,10 +60,19 @@ const wxString &getFullTypeName(const wxString &input, const wxString &language)
             return input;
         }
     }
+    else if (language == "Java"){
+        std::map<wxString, wxString>::iterator it = theJavaMaps.find(input);
+        if (it != theJavaMaps.end()){
+            return it->second;
+        }
+        else{
+            return input;
+        }
+    }
     return emptyRet;
 }
 
-bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
+bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line, std::map<wxString, int> &rets)
 {
     int pos = line.find_last_of('"');
     if (pos == line.npos){
@@ -85,7 +102,7 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
         wxPrintf("Invalid outputs size()%ld<%s><%s>\n", outputs.size(), line, value);
         return false;
     }
-    wxString type = getFullTypeName(outputs[0], "C++");
+    wxString type = getFullTypeName(outputs[0], GetLanguage());
     if (outputs.size() >= 2){
         pos = outputs[1].find("class:");
         if (pos != wxString::npos){
@@ -93,9 +110,8 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line)
         }
     }
     ret = symbol + "(" + type + ")";
-    // todo:fanhongxuan@gmail.com
-    // sort all the symbol according the value of ret.
-    AddSearchResult(new wxSearchFileResult(ret, ret, iLineNumber, 0));
+    rets[ret] = iLineNumber;
+    // AddSearchResult(new wxSearchFileResult(ret, ret, iLineNumber, 0));
     return true;
 }
 
@@ -133,10 +149,16 @@ bool wxSymbolSearch::StartSearch(const wxString &input, const wxString &fullInpu
     wxString cmd = ctags_exec + GetFileName();
     
     std::vector<wxString> outputs;
+    std::map<wxString, int> rets;
     ceSyncExec(cmd, outputs);
     int i = 0;
     for (i = 0; i < outputs.size(); i++){
-        OnResult(cmd, outputs[i]);
+        OnResult(cmd, outputs[i], rets);
+    }
+    std::map<wxString, int>::iterator it = rets.begin();
+    while(it != rets.end()){
+        AddSearchResult(new wxSearchFileResult(it->first, it->first, it->second, 0));
+        it++;
     }
     return true;
 }

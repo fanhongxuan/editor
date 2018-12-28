@@ -60,8 +60,10 @@ class MyFrame : public wxFrame
         ID_ShowReference,
         ID_GotoDefine,
         ID_ShowGrepText,
-            ID_GoBack,
-            ID_GoForward,
+        ID_GoBack,
+        ID_GoForward,
+        ID_NextFile,
+        ID_PrevFile,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -78,30 +80,30 @@ public:
 
     wxAuiDockArt* GetDockArt();
     bool FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs);
-        bool FindDef(std::set<ceSymbol*> &symbols, 
-            const wxString &name, 
-            const wxString &className = "",
-            const wxString &type = "",
-            const wxString &language = "",
-            const wxString &filename = "");
-        bool GetSymbols(std::set<ceSymbol*> &symbols, 
-            const wxString &scope, 
-            const wxString &type = "",
-            const wxString &language = "", 
-            const wxString &filename = "");
-        wxString GetDbRecordByKey(const wxString &key);
-        
-        void ShowStatus(const wxString &status, int index = 0);
+    bool FindDef(std::set<ceSymbol*> &symbols, 
+                 const wxString &name, 
+                 const wxString &className = "",
+                 const wxString &type = "",
+                 const wxString &language = "",
+                 const wxString &filename = "");
+    bool GetSymbols(std::set<ceSymbol*> &symbols, 
+                    const wxString &scope, 
+                    const wxString &type = "",
+                    const wxString &language = "", 
+                    const wxString &filename = "");
+    wxString GetDbRecordByKey(const wxString &key);
+    
+    void ShowStatus(const wxString &status, int index = 0);
     void SetActiveEdit(ceEdit *pEdit);
     void DoUpdate();
     void PrepareResults(MySearchHandler &handler, const wxString &input, std::vector<wxSearchResult*> &results);
     void ChangeToBuffer(ceEdit *pEdit, int pos);
     void OpenFile(const wxString &name, const wxString &path, bool bActive, int line = -1, bool updateGotoHistory = true);
-        void AddDirToWorkSpace(const wxString &path);
+    void AddDirToWorkSpace(const wxString &path);
     bool ShowMiniBuffer(const wxString &name, bool bHide = false);
     
-        void OnGoBack(wxCommandEvent &evt);
-        void OnGoForward(wxCommandEvent &evt);
+    void OnGoBack(wxCommandEvent &evt);
+    void OnGoForward(wxCommandEvent &evt);
     void OnGotoDefine(wxCommandEvent &evt);
     void OnShowReference(wxCommandEvent &evt);
     void OnShowGrepText(wxCommandEvent &evt);
@@ -115,6 +117,8 @@ public:
     void OnShowWorkSpace(wxCommandEvent &evt);
     void OnShowAgSearch(wxCommandEvent &evt);
     void OnSaveCurrentBuffer(wxCommandEvent &evt);
+    void OnNextFile(wxCommandEvent &evt);
+    void OnPrevFile(wxCommandEvent &evt);
     void OnFileClose(wxAuiNotebookEvent &evt);
     void OnFileClosed(wxAuiNotebookEvent &evt);
     void OnPaneClose(wxAuiManagerEvent &evt);
@@ -122,7 +126,6 @@ public:
     void OnFileSaved(wxStyledTextEvent &evt);
     void OnFileModified(wxStyledTextEvent &evt);
     void OnFileUnModified(wxStyledTextEvent &evt);
-    
 
 private:
     void ShowReference(int type);
@@ -132,8 +135,8 @@ private:
     void LoadInfo();
     void UpdateWorkDirs(ceEdit *pActiveEdit = NULL, bool showWorkSpace = false, bool showExplorer = false);
 private:
-        std::vector<std::pair<wxString, int> > mGotoHistory;
-        int mGotoIndex;
+    std::vector<std::pair<wxString, int> > mGotoHistory;
+    int mGotoIndex;
     bool mbLoadFinish;
     wxAuiNotebook *mpBufferList;
     wxSearchFile *mpSearch;

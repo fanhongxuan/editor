@@ -22,6 +22,7 @@ public:
     bool Modified ();
     wxString GetFilename ();
     void SetFilename (const wxString &filename);
+    wxString GetLanguage() const{return mLanguage;}
     wxString GetCurrentWord(const wxString &validCharList = wxEmptyString);
     int FindTemplateParamStart(int stop);
     int FindStyleStart(int style, int curPos, bool bSkipNewline = false);
@@ -29,6 +30,8 @@ public:
     wxString GetVariableType(int pos);
     wxString QueryVariableType(const wxString &name);
     wxString QueryFunctionParamType(const wxString &name);
+    void OnGotoLine(wxCommandEvent &evt);
+    void OnUpdateIndentByFolder(wxCommandEvent &evt);
     void OnStyleNeeded(wxStyledTextEvent &evt);
     void OnModified(wxStyledTextEvent &evt);
     void OnMarginClick(wxStyledTextEvent &evt);
@@ -36,6 +39,7 @@ public:
     void OnCallTipClick(wxStyledTextEvent &evt);
     void OnDwellStart(wxStyledTextEvent &evt);
     void OnDwellEnd(wxStyledTextEvent &evt);
+    void OnZoom(wxStyledTextEvent &evt);
     void OnSize(wxSizeEvent& event);
     void OnTimer(wxTimerEvent &event);
     void OnIdleTimer(wxTimerEvent &event);
@@ -51,7 +55,7 @@ public:
     void OnKeyDown(wxKeyEvent &event);
     void OnKeyUp(wxKeyEvent &event);
     void OnUpdateUI(wxStyledTextEvent &evt);    
-        
+
 protected:
     void RestartIdleTimer();
     int GetCurrentMode();
@@ -92,7 +96,7 @@ protected:
     void UpdateLineNumberMargin();
     wxFontInfo GetFontByStyle(int style, int type);
     wxColor GetColourByStyle(int style, int type);
-    wxString GuessLanguage(const wxString &language);
+    wxString GuessLanguage(const wxString &filename);
     bool GetMatchRange(long pos, long &start, long &stop, char sc, char ec);
     void DoBraceMatch();
     bool LoadAutoComProvider(const wxString &filename);

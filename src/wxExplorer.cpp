@@ -53,8 +53,7 @@ static void AddDir(const wxString &dir, wxExplorer &explorer, wxTreeItemId paren
             cont = cwd.GetNext(&filename);
             continue;
         }
-        wxExplorerItemInfo *pInfo =
-            new wxExplorerItemInfo(child_dir, false);
+        wxExplorerItemInfo *pInfo = new wxExplorerItemInfo(child_dir, false);
         wxTreeItemId child_id = explorer.AppendItem(parent,
                                                     filename,
                                                     explorer_folder,
@@ -73,15 +72,13 @@ static void AddDir(const wxString &dir, wxExplorer &explorer, wxTreeItemId paren
                 explorer.AppendItem(child_id, filename, explorer_folder, explorer_folder_select, NULL);
             }
         }
-                
         cont = cwd.GetNext(&filename);
     }
     
     // add all the files
     cont = cwd.GetFirst(&filename, "*", wxDIR_FILES|wxDIR_HIDDEN);
     while(cont){
-        wxExplorerItemInfo *pInfo =
-            new wxExplorerItemInfo(cwd.GetNameWithSep() + filename, true);
+        wxExplorerItemInfo *pInfo = new wxExplorerItemInfo(cwd.GetNameWithSep() + filename, true);
         explorer.AppendItem(parent,
                             filename,
                             explorer_file,
@@ -115,15 +112,15 @@ EVT_SET_FOCUS(wxExplorer::OnFocus)
 wxEND_EVENT_TABLE()
 
 wxExplorer::wxExplorer(wxWindow *parent)
-    :wxTreeCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
-                wxTR_HAS_BUTTONS |
-                wxTR_EDIT_LABELS |
-                wxTR_HIDE_ROOT   | 
-                wxTR_LINES_AT_ROOT |
+:wxTreeCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+            wxTR_HAS_BUTTONS |
+            wxTR_EDIT_LABELS |
+            wxTR_HIDE_ROOT   | 
+            wxTR_LINES_AT_ROOT |
 #ifdef WIN32
-                wxTR_NO_LINES |
+            wxTR_NO_LINES |
 #endif
-                wxTR_FULL_ROW_HIGHLIGHT)
+            wxTR_FULL_ROW_HIGHLIGHT)
 {
     SetBackgroundColour(*wxBLACK);
     SetForegroundColour(*wxWHITE);

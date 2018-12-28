@@ -1,5 +1,6 @@
 #ifndef _WX_SYMBOL_SEARCH_HPP_
 #define _WX_SYMBOL_SEARCH_HPP_
+#include <map>
 
 #include "wxSearch.hpp"
 
@@ -13,7 +14,7 @@ public:
     virtual bool StopSearch();
     virtual wxString GetSummary(const wxString &input, int matchCount);
 private:
-    bool OnResult(const wxString &cmd, const wxString &line);
+    bool OnResult(const wxString &cmd, const wxString &line, std::map<wxString, int> &rets);
 };
 
 #endif

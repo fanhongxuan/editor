@@ -363,20 +363,20 @@ void wxMyTabArt::DrawTab(wxDC& dc,
 
     // chop text if necessary
     wxString draw_text = wxAuiChopText(dc,
-                          caption,
-                          tab_width - (text_offset-tab_x) - close_button_width);
+                                       caption,
+                                       tab_width - (text_offset-tab_x) - close_button_width);
 
     // draw tab text
     dc.DrawText(draw_text,
-                 text_offset,
-                 (tab_y + tab_height)/2 - (texty/2) + 1);
+                text_offset,
+                (tab_y + tab_height)/2 - (texty/2) + 1);
 
 
     // draw focus rectangle
     if (page.active && (wnd->FindFocus() == wnd))
     {
         wxRect focusRect(text_offset, ((tab_y + tab_height)/2 - (texty/2) + 1),
-            selected_textx, selected_texty);
+                         selected_textx, selected_texty);
 
         focusRect.Inflate(2, 2);
 

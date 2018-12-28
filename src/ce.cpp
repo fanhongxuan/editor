@@ -88,6 +88,8 @@ EVT_MENU(ID_ShowReference, MyFrame::OnShowReference)
 EVT_MENU(ID_ShowGrepText, MyFrame::OnShowGrepText)
 EVT_MENU(ID_GotoDefine, MyFrame::OnGotoDefine)
 EVT_MENU(ID_GoBack, MyFrame::OnGoBack)
+EVT_MENU(ID_NextFile, MyFrame::OnNextFile)
+EVT_MENU(ID_PrevFile, MyFrame::OnPrevFile)
 EVT_MENU(ID_GoForward, MyFrame::OnGoForward)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
@@ -173,7 +175,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  15  
+#define ACCE_COUNT  17  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[ 1].Set(wxACCEL_ALT, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -190,6 +192,8 @@ void MyFrame::CreateAcceTable()
     e[12].Set(wxACCEL_ALT,  (int)'T', ID_ShowGrepText); // ALT+T to grep the currenty symbol
     e[13].Set(wxACCEL_ALT, WXK_RIGHT, ID_GoForward);
     e[14].Set(wxACCEL_ALT, WXK_LEFT, ID_GoBack);
+    e[15].Set(wxACCEL_CTRL, WXK_PAGEDOWN, ID_NextFile);
+    e[16].Set(wxACCEL_CTRL, WXK_PAGEUP, ID_PrevFile);
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -363,6 +367,30 @@ public:
     }
 };
 
+void MyFrame::OnNextFile(wxCommandEvent &evt){
+    if (NULL == mpBufferList || mpBufferList->GetPageCount() <= 1){
+        return;
+    }
+    int selection = mpBufferList->GetSelection();
+    selection++;
+    if (selection >= mpBufferList->GetPageCount()){
+        selection = 0;
+    }
+    mpBufferList->SetSelection(selection);
+}
+
+void MyFrame::OnPrevFile(wxCommandEvent &evt){
+    if (NULL == mpBufferList || mpBufferList->GetPageCount() <= 1){
+        return;
+    }
+    int selection = mpBufferList->GetSelection();
+    selection--;
+    if (selection < 0){
+        selection = mpBufferList->GetPageCount() - 1;
+    }
+    mpBufferList->SetSelection(selection);
+}
+
 void MyFrame::OnGoBack(wxCommandEvent &evt){
     // std::vector< std::pair<wxString, int> > mGotoHistory;
     if (mGotoHistory.empty()){
@@ -475,10 +503,11 @@ wxString MyFrame::GetDbRecordByKey(const wxString &key){
 }
 
 bool MyFrame::GetSymbols(std::set<ceSymbol *> &symbols, 
-    const wxString &scope, 
-    const wxString &type, 
-    const wxString &language, 
-    const wxString &filename){
+                         const wxString &scope, 
+                         const wxString &type, 
+                         const wxString &language, 
+                         const wxString &filename)
+{
     if (NULL != mpWorkSpace){
         return mpWorkSpace->GetSymbols(symbols, scope, type, language, filename);
     }
@@ -486,18 +515,20 @@ bool MyFrame::GetSymbols(std::set<ceSymbol *> &symbols,
 }
 
 bool MyFrame::FindDef(std::set<ceSymbol*> &symbols, 
-    const wxString &name,
-    const wxString &className,
-    const wxString &type,
-    const wxString &language,
-    const wxString &filename){
+                      const wxString &name,
+                      const wxString &className,
+                      const wxString &type,
+                      const wxString &language,
+                      const wxString &filename)
+{
     if (NULL != mpWorkSpace){
         return mpWorkSpace->FindDef(symbols, name, className, type, language, filename);
     }
     return false;
 }
 
-bool MyFrame::FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs){
+bool MyFrame::FindDef(const wxString &symbol, std::vector<wxSearchFileResult *> &outputs)
+{
     if (NULL != mpRefSearch){
         if (NULL != mpWorkSpace){
             std::set<wxString> dirs;
@@ -614,16 +645,18 @@ void MyFrame::LoadInfo()
     // if no file is open, open the readme.
     if (NULL != mpBufferList && mpBufferList->GetPageCount() == 0){
         wxString readme = ceGetExecPath();
-        #ifdef WIN32
-            readme += "\\README.md";
-        #else
+#ifdef WIN32
+        readme += "\\README.md";
+#else
         readme += "/README.md";
-        #endif
+#endif
         OpenFile("README.md", readme, true);
     }
     SwitchFocus();
 }
 
+// fixme:fanhongxuan@gmail.com
+// when first open the file, the type and variable is wrong.
 void MyFrame::SetActiveEdit(ceEdit *pEdit)
 {
     mpActiveEdit = pEdit;
@@ -638,6 +671,7 @@ void MyFrame::SetActiveEdit(ceEdit *pEdit)
         mpSymbolSearch->SetEdit(pEdit);
         wxAuiPaneInfo &info = m_mgr.GetPane(wxT("Find Symbol"));
         if (info.IsOk() && info.IsShown() && NULL != pEdit && pEdit->GetFilename() != mpSymbolSearch->GetFileName()){
+            mpSymbolSearch->SetLanguage(pEdit->GetLanguage());
             mpSymbolSearch->SetFileName(pEdit->GetFilename());
             mpSymbolSearch->SetInput("");
             mpSymbolSearch->UpdateSearchList("", false);
@@ -858,6 +892,7 @@ void MyFrame::OnShowSymbolList(wxCommandEvent &evt)
     if (NULL != mpSymbolSearch && mbLoadFinish){
         mpSymbolSearch->Reset();
         if (NULL != pEdit){
+            mpSymbolSearch->SetLanguage(pEdit->GetLanguage());
             mpSymbolSearch->SetFileName(pEdit->GetFilename());
         }
         mpSymbolSearch->SetEdit(pEdit);
