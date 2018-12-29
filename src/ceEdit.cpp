@@ -693,6 +693,9 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
     int variableStart = -1;
     int variableStop = -1;
     std::set< std::pair<int, int> > localTypes;
+    
+    // todo:fanhongxuan@gmail.com
+    // skip the content of preprocess
 	wxString variable = GetTextRange(startPos, stopPos+1);
     while(stop > start){
         char c = GetCharAt(stop);
@@ -740,7 +743,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             int keywordStop = stop+1;
             stop = FindStyleStart(style, stop);
             wxString text = GetTextRange(stop, keywordStop);
-            if (text == "return" || text == "delete"){
+            if (text == "return" || text == "delete" || text == "typedef"){
                 return false;
             }
         }
@@ -1479,7 +1482,7 @@ int ceEdit::HandleFunctionBody(int pos, int curStyle){
         while(it != mLocalVariable.end()){
             std::map<wxString, std::pair<int, wxString> >::iterator cur = it;
             it++;
-            if (cur->second.first < start){
+            if (cur->second.first > start){
                 mLocalVariable.erase(cur);
             }
         }
