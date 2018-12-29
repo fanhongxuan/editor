@@ -186,6 +186,7 @@ bool ceRefSearch::FindDef(const wxString &symbol, std::vector<wxSearchFileResult
         }
         it++;
     }
+	return true;
 }
 
 wxSearchFileResult *ceRefSearch::ParseLine(const wxString &line, const wxString &path)

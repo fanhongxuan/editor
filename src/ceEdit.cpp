@@ -1312,6 +1312,9 @@ int ceEdit::PrepareFunctionParams(int pos){
         while (pos > start){
             char c = GetCharAt(pos);
             int style = GetStyleAt(pos);
+            if (c == '}' && style == STYLE_FOLDER){
+                pos = BraceMatch(pos);
+            }
             if (style == STYLE_VARIABLE){
                 int variableStart = FindStyleStart(style, pos);
                 if (variableStart >= 0  && variableStart <= pos){
@@ -1464,12 +1467,20 @@ int ceEdit::HandleFunctionBody(int pos, int curStyle){
         }
     }
     else if (c == '}' && style == STYLE_FOLDER){
+        int start = BraceMatch(pos);
         if (mFunctionParames.size() != 0){
-            int start = BraceMatch(pos);
             if(start == mFunctionParames.begin()->second.first){
                 // wxPrintf("clear function param on function end\n");
                 mFunctionParames.clear();
-                mLocalVariable.clear();
+            }
+        }
+        // delete all the local variable which is not valid anymore.
+        std::map<wxString, std::pair<int, wxString> >::iterator it = mLocalVariable.begin();
+        while(it != mLocalVariable.end()){
+            std::map<wxString, std::pair<int, wxString> >::iterator cur = it;
+            it++;
+            if (cur->second.first < start){
+                mLocalVariable.erase(cur);
             }
         }
     }
