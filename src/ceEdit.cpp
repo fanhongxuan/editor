@@ -3066,6 +3066,29 @@ void ceEdit::OnMouseLeftUp(wxMouseEvent &evt)
 }
 
 void ceEdit::OnMouseLeftDclick(wxMouseEvent &evt){
+    int pos = GetCurrentPos();
+    char c = GetCharAt(pos);
+    bool bSelect = false;
+    if (GetStyleAt(pos) == STYLE_FOLDER ){
+        bSelect = true;
+    }
+    if (pos >=1 && GetStyleAt(pos-1) == STYLE_FOLDER){
+        pos--;
+        bSelect = true;
+    }
+    if (bSelect){
+        int stop = BraceMatch(pos);
+        if (stop > 0){
+            if (pos <= stop){
+                SetSelection(pos, stop);
+            }
+            else{
+                SetSelection(stop, pos);
+            }
+        }
+        return;
+    }
+    
     // first select the key;
     SetAdditionalSelectionTyping(false);
     SetMultiPaste(wxSTC_MULTIPASTE_ONCE);
