@@ -97,7 +97,11 @@ static inline bool IsCommentOrWhiteSpace(char c, int style){
 }
 
 static time_t GetLastModifyTime(const wxString &path){
-    int fd = open(static_cast<const char*>(path), O_RDONLY|O_NOATIME|O_SYNC);
+    int fd = open(static_cast<const char*>(path), O_RDONLY
+#ifndef WIN32
+                  |O_NOATIME|O_SYNC
+#endif
+                  );
     if (fd < 0){
         return 0;
     }
@@ -2851,7 +2855,6 @@ void ceEdit::OnTimer(wxTimerEvent &evt){
 
 void ceEdit::OnIdleTimer(wxTimerEvent &evt){
     // wxPrintf("OnIdleTimer\n");
-    // RestartIdleTimer();
     // todo:fanhongxuan@gmail.com
     // 1, backup the modified file automatic.
     // 2, check if the file is modified outside the edit.
@@ -2870,16 +2873,15 @@ void ceEdit::OnIdleTimer(wxTimerEvent &evt){
         if (ret == wxYES){
             int curPos = GetCurrentPos();
             int curLine = GetFirstVisibleLine();
-            // Freeze();
             LoadFile(GetFilename());
             // SetCurrentPos(curPos);
             SetFirstVisibleLine(curLine);
             GotoPos(curPos);
-            // Thaw();
         }
     }
     wxAutoCompMemberProvider::Instance().SetClassName("", mLanguage, GetFilename());
     wxAutoCompMemberProvider::Instance().SetClassName("__anon", mLanguage, GetFilename());
+    RestartIdleTimer();
 }
 
 void ceEdit::OnSize( wxSizeEvent& event ) {
@@ -3111,7 +3113,7 @@ void ceEdit::RestartIdleTimer()
 {
     if (NULL != mpIdleTimer){
         mpIdleTimer->Stop();
-        mpIdleTimer->Start(3000);
+        mpIdleTimer->StartOnce(3000);
         // mpIdleTimer->StartOnce(5000);
     }
 }
