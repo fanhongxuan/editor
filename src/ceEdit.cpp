@@ -295,13 +295,13 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         
         // mForegrounds[STYLE_IDENTY] = wxColor("BLACK");
         // mBackgrounds[STYLE_IDENTY] = *wxWHITE;
-        
+        wxColour violet = wxColour(238, 130, 238);
         mForegrounds[STYLE_KEYWORD1] = wxColor("RED");
         mBackgrounds[STYLE_KEYWORD1] = *wxBLACK;        
         mForegrounds[STYLE_KEYWORD2] = wxColor("purple");
         mBackgrounds[STYLE_KEYWORD2] = *wxBLACK;
         
-        mForegrounds[STYLE_COMMENT_KEY] = wxColor("violet");
+        mForegrounds[STYLE_COMMENT_KEY] = violet;// wxColor("violet");
         mBackgrounds[STYLE_COMMENT_KEY] = *wxBLACK;        
         
         mForegrounds[STYLE_PREPROCESS_SYSTEM] = wxColor("RED");
@@ -314,10 +314,10 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mForegrounds[STYLE_ERROR] = wxColor("BLACK");
         mBackgrounds[STYLE_ERROR] = wxColor("RED");
         
-        mForegrounds[STYLE_PARAMETER] = wxColor("violet");
+        mForegrounds[STYLE_PARAMETER] = violet;// wxColor("violet");
         mBackgrounds[STYLE_PARAMETER] = *wxBLACK;
         
-        mForegrounds[STYLE_PARAMETER_REF] = wxColor("violet");
+        mForegrounds[STYLE_PARAMETER_REF] = violet; // wxColor("violet");
         mBackgrounds[STYLE_PARAMETER_REF] = *wxBLACK;
         
         
