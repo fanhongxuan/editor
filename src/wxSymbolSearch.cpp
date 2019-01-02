@@ -110,6 +110,7 @@ bool wxSymbolSearch::OnResult(const wxString &cmd, const wxString &line, std::ma
         }
     }
     ret = symbol + "(" + type + ")";
+    // ret = lineNumber + ":\t" + ret;
     rets[ret] = iLineNumber;
     // AddSearchResult(new wxSearchFileResult(ret, ret, iLineNumber, 0));
     return true;
@@ -119,10 +120,9 @@ static wxString findCtags()
 {
     wxString ret = ceGetExecPath();
 #ifdef WIN32
-	ret += "\\ext\\ctags -f - -n --kinds-C++=+z+l ";
+	ret += "\\ext\\ctags -f - -n --kinds-C++=+p ";
 #else
-    // ret += "/ext/ctags -f - -n --kinds-C++=+z+l ";
-    ret += "/ext/ctags -f - -n ";
+    ret += "/ext/ctags -f - -n --kinds-C++=+p ";
 #endif
     return ret;
 }
