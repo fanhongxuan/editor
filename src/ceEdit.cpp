@@ -5,6 +5,7 @@
 #include <wx/filename.h> // filename support
 #include <wx/filedlg.h>
 #include <wx/textdlg.h>
+#include <wx/msgdlg.h>
 #include <map>
 #include <set>
 #include <wx/timer.h>
@@ -95,6 +96,17 @@ static inline bool IsCommentOrWhiteSpace(char c, int style){
     return false;
 }
 
+static time_t GetLastModifyTime(const wxString &path){
+    int fd = open(static_cast<const char*>(path), O_RDONLY|O_NOATIME|O_SYNC);
+    if (fd < 0){
+        return 0;
+    }
+    struct stat st;
+    fstat(fd, &st);
+    close(fd);
+    return st.st_mtime;
+}
+
 ceEdit::ceEdit(wxWindow *parent)
 :wxStyledTextCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize){
     mpTimer = NULL;
@@ -105,6 +117,7 @@ ceEdit::ceEdit(wxWindow *parent)
     mLinenuMargin = 0;
     mFoldingMargin = 2;
     mDeviderMargin = 1;
+    mLastModifyTime = 0;
     SetMouseDwellTime(800);
 }
 
@@ -132,6 +145,7 @@ bool ceEdit::LoadFile(const wxString &filename){
     mbLoadFinish = true;
     EmptyUndoBuffer();
     LoadStyleByFileName(filename);
+    mLastModifyTime = GetLastModifyTime(filename);
     UpdateLineNumberMargin();
     wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), mLanguage);
     return true;
@@ -140,6 +154,7 @@ bool ceEdit::LoadFile(const wxString &filename){
 bool ceEdit::NewFile(const wxString &filename){
     mDefaultName = filename;
     LoadStyleByFileName(filename);
+    mLastModifyTime = time(NULL);
     return true;
 }
 
@@ -150,9 +165,6 @@ bool ceEdit::Modified () {
 
 bool ceEdit::SaveFile (bool bClose)
 {
-    // return if no change
-    if (!Modified()) return true;
-    
     if (mFilename.empty()) {
         wxFileDialog dlg (this, wxT("Save file"), wxEmptyString, mDefaultName, wxT("Any file (*)|*"),
             wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
@@ -161,6 +173,26 @@ bool ceEdit::SaveFile (bool bClose)
         mDefaultName = wxEmptyString;
         wxFileName fname (mFilename);
     }
+    else if (mLastModifyTime < GetLastModifyTime(GetFilename())){
+        // file is modified outside, confirm to overwride that change.
+        int ret = wxMessageBox(wxString::Format(wxT("File(%s) is modified outside, do you want to overwride the change?"), GetFilename()), 
+                               wxT("Confirm"), wxYES_NO| wxCANCEL, this);
+        if (ret != wxYES){
+            return true;
+        }
+    }
+    else if (GetLastModifyTime(GetFilename()) == 0){
+        // file is deleted outsize, confirm to create it again?
+        int ret = wxMessageBox(wxString::Format(wxT("File(%s) is delete outside, do you want to created it again?"), GetFilename()), 
+                               wxT("Confirm"),wxYES_NO| wxCANCEL, this);
+        if (ret != wxYES){
+            return true;
+        }
+    }
+    else if (!Modified()){
+        // return if no change
+        return true;
+    }
     
     // save file
     return SaveFile (mFilename, bClose);
@@ -168,9 +200,10 @@ bool ceEdit::SaveFile (bool bClose)
 
 bool ceEdit::SaveFile (const wxString &filename, bool bClose) {
     // return if no change
-    if (!Modified()) return true;
+    // if (!Modified()) return true;
     bool ret = wxStyledTextCtrl::SaveFile(filename);
     if (!bClose){
+        mLastModifyTime = GetLastModifyTime(filename);
         // todo:fanhongxuan@gmail.com
         // handle the pasted event, when save file, do not need to update this again.
         wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), mLanguage);
@@ -2822,7 +2855,29 @@ void ceEdit::OnIdleTimer(wxTimerEvent &evt){
     // todo:fanhongxuan@gmail.com
     // 1, backup the modified file automatic.
     // 2, check if the file is modified outside the edit.
-    
+    // 1, if the last modified is different with the mLastModifiedTime
+    //    if currenlty no un-saved modification
+    //    pop up a dialog to notify user if we need to reload?
+    //    if currenlty has un-saved modification,
+    time_t lmt = GetLastModifyTime(GetFilename());
+    if ((!mFilename.empty()) && lmt == 0){
+        SaveFile();
+    }
+    if (lmt > mLastModifyTime){
+        // wxPrintf("File %s is modified outside\n", GetFilename());
+        int ret = wxMessageBox(wxString::Format(wxT("File(%s) is Modified outside, Do you want to reload the file?"), GetFilename()),
+                               wxT("Confirm"), wxYES_NO|wxCANCEL, this);
+        if (ret == wxYES){
+            int curPos = GetCurrentPos();
+            int curLine = GetFirstVisibleLine();
+            // Freeze();
+            LoadFile(GetFilename());
+            // SetCurrentPos(curPos);
+            SetFirstVisibleLine(curLine);
+            GotoPos(curPos);
+            // Thaw();
+        }
+    }
     wxAutoCompMemberProvider::Instance().SetClassName("", mLanguage, GetFilename());
     wxAutoCompMemberProvider::Instance().SetClassName("__anon", mLanguage, GetFilename());
 }
@@ -3122,7 +3177,9 @@ void ceEdit::OnMouseWheel(wxMouseEvent &evt)
     if (AutoCompActive()){
         AutoCompCancel();
     }
-    evt.Skip();
+    wxStyledTextCtrl::OnMouseWheel(evt);
+    Refresh();
+    // evt.Skip();
 }
 
 void ceEdit::OnKeyUp(wxKeyEvent &event)

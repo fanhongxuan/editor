@@ -141,6 +141,7 @@ private:
     int mLinenuMargin;
     int mDeviderMargin;
     int mFoldingMargin;
+    time_t mLastModifyTime;
     bool mbLoadFinish;
     bool mbReplace;
     bool mbHasFocus;
