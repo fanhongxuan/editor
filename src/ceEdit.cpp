@@ -103,8 +103,8 @@ ceEdit::ceEdit(wxWindow *parent)
     mbReplace = false;
     mbHasFocus = false;
     mLinenuMargin = 0;
-    mDeviderMargin = 1;
     mFoldingMargin = 2;
+    mDeviderMargin = 1;
     SetMouseDwellTime(800);
 }
 
@@ -292,15 +292,34 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         
         mForegrounds[STYLE_ESC_CHAR] = wxColor("BLUE");
         mBackgrounds[STYLE_ESC_CHAR] = wxColor("RED");
+        
+        // predefined style
+        
+        mForegrounds[wxSTC_STYLE_FOLDDISPLAYTEXT] = wxColor("YELLOW");
+        mBackgrounds[wxSTC_STYLE_FOLDDISPLAYTEXT] = wxColor("BLACK");
+        
+        // for line number
+        mForegrounds[wxSTC_STYLE_LINENUMBER] = wxColor("GREEN");
+        
+        // for indent guide
+        mForegrounds[wxSTC_STYLE_INDENTGUIDE] = wxColor("GREEN");
+        mBackgrounds[wxSTC_STYLE_INDENTGUIDE] = wxColor("GREEN");
+        
+        // for brace light and bad
+        mForegrounds[wxSTC_STYLE_BRACELIGHT] = wxColor("BLACK");
+        mBackgrounds[wxSTC_STYLE_BRACELIGHT] = wxColor("GREEN");
+        mForegrounds[wxSTC_STYLE_BRACEBAD] = wxColor("BLACK");
+        mBackgrounds[wxSTC_STYLE_BRACEBAD] = wxColor("RED");
     }
     std::map<int, wxColor>::iterator it;
-    if (type == 1){
+    if (type == 1){ // for background
         it = mBackgrounds.find(style);
         if (it != mBackgrounds.end()){
             return it->second;
         }
         return *wxBLACK;
     }
+    
     it = mForegrounds.find(style);
     if (it != mForegrounds.end()){
         return it->second;
@@ -335,7 +354,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     }
     RestartIdleTimer();
     StyleClearAll();
-    SetEndAtLastLine(false);
+    SetEndAtLastLine(false); // allows scrolling one page below the last line
 #ifdef WIN32
     SetEOLMode(wxSTC_EOL_CRLF);
 #else
@@ -343,7 +362,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
 #endif
     int charset = 65001;
     int i = 0;
-    for (i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
+    for (i = 0; i <= wxSTC_STYLE_LASTPREDEFINED; i++) {
         StyleSetCharacterSet (i, charset);
     }
     SetCodePage (charset);
@@ -354,7 +373,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
 #else        
     wxFont font(wxFontInfo(11).Family(wxFONTFAMILY_MODERN));
 #endif        
-    for (i = 0; i < wxSTC_STYLE_LASTPREDEFINED; i++) {
+    for (i = 0; i <= wxSTC_STYLE_LASTPREDEFINED; i++) {
         StyleSetFont (i, wxFont(GetFontByStyle(i, 0)));
         StyleSetForeground(i, GetColourByStyle(i, 0)); 
         StyleSetBackground(i, GetColourByStyle(i, 1));
@@ -367,12 +386,6 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     // update the linenumber margin width when file is modified.
     // if we set a fix value here, the later update is not work.
     // SetMarginWidth(mLinenuMargin, 0);
-    StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (wxT("GREEN")));
-    StyleSetBackground (wxSTC_STYLE_LINENUMBER, *wxBLACK);
-    
-    // indent guide
-    StyleSetForeground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
-    StyleSetBackground(wxSTC_STYLE_INDENTGUIDE, wxColour (wxT("GREEN")));
     
     // Caret
     SetCaretStyle(wxSTC_CARETSTYLE_BLOCK);
@@ -387,23 +400,13 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     CallTipSetForegroundHighlight(*wxRED);
     CallTipSetForeground(*wxBLUE);
     
-    // set style for brace light and bad
-    StyleSetForeground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("BLACK")));
-    StyleSetBackground(wxSTC_STYLE_BRACELIGHT, wxColour (wxT("GREEN")));    
-    StyleSetForeground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("BLACK")));
-    StyleSetBackground(wxSTC_STYLE_BRACEBAD, wxColour(wxT("RED")));
-    
-    // for multselection and replace
-    StyleSetFont (wxSTC_STYLE_LASTPREDEFINED + 1, font);
-    StyleSetForeground (wxSTC_STYLE_LASTPREDEFINED + 1, *wxGREEN);
-    StyleSetBackground (wxSTC_STYLE_LASTPREDEFINED + 1, *wxBLACK);
-    
-    // set margin as unused
-    SetMarginType (mDeviderMargin, wxSTC_MARGIN_SYMBOL);
+    // set margin 1 is hide, currently not used.
+    // SetMarginType (mDeviderMargin, wxSTC_MARGIN_SYMBOL);
     SetMarginWidth (mDeviderMargin, 0);
     SetMarginSensitive (mDeviderMargin, false);
     
     // folding
+    FoldDisplayTextSetStyle(wxSTC_FOLDDISPLAYTEXT_STANDARD); // display text after folder header line.
     SetMarginType (mFoldingMargin, wxSTC_MARGIN_SYMBOL);
     SetMarginMask (mFoldingMargin, wxSTC_MASK_FOLDERS);
     SetMarginWidth (mFoldingMargin, 16);
@@ -418,16 +421,14 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     MarkerDefine(wxSTC_MARKNUM_FOLDERMIDTAIL, wxSTC_MARK_TCORNER,     wxT("BLACK"), wxT("WHITE"));
     MarkerDefine(wxSTC_MARKNUM_FOLDERTAIL,    wxSTC_MARK_LCORNER,     wxT("BLACK"), wxT("WHITE"));
     SetProperty(wxT("fold"), wxT("1"));
-    SetProperty(wxT("fold.comment"), wxT("1"));
-    SetProperty(wxT("fold.compact"), wxT("1"));
-    SetProperty(wxT("fold.preprocessor"), wxT("1"));
-    SetFoldFlags(wxSTC_FOLDFLAG_LINEBEFORE_CONTRACTED | 
-// #define DEBUG_FOLD
+    SetFoldFlags(wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED 
+                 // #define DEBUG_FOLD
 #ifdef DEBUG_FOLD    
-                 // wxSTC_FOLDFLAG_LEVELNUMBERS |
-                 wxSTC_FOLDFLAG_LINESTATE |
+                 // | wxSTC_FOLDFLAG_LEVELNUMBERS
+                 | wxSTC_FOLDFLAG_LINESTATE
 #endif        
-                 wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED);
+                 // wxSTC_FOLDFLAG_LINEAFTER_CONTRACTED
+                 );
     
     // set spaces and indentation
     SetTabWidth(4);
@@ -450,7 +451,8 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     SetViewWhiteSpace(wxSTC_WS_INVISIBLE);
     SetOvertype(false);
     SetReadOnly(false);
-    SetWrapMode(wxSTC_WRAP_WORD);
+    // SetWrapMode(wxSTC_WRAP_WORD);
+    SetWrapMode(wxSTC_WRAP_NONE);
     
     mLanguage = GuessLanguage(filename);
     if (mLanguage != "Java"  && mLanguage != "C++" && mLanguage != "C" && mLanguage != "BP"){
@@ -544,6 +546,9 @@ bool ceEdit::IsInPreproces(int stopPos, const wxString &keyword)
                 }
                 text += GetCharAt(stop);
                 stop++;
+            }
+            if (keyword.empty()){
+                return true;
             }
             // int start = FindStyleStart(STYLE_PREPROCESS, startPos);
             // wxString text = GetTextRange(start, startPos);
@@ -693,13 +698,20 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
     int variableStart = -1;
     int variableStop = -1;
     std::set< std::pair<int, int> > localTypes;
-    
-    // todo:fanhongxuan@gmail.com
-    // skip the content of preprocess
+    int curLine = -1;
 	wxString variable = GetTextRange(startPos, stopPos+1);
     while(stop > start){
         char c = GetCharAt(stop);
         int style = GetStyleAt(stop);
+        long line = 0;
+        PositionToXY(stop, NULL, &line);
+        if (curLine != line && IsInPreproces(stop, "")){
+            // skip the content of preprocesor
+            curLine = line;
+            long lineStart = XYToPosition(0, line);
+            stop = lineStart-1;
+            continue;
+        }
         if (style == STYLE_NORMAL && c == ']'){
             stop = BraceMatch(stop);
         }
@@ -2860,7 +2872,8 @@ void ceEdit::OnMarginClick(wxStyledTextEvent &evt)
         int lineClick = LineFromPosition (evt.GetPosition());
         int levelClick = GetFoldLevel (lineClick);
         if ((levelClick & wxSTC_FOLDLEVELHEADERFLAG) > 0) {
-            ToggleFold (lineClick);
+            // ToggleFold (lineClick);
+            ToggleFoldShowText(lineClick, "...");
         }
     }
 }
@@ -4500,7 +4513,9 @@ void ceEdit::OnGotoLine(wxCommandEvent &evt){
             line = GetLineCount();
         }
         line--;
-        if (line != GetCurrentLine()){
+        int firstVisiableLine = GetFirstVisibleLine();
+        if (firstVisiableLine > line ||  line != GetCurrentLine()){
+            SetFirstVisibleLine(line-20);
             GotoLine(line);
         }
     }

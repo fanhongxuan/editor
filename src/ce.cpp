@@ -323,10 +323,9 @@ public:
         if (NULL != pRet && NULL != mpEdit){
             int line = pRet->GetLine();
             mpFrame->ChangeToBuffer(mpEdit, -1/*currently not used*/);
-            if (line >= 10){
-                mpEdit->ScrollToLine(line-10); // make sure the line is in the middle
-            }
+            mpEdit->SetFirstVisibleLine(line-20);
             mpEdit->GotoLine(line);
+            wxPrintf("MySymbolSearchHandler::GotoLine:%d\n", line);
             if (bActive){
                 mpEdit->SetFocus();
             }
@@ -350,9 +349,7 @@ public:
             }
             int line = pRet->GetLine();
             mpFrame->ChangeToBuffer(mpEdit, -1/*currently not used*/);
-            if (line >= 10){
-                mpEdit->ScrollToLine(line-10); // make sure the line is in the middle
-            }
+            mpEdit->SetFirstVisibleLine(line-20);
             mpEdit->GotoLine(line);
             if (bActive){
                 mpEdit->SetFocus();
@@ -466,11 +463,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
         }
     }
     if (line > 0){
-        int target = line;
-        if (line >= 10){
-            target -= 10;
-        }
-        pEdit->ScrollToLine(target); // make sure the line is in the middle
+        pEdit->SetFirstVisibleLine(line-20);
         pEdit->GotoLine(line);
     }
     

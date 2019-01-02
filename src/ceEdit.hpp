@@ -68,7 +68,6 @@ protected:
     bool ShowCallTipsOfLocalVariableOrParam(int start, int stop);
     bool ShowCallTips(int pos);
     bool InsertNewLine(long pos);
-    long GetLineStartPosition(long line);
     bool StartReplaceInRegion();
     bool TriggerCommentRange(long start, long stop);
     bool HungerBack();
