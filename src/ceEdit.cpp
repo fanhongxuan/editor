@@ -1599,6 +1599,10 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
             break;
         }
         else if (style == STYLE_FOLDER){
+            if (c == '(' || c == ')'){
+                // function can not be started after ( or ).
+                return curStyle;
+            }
             break;
         }
         startPos--;

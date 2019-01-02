@@ -67,6 +67,7 @@ public:
     void OnMarginClick(wxStyledTextEvent &evt);
     
     void OnLeftDown(wxMouseEvent &evt);
+    void OnMouseWheel(wxMouseEvent &evt);
     void OnKeyDown(wxKeyEvent &evt);
     void SetKey(const wxString &input){mKey = input;}
     void ListUpdated();
@@ -92,6 +93,7 @@ wxBEGIN_EVENT_TABLE(wxSearchListCtrl, wxStyledTextCtrl)
 EVT_LEFT_DOWN(wxSearchListCtrl::OnLeftDown)
 EVT_STC_STYLENEEDED(wxID_ANY, wxSearchListCtrl::OnStyleNeeded)
 EVT_LEFT_DCLICK(wxSearchListCtrl::OnLeftDown)
+EVT_MOUSEWHEEL(wxSearchListCtrl::OnMouseWheel)
 EVT_KEY_DOWN(wxSearchListCtrl::OnKeyDown)
 EVT_STC_MARGINCLICK(wxID_ANY, wxSearchListCtrl::OnMarginClick)
 wxEND_EVENT_TABLE()
@@ -169,6 +171,13 @@ wxSearchListCtrl::wxSearchListCtrl(wxSearch *parent, wxSize size)
     SetLexer(wxSTC_LEX_CONTAINER);
     // setup about the 
     mpParent = parent;
+}
+
+void wxSearchListCtrl::OnMouseWheel(wxMouseEvent &evt)
+{
+    wxStyledTextCtrl::OnMouseWheel(evt);
+    Refresh();
+    // evt.Skip();
 }
 
 void wxSearchListCtrl::OnLeftDown(wxMouseEvent &evt)
@@ -290,7 +299,7 @@ void wxSearchListCtrl::OnStyleNeeded(wxStyledTextEvent &evt)
         wxString lowText = text.Lower();
         
         int pos = text.find(":");
-        if (pos != text.npos){
+        if (pos != text.npos && (pos+1) < text.size() && text[pos+1] != ':'){
             StartStyling(startPos);
             SetStyling(pos+1, STYLE_INDEX);
         }
