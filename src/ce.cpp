@@ -648,8 +648,6 @@ void MyFrame::LoadInfo()
     SwitchFocus();
 }
 
-// fixme:fanhongxuan@gmail.com
-// when first open the file, the type and variable is wrong.
 void MyFrame::SetActiveEdit(ceEdit *pEdit)
 {
     mpActiveEdit = pEdit;

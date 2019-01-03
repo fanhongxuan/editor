@@ -13,7 +13,7 @@ CFLAGS := \
 	-I$(wx_inc_dir) \
 	-I$(wx_lib_dir)/include/ \
     -I$(db_inc_dir) \
-	-I. -D__WXGTK__ -g
+	-I. -D__WXGTK__ -DNDEBUG -D_FILE_OFFSET_BITS=64 -DwxDEBUG_LEVEL=0
 
 LDFLAGS := \
 	-L$(wx_lib_dir) \

@@ -211,7 +211,6 @@ bool ceEdit::SaveFile (const wxString &filename, bool bClose) {
         // todo:fanhongxuan@gmail.com
         // handle the pasted event, when save file, do not need to update this again.
         wxAutoCompWordInBufferProvider::Instance().AddFileContent(GetText(), mLanguage);
-        ClearLoalSymbol();
         if (NULL != wxGetApp().frame()){
             wxStyledTextEvent evt;
             evt.SetEventObject(this);
@@ -259,10 +258,10 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         mForegrounds[STYLE_CHAR] = wxColor("BROWN");
         mBackgrounds[STYLE_CHAR] = *wxBLACK;
         
-        mForegrounds[STYLE_COMMENTS] = wxColor("GREEN");
+        mForegrounds[STYLE_COMMENTS] = wxColor(0,255,255);
         mBackgrounds[STYLE_COMMENTS] = *wxBLACK;
         
-        mForegrounds[STYLE_CSTYLE_COMMENTS] = wxColor("GREEN");
+        mForegrounds[STYLE_CSTYLE_COMMENTS] = wxColor(0,255,255);
         mBackgrounds[STYLE_CSTYLE_COMMENTS] = *wxBLACK;
         
         mForegrounds[STYLE_PREPROCESS] = wxColor("BLUE");
@@ -391,6 +390,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     }
     RestartIdleTimer();
     StyleClearAll();
+    SetBufferedDraw(false);
     SetEndAtLastLine(false); // allows scrolling one page below the last line
 #ifdef WIN32
     SetEOLMode(wxSTC_EOL_CRLF);
@@ -701,8 +701,7 @@ int ceEdit::HandleClass(int pos, int curStyle){
                 int stop = FindStyleStart(STYLE_IDENTY, startPos);
                 StartStyling(stop);
                 SetStyling(startPos+1 - stop, STYLE_TYPE);
-                wxString text = GetTextRange(stop, startPos+1);
-                mLocalTypes.insert(text);
+                AddLocalType(stop, startPos+1);
                 break;
             }
             else if (!IsCommentOrWhiteSpace(c, style)){
@@ -784,8 +783,18 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             stop = BraceMatch(stop);
         }
         else if (style == STYLE_TYPE){
-            typeCount++;
+            int curStop = stop;
             stop = FindStyleStart(style, stop);
+            if (variableStop < 0){
+                variableStop = curStop;
+                identyCount++;
+                if (variableStart < 0){
+                    variableStart = stop;
+                }
+            }
+            else{
+                typeCount++;
+            }
         }
         else if (style == STYLE_KEYWORD1){
             keywordCount++;
@@ -793,6 +802,10 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             stop = FindStyleStart(style, stop);
             wxString text = GetTextRange(stop, keywordStop);
             if (text == "return" || text == "delete" || text == "typedef"){
+                return false;
+            }
+            if ((text == "class" || text == "struct") && identyCount == 1){
+                // class, struct with one id, is a type declare, not a varaible define.
                 return false;
             }
         }
@@ -826,6 +839,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
     if (totalCount < 2){
         return false;
     }
+    
     std::set< std::pair<int, int> >::iterator it = localTypes.begin();
     while(it != localTypes.end()){
         wxString text = GetTextRange((*it).first, (*it).second);
@@ -1062,8 +1076,10 @@ int ceEdit::HandleVariable(int pos, int curStyle){
         // wxPrintf("Mark <%s> as variable\n", text);
         StartStyling(validVariables[i].first);
         SetStyling(validVariables[i].second, STYLE_VARIABLE);
-        // std::map<wxString, int>::iterator it = mLocalVariable.find(text);
-        // mLocalVariable[text] = std::make_pair<int, wxString>(pos, GetVariableType(pos));
+        // todo:fanhongxuan@gmail.com
+        // if we are not in a function, add this as a global variable.
+        // if user delete a global variable, when to delete it?
+        // when use, check if this is still valid.
         mLocalVariable[text] = std::pair<int, wxString>(pos, GetVariableType(pos));
     }
     return true;
@@ -1351,10 +1367,34 @@ wxString ceEdit::GetVariableType(int pos)
     return str;
 }
 
+int ceEdit::AddLocalType(int startPos, int stopPos)
+{
+    wxString text = GetTextRange(startPos, stopPos);
+    // first delete all the overlapped type;
+    std::map<wxString, int>::iterator it = mLocalTypes.begin();
+    while(it != mLocalTypes.end()){
+        if (it->second >= startPos && (it->second + it->first.size()) <= stopPos){
+			std::map<wxString, int>::iterator next = it;
+			next++;
+            mLocalTypes.erase(it);
+            it = next;
+        }
+        else{
+            it++;
+        }
+    }
+    mLocalTypes[text] = startPos;
+	return 0;
+}
+
 int ceEdit::PrepareFunctionParams(int pos){
     long start, stop;
     mFunctionParames.clear();
     mLocalVariable.clear();
+    
+    // todo:fanhongxuan@gmail.com
+    // parepare all the global variable.
+    
     wxString func = WhichFunction(pos, &start, &stop);
     if (func.empty()){
         return 0;
@@ -1392,7 +1432,6 @@ int ceEdit::PrepareFunctionParams(int pos){
                 }
                 start = paramStart - 1;
             }
-            
             else if (style == STYLE_FUNCTION){
                 break;
             }
@@ -1476,14 +1515,13 @@ bool ceEdit::HandleParam(int startPos, int stopPos){
                 SetStyling(pos+1 - start, STYLE_PARAMETER);
                 bParam = false;
                 wxString text = GetTextRange(start, pos+1);
-                // wxPrintf("AddFunction param:%s(%d)\n", text, LineFromPosition(pos+1) + 1);
-                // mFunctionParames[text] = std::make_pair(-1, GetParamType(start));
                 mFunctionParames[text] = std::pair<int, wxString>(-1, GetParamType(start));
             }
             else{
-                wxString text = GetTextRange(start, pos+1);
+                // wxString text = GetTextRange(start, pos+1);
                 // wxPrintf("Add Local Type:<%s>(%d)\n", text, LineFromPosition(pos+1) + 1);
-                mLocalTypes.insert(text);
+                // mLocalTypes.insert(text);
+                AddLocalType(start, pos+1);
                 SetStyling(pos+1 - start, STYLE_TYPE);
                 // bParam = true;
             }
@@ -1645,123 +1683,121 @@ int ceEdit::HandleFunctionStart(int pos, int curStyle){
         startPos--;
     }
     
-    // 
     int returnStart = -1;
     int returnStop = -1;
-    if (startPos > 0){
-        bool hasReturnValue = false;
-        bool bUseTypeAsId = false;
-        int prev = startPos - 1;
-        while(prev > 0){
-            style = GetStyleAt(prev);
-            c = GetCharAt(prev);
-            if (style == STYLE_OPERATOR){
-                if (c == ':' && prev > 1 && GetStyleAt(prev-1) == STYLE_OPERATOR && GetCharAt(prev-1) == ':'){
-                    // ::function, 
-                    bUseTypeAsId = true;
-                    prev--;
-                    // break;
+    bool hasReturnValue = false;
+    bool bUseTypeAsId = false;
+    int prev = startPos - 1;
+    while(prev > 0){
+        style = GetStyleAt(prev);
+        c = GetCharAt(prev);
+        if (style == STYLE_OPERATOR){
+            if (c == ':' && prev > 1 && GetStyleAt(prev-1) == STYLE_OPERATOR && GetCharAt(prev-1) == ':'){
+                // ::function, 
+                bUseTypeAsId = true;
+                prev--;
+                // break;
+            }
+            else if (c == ':' && style == STYLE_OPERATOR){
+                break;
+            }
+            else if (c == '~'){
+                // destructor a class, don't need a return type.
+                bNeedReturn = false;
+                // hasReturnValue = true;
+                break;
+            }
+            else if (c == '&'){
+                // return type is a reference
+            }
+            else if (c == '*'){
+                // return type is a pointer
+            }
+            else if (c == '>'){
+                // maybe return type is a template<>
+                int start = FindTemplateParamStart(prev);
+                if (start < 0){
+                    // not a valid template.
+                    return curStyle;
                 }
-                else if (c == ':' && style == STYLE_OPERATOR){
-                    break;
-                }
-                else if (c == '~'){
-                    // destructor a class, don't need a return type.
-                    bNeedReturn = false;
-                    // hasReturnValue = true;
-                    break;
-                }
-                else if (c == '&'){
-                    // return type is a reference
-                }
-                else if (c == '*'){
-                    // return type is a pointer
-                }
-                else if (c == '>'){
-                    // maybe return type is a template<>
-                    int start = FindTemplateParamStart(prev);
-                    if (start < 0){
-                        // not a valid template.
-                        return curStyle;
-                    }
-                    prev = start;
-                }
-                else{
-                    // other operator, not a function.
-                    // wxPrintf("Other operator:%c\n", c);
+                prev = start;
+            }
+            else{
+                // other operator, not a function.
+                // wxPrintf("Other operator:%c\n", c);
+                return curStyle;
+            }
+        }
+        else if (style == STYLE_IDENTY){
+            returnStop = prev;
+            returnStart = FindStyleStart(STYLE_IDENTY, returnStop);
+            prev = returnStart;
+            hasReturnValue = true;
+        }
+        else if (style == STYLE_TYPE){
+            if (bUseTypeAsId){
+                prev = FindStyleStart(style, prev);
+                bUseTypeAsId = false;
+            }
+            else{
+                hasReturnValue = true;
+            }
+        }
+        else if (style == STYLE_KEYWORD1){
+            int keyStart = FindStyleStart(style, prev);
+            wxString text = GetTextRange(keyStart, prev+1);
+            // wxPrintf("keyword in return is:<%s>\n", text);
+            if (text == "return" || text == "new" || text == "delete"){
+                return curStyle;
+            }
+            hasReturnValue = true;
+            break;
+        }
+        else if (c == '}' && style == STYLE_FOLDER){
+            break;
+        }
+        else if (c == ';' && style == STYLE_NORMAL){
+            break;
+        }
+        else if ( c == '{' && style == STYLE_FOLDER){
+            if (bNeedReturn){
+                if (!hasReturnValue){
                     return curStyle;
                 }
             }
-            else if (style == STYLE_IDENTY){
-                returnStop = prev;
-                returnStart = FindStyleStart(STYLE_IDENTY, returnStop);
-                prev = returnStart;
-                hasReturnValue = true;
-            }
-            else if (style == STYLE_TYPE){
-                if (bUseTypeAsId){
-                    prev = FindStyleStart(style, prev);
-                    bUseTypeAsId = false;
-                }
-                else{
-                    hasReturnValue = true;
-                }
-            }
-            else if (style == STYLE_KEYWORD1){
-                int keyStart = FindStyleStart(style, prev);
-                wxString text = GetTextRange(keyStart, prev+1);
-                // wxPrintf("keyword in return is:<%s>\n", text);
-                if (text == "return" || text == "new" || text == "delete"){
-                    return curStyle;
-                }
-                hasReturnValue = true;
+            else{
                 break;
             }
-            else if (c == '}' && style == STYLE_FOLDER){
-                break;
-            }
-            else if (c == ';' && style == STYLE_NORMAL){
-                break;
-            }
-            else if ( c == '{' && style == STYLE_FOLDER){
-                if (bNeedReturn){
-                    if (!hasReturnValue){
-                        return curStyle;
-                    }
-                }
-                else{
-                    break;
-                }
-            }
-            else if ((c == ')'|| c == '(') && style == STYLE_FOLDER){
-                return curStyle; // no ; find, not a function
-            }
-            prev--;
         }
-
-        // todo:fanhongxuan@gmail.com
-        // mark the return type as a type.
-        // class constructor has no return value, need to handle it here.
-        if (bNeedReturn && (!hasReturnValue)){
-            // wxPrintf("No Return value, not a function:%s\n", GetTextRange(prev, pos));
-            return curStyle;
+        else if ((c == ')'|| c == '(') && style == STYLE_FOLDER){
+            return curStyle; // no ; find, not a function
         }
-        
-        // verify the param
-        wxString param = GetTextRange(paramStart, paramStop);
-        if (!HandleParam(paramStart, paramStop)){
-            return curStyle;
-        }
-        
-        if (returnStart >= 0 && returnStop >= returnStart){
-            mLocalTypes.insert(GetTextRange(returnStart, returnStop+1));
-            StartStyling(returnStart);
-            SetStyling(returnStop+1 - returnStart, STYLE_TYPE);
-        }
-        
-        StartStyling(startPos);
-        SetStyling(stopPos+1 - startPos, STYLE_FUNCTION);
+        prev--;
     }
+    
+    // todo:fanhongxuan@gmail.com
+    // mark the return type as a type.
+    // class constructor has no return value, need to handle it here.
+    if (bNeedReturn && (!hasReturnValue)){
+        // wxPrintf("No Return value, not a function:%s\n", GetTextRange(prev, pos));
+        return curStyle;
+    }
+    
+    // verify the param
+    wxString param = GetTextRange(paramStart, paramStop);
+    if (!HandleParam(paramStart, paramStop)){
+        return curStyle;
+    }
+    
+    if (returnStart >= 0 && returnStop >= returnStart){
+        // mLocalTypes.insert(GetTextRange(returnStart, returnStop+1));
+        AddLocalType(returnStart, returnStop+1);
+        StartStyling(returnStart);
+        SetStyling(returnStop+1 - returnStart, STYLE_TYPE);
+    }
+    
+    StartStyling(startPos);
+    SetStyling(stopPos+1 - startPos, STYLE_FUNCTION);
     return curStyle;
 }
 
@@ -1912,107 +1948,6 @@ wxString ceEdit::WhichFunction(int pos, long *pStart, long *pStop){
     return GetClassName(nameStart) +  GetTextRange(nameStart, nameStop);
 }
 
-extern const wxString &getFullTypeName(const wxString &input, const wxString &language);
-
-bool ceEdit::ClearLoalSymbol(){
-    std::map<wxString, std::set<ceSymbol *>* >::iterator mIt = mSymbolMap.begin();
-    while(mIt != mSymbolMap.end()){
-        std::set<ceSymbol *>::iterator sIt = mIt->second->begin();
-        while(sIt != mIt->second->end()){
-            delete (*sIt);
-            sIt++;
-        }
-        delete mIt->second;
-        mIt++;
-    }
-    mSymbolMap.clear();
-    
-    std::set<ceSymbol*>::iterator sIt = mLocalSymbolMap.begin();
-    while(sIt != mLocalSymbolMap.end()){
-        delete (*sIt);
-        sIt++;
-    }
-    mLocalSymbolMap.clear();
-    return true;
-}
-
-bool ceEdit::BuildLocalSymbl(){
-    std::set<wxString>::iterator tIt;
-    std::set<ceSymbol *>::iterator it;
-    
-    if (mLocalSymbolMap.empty()){
-        ceSymbolDb::GetFileSymbol(GetFilename(), mLocalSymbolMap);
-    }
-    if (mLocalTypes.empty()){
-        // todo:fanhongxuan@gmail.com
-        // add class to the local types
-        it = mLocalSymbolMap.begin();
-        while(it != mLocalSymbolMap.end()){
-            std::vector<wxString> outputs;
-            wxPrintf("symbolType:%s, type:<%s>\n", (*it)->symbolType, (*it)->type);
-            ceSplitString((*it)->type, outputs, ' ');
-            int i = 0;
-            for (i = 0; i < outputs.size(); i++){
-                mLocalTypes.insert(outputs[i]);
-            }
-            it++;
-        }
-    }
-    return true;
-}
-
-wxString ceEdit::FindType(const wxString &value, int line, int pos){
-    wxString type;
-    std::set<wxString>::iterator tIt;
-    std::set<ceSymbol *>::iterator it;
-    
-    BuildLocalSymbl();
-    
-    // if mLocalSymbolMap && mLocalTypes is empty, try to load it first.
-    tIt = mLocalTypes.find(value);
-    if (tIt != mLocalTypes.end()){
-        return "Typedef";
-    }
-    
-    it = mLocalSymbolMap.begin();
-    while(it != mLocalSymbolMap.end()){
-        ceSymbol *pSymbol = (*it);
-        if (NULL != pSymbol && pSymbol->name == value){
-            return getFullTypeName(pSymbol->symbolType, mLanguage);
-        }
-        it++;
-    }
-    
-    // todo:fanhongxuan@gmail.com
-    // check if this is a global variable, enum, macro define?
-    return "";
-    // std::map<wxString, std::set<ceSymbol *>* >::iterator mIt = mSymbolMap.find(value);
-    // if (mIt != mSymbolMap.end() && mIt->second->size() != 0){
-    //     std::set<ceSymbol *>::iterator sit = mIt->second->begin();
-    //     return (*sit)->type;
-    // }
-    // if (NULL == wxGetApp().frame()){
-    //     return type;
-    // }
-    // std::set<ceSymbol *> *symbol = new std::set<ceSymbol *>;
-    // wxGetApp().frame()->FindDef(*symbol, value, type, GetFilename());
-    // if (symbol->empty()){
-    //     return type;
-    // }
-    // mSymbolMap[value] = symbol;
-    // return (*symbol->begin())->type;
-}
-
-bool ceEdit::IsFunctionDeclare(int pos){
-    return true;
-}
-
-bool ceEdit::IsFunctionDefination(int pos){
-    // return_value class:function(args,){}
-    //
-	return true;
-}
-
 bool ceEdit::ParseWord(int pos){
     int startPos = pos;
     while(startPos > 0){
@@ -2035,23 +1970,14 @@ bool ceEdit::ParseWord(int pos){
     
     // if this identy is started with a class,
     // this is a class define.
+    wxString prevValue = GetPrevValue(startPos-1, STYLE_KEYWORD1);
+    if (prevValue == "class" || prevValue == "struct" || 
+        prevValue == "protected" || prevValue == "private" || prevValue == "public")
     {
-        wxString prevValue = GetPrevValue(startPos-1, STYLE_KEYWORD1);
-        if (prevValue == "class" || prevValue == "struct" || 
-            prevValue == "protected" || prevValue == "private" || prevValue == "public"){
-            StartStyling(startPos);
-            SetStyling(pos+1 - startPos, STYLE_TYPE);
-            mLocalTypes.insert(text);
-            return true;
-        }
-    }
-    
-    // fixme:fanhongxuan@gmail.com
-    // if a word is started with ., ->, ::, don't mark it as variable and function param and type.
-    std::set<wxString>::iterator tIt = mLocalTypes.find(text);
-    if (tIt != mLocalTypes.end()){
         StartStyling(startPos);
         SetStyling(pos+1 - startPos, STYLE_TYPE);
+        // mLocalTypes.insert(text);
+        AddLocalType(startPos, pos+1);
         return true;
     }
     
@@ -2063,43 +1989,18 @@ bool ceEdit::ParseWord(int pos){
     
     std::map<wxString, std::pair<int, wxString> >::iterator pIt = mFunctionParames.find(text);
     if (pIt != mFunctionParames.end()){
-        // the mFunctionParames table will be cleared when function is end by ; or }
-        // wxPrintf("Set <%s><%d> as a param\n", text, LineFromPosition(pos));
         StartStyling(startPos);
         SetStyling(pos+1 - startPos, STYLE_PARAMETER_REF);
         return true;
     }
     
-    // wxString type = FindType(text);
-    // if (!type.empty()){
-    //     wxPrintf("%s is %s\n", text, type);
-    //     if (type == "Typedef"){
-    //         StartStyling(startPos);
-    //         SetStyling(pos+1 - startPos, STYLE_TYPE);
-    //     }
-    //     else if (type == "Macro" || type == "Enumerator"){
-    //         StartStyling(startPos);
-    //         SetStyling(pos+1 - startPos, STYLE_MACRO);
-    //     }
-    //     else if (type == "Function" || type == "Prototype"){
-    //         StartStyling(startPos);
-    //         SetStyling(pos+1 - startPos, STYLE_FUNCTION);
-    //     }
-    //     else if (type == "Parameter"){
-    //         StartStyling(startPos);
-    //         SetStyling(pos+1 - startPos, STYLE_PARAMETER);
-    //     }
-    //     else if (type == "Local"){
-    //         StartStyling(startPos);
-    //         SetStyling(pos+ 1 - startPos, STYLE_LOCAL_VARIABLE);
-    //     }
-    // }
+    std::map<wxString, int>::iterator tIt = mLocalTypes.find(text);
+    if (tIt != mLocalTypes.end()){
+        StartStyling(startPos);
+        SetStyling(pos+1 - startPos, STYLE_TYPE);
+        return true;
+    }
     
-    // todo:fanhongxuan@gmail.com
-    // function call is like:
-    // ::function();
-    // ->function();
-    // ->function();
     return true;
 }
 
@@ -2644,7 +2545,6 @@ void ceEdit::OnStyleNeeded(wxStyledTextEvent &evt)
         pos--;
     }
     
-    ClearLoalSymbol();
     for (int i = startPos; i <= stopPos; i++ ){
         curStyle = ParseChar(curStyle, i);
     }
@@ -3065,13 +2965,6 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
             HungerBack();
         }
     }
-    
-    if (WXK_DELETE == event.GetKeyCode() || WXK_BACK == event.GetKeyCode()){
-        // note:fanhongxuan@gmail.com
-        // when backspace, will not call OnCharAdded
-        // we need to prepare the function params here.
-        PrepareFunctionParams(GetCurrentPos());    
-    }
     event.Skip();
 }
 
@@ -3188,7 +3081,6 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
 {
     DoBraceMatch();
     if (WXK_TAB == event.GetKeyCode()){
-        PrepareFunctionParams(GetCurrentPos());
         if (AutoCompActive()){
             AutoCompComplete();
         }
@@ -3548,10 +3440,10 @@ bool ceEdit::GetCandidate(const wxString &input, std::set<wxString> &candidate, 
         }
         
         // add local type
-        std::set<wxString>::iterator sit = mLocalTypes.begin();
+        std::map<wxString, int>::iterator sit = mLocalTypes.begin();
         while(sit != mLocalTypes.end()){
-            if ((*sit).find(input) == 0){
-                wxString value = (*sit) + "[Local Type]";
+            if (sit->first.find(input) == 0){
+                wxString value = sit->first + "[Local Type]";
                 candidate.insert(value);
             }
             sit++;
@@ -4358,9 +4250,7 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
     // note:fanhongxuan@gmail.com
     // if the next is a validchar for autocomp, we don't show the autocomp
     // don't use inputWord, we find the word backword start from current pos
-    // todo:fanhongxuan@gmail.com
-    // 1, fill the mFunctionParames table.
-    PrepareFunctionParams(GetCurrentPos());
+    
     bool bNewCandidate = false;
     long pos = GetInsertionPoint();
     if (pos > 0){
@@ -4369,6 +4259,7 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
     
     long start = pos;
     int ch = GetCharAt(pos);
+    
     if (!IsValidChar(ch)){
         // in this case we add the latest string as a new candidate.
         bNewCandidate = true;

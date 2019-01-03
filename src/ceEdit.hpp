@@ -106,6 +106,7 @@ protected:
     wxString WhichType(int pos);
     bool ClearLoalSymbol();
     bool BuildLocalSymbl();
+    int AddLocalType(int startPos, int stopPos);    
     int PrepareFunctionParams(int pos);
     int HandleClass(int pos, int curStyle);
     bool HandleParam(int startPos, int stopPos);
@@ -119,9 +120,9 @@ protected:
     int SetClass(int pos);
 private:
     
-    std::map<wxString, std::set<ceSymbol *>* > mSymbolMap;
-    std::set<ceSymbol *> mLocalSymbolMap;    
-    std::set<wxString> mLocalTypes;
+    // std::map<wxString, std::set<ceSymbol *>* > mSymbolMap;
+    // std::set<ceSymbol *> mLocalSymbolMap;    
+    std::map<wxString, int> mLocalTypes; // key is the name, second is the start pos
     std::map<wxString, std::pair<int, wxString> > mLocalVariable; // key is the name, second is the start pos
     std::map<wxString, std::pair<int, wxString> > mFunctionParames; // key is the name, seconds is the start pos
     // std::map<int, wxString> mVariables; // key is the pos, becase multi variable may have the same, name.
