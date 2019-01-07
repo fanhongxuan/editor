@@ -20,6 +20,10 @@ enum{
     ceEdit_Idle_Timer = 62345,
     ceEdit_CallTip_Timer,
     ceEdit_Update_Indent_By_Fold_Level,
+    ceEdit_unsaved_modify_marker = 1,
+    ceEdit_saved_modify_marker = 0,
+    ceEdit_unsaved_modify_marker_mask = 2,
+    ceEdit_saved_modify_marker_mask = 1,
 };
 
 wxBEGIN_EVENT_TABLE(ceEdit, wxStyledTextCtrl)
@@ -123,6 +127,7 @@ ceEdit::ceEdit(wxWindow *parent)
     mDeviderMargin = 1;
     mLastModifyTime = 0;
     SetMouseDwellTime(800);
+    SetIdleStyling(wxSTC_IDLESTYLING_ALL);
 }
 
 ceEdit::~ceEdit(){
@@ -173,6 +178,7 @@ bool ceEdit::SaveFile (bool bClose)
         wxFileDialog dlg (this, wxT("Save file"), wxEmptyString, mDefaultName, wxT("Any file (*)|*"),
             wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         if (dlg.ShowModal() != wxID_OK) return false;
+        
         mFilename = dlg.GetPath();
         mDefaultName = wxEmptyString;
         wxFileName fname (mFilename);
@@ -195,9 +201,17 @@ bool ceEdit::SaveFile (bool bClose)
     }
     else if (!Modified()){
         // return if no change
+        if (!bClose){
+            // update all the marker.
+            int line = MarkerNext(0, ceEdit_unsaved_modify_marker_mask);
+            while(line >= 0){
+                MarkerDelete(line, ceEdit_unsaved_modify_marker);
+                MarkerAdd(line, ceEdit_saved_modify_marker);
+                line = MarkerNext(line, ceEdit_unsaved_modify_marker_mask);
+            }
+        }
         return true;
     }
-    
     // save file
     return SaveFile (mFilename, bClose);
 }
@@ -215,6 +229,13 @@ bool ceEdit::SaveFile (const wxString &filename, bool bClose) {
             wxStyledTextEvent evt;
             evt.SetEventObject(this);
             wxGetApp().frame()->OnFileSaved(evt);
+        }
+        // update all the marker.
+        int line = MarkerNext(0, ceEdit_unsaved_modify_marker_mask);
+        while(line >= 0){
+            MarkerDelete(line, ceEdit_unsaved_modify_marker);
+            MarkerAdd(line, ceEdit_saved_modify_marker);
+            line = MarkerNext(line, ceEdit_unsaved_modify_marker_mask);
         }
     }
     return ret;
@@ -371,9 +392,10 @@ wxString ceEdit::GuessLanguage(const wxString &filename){
         return "C";
     }
     else if (ext == "h" || ext == "cpp" || ext == "hpp" || ext == "cc" ||
-        ext == "cxx" || ext == "hxx"){
+             ext == "cxx" || ext == "hxx")
+    {
         return "C++";
-    }
+    } 
     else if (ext == "java" || ext == "aidl"){
         return "Java";
     }
@@ -438,8 +460,11 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     CallTipSetForeground(*wxBLUE);
     
     // set margin 1 is hide, currently not used.
-    // SetMarginType (mDeviderMargin, wxSTC_MARGIN_SYMBOL);
-    SetMarginWidth (mDeviderMargin, 0);
+    SetMarginType (mDeviderMargin, wxSTC_MARGIN_SYMBOL);
+    SetMarginMask(mDeviderMargin, ~wxSTC_MASK_FOLDERS); // use the first one.
+    SetMarginWidth (mDeviderMargin, 10);
+    MarkerDefine(ceEdit_unsaved_modify_marker, wxSTC_MARK_FULLRECT, wxT("YELLOW"), wxT("YELLOW")); // for un-saved change.
+    MarkerDefine(ceEdit_saved_modify_marker, wxSTC_MARK_FULLRECT, wxT("GREEN"), wxT("GREEN"));  // for saved change.
     SetMarginSensitive (mDeviderMargin, false);
     
     // folding
@@ -2001,6 +2026,8 @@ bool ceEdit::ParseWord(int pos){
         return true;
     }
     
+    // todo:fanhongxuan@gmail.com
+    // mark the global variable
     return true;
 }
 
@@ -2080,20 +2107,20 @@ int ceEdit::GetFoldLevelDelta(int line, int &indentChange){
         return ret;
     }    
 #if 0    
-        pos = text.find("#else");
-        if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
-            ret++;
-        }
-        
-        pos = text.find("#eldef");
-        if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
-            ret++;
-        }
-        
-        pos = text.find("#elif");
-        if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
-            ret++;
-        }
+    pos = text.find("#else");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
+    pos = text.find("#eldef");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
+    
+    pos = text.find("#elif");
+    if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
+        ret++;
+    }
 #endif    
     pos = text.find("#endif");
     if (pos != text.npos && GetStyleAt(start+pos) == STYLE_PREPROCESS){
@@ -2704,7 +2731,40 @@ void ceEdit::OnModified(wxStyledTextEvent &evt)
     // wxPrintf("OnModified:0x%08X\n", type);
     if (type & (wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT)){        
         UpdateLineNumberMargin();
+        if (mbLoadFinish){
+            // add marker for the changed line.
+            int start = evt.GetPosition();
+            int len = evt.GetLength()-1;
+            long startLine = 0, stopLine = 0;
+            PositionToXY(start, NULL, &startLine);
+            PositionToXY(start+ len, NULL, &stopLine);
+            if (type & wxSTC_MOD_INSERTTEXT){
+                for (int i = startLine; i <= stopLine; i++){
+                    if (!(MarkerGet(i) & ceEdit_unsaved_modify_marker_mask)){
+                        wxPrintf("Marker Add:%d\n", i+1);
+                        MarkerAdd(i, ceEdit_unsaved_modify_marker);
+                    }
+                }
+            }
+            else if (type & wxSTC_MOD_DELETETEXT){
+                MarkerAdd(startLine, ceEdit_unsaved_modify_marker);
+            }
+            if (type & wxSTC_PERFORMED_UNDO){
+                //wxPrintf("this is a undo\n");
+                for (int i = startLine; i <= stopLine; i++){
+                    // wxPrintf("Delete mark for line:%d\n", i+1);
+                    // note:fanhongxuan@gmail.com
+                    // MarkerDelete(i, 1); does not work,
+                    // if no saved mark,
+                    // we use markerDelete(i, -1) to delete all the mark
+                    if (!(MarkerGet(i) & ceEdit_saved_modify_marker_mask)){
+                        MarkerDelete(i, -1);// fanhongxuan
+                    }
+                }
+            }
+        }
     }
+    
     if (type & wxSTC_MOD_CHANGESTYLE){
         // current not used.
         // wxPrintf("Style:%d:%d\n", evt.GetPosition(), GetStyleAt(evt.GetPosition()));
@@ -2785,7 +2845,7 @@ void ceEdit::OnIdleTimer(wxTimerEvent &evt){
 }
 
 void ceEdit::OnSize( wxSizeEvent& event ) {
-    int x = GetClientSize().x + GetMarginWidth(mLinenuMargin) + GetMarginWidth(mFoldingMargin);
+    int x = GetClientSize().x + GetMarginWidth(mLinenuMargin) + GetMarginWidth(mFoldingMargin) + GetMarginWidth(mDeviderMargin);
     if (x > 0) SetScrollWidth (x);
     event.Skip();
 }
@@ -3074,7 +3134,7 @@ void ceEdit::OnMouseWheel(wxMouseEvent &evt)
     }
     wxStyledTextCtrl::OnMouseWheel(evt);
     Refresh();
-    // evt.Skip();
+    // evt.skip();
 }
 
 void ceEdit::OnKeyUp(wxKeyEvent &event)
@@ -3418,6 +3478,7 @@ int ceEdit::SetClass(int curPos){
 bool ceEdit::GetCandidate(const wxString &input, std::set<wxString> &candidate, int mode)
 {
     wxPrintf("GetCandidate:%s<%d>\n", input, mode);
+    PrepareFunctionParams(GetCurrentPos());
     // add local variable
     if (mode != 2){
         std::map<wxString, std::pair<int, wxString> >::iterator it = mLocalVariable.begin();
@@ -4243,7 +4304,6 @@ void ceEdit::AutoIndentWithNewline(int currentLine)
             }
         }
     }
-    
 }
 
 void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
