@@ -13,6 +13,7 @@ wxMyDockArt::wxMyDockArt()
 }
 
 static wxColour wxFocusColour(0,122,204);
+static wxColour wxFocusTextColor(255,255,255);
 
 void wxMyDockArt::DrawCaption (wxDC &dc, wxWindow *window, const wxString &text, const wxRect &rect, wxAuiPaneInfo &pane)
 {
@@ -25,6 +26,7 @@ void wxMyDockArt::DrawCaption (wxDC &dc, wxWindow *window, const wxString &text,
     }
     dc.SetBrush(wxBrush(wxFocusColour));
     dc.DrawRectangle(rect);
+    dc.SetTextForeground(wxFocusTextColor);
     dc.DrawText(text, rect.GetX(), rect.GetY());
 }
 
@@ -303,6 +305,7 @@ void wxMyTabArt::DrawTab(wxDC& dc,
     {
         dc.SetPen(m_selectedBkPen);
         dc.SetBrush(m_selectedBkBrush);
+        dc.SetTextForeground(wxFocusTextColor);
         dc.SetFont(m_selectedFont);
         textx = selected_textx;
         texty = selected_texty;
@@ -311,6 +314,7 @@ void wxMyTabArt::DrawTab(wxDC& dc,
     {
         dc.SetPen(m_normalBkPen);
         dc.SetBrush(m_normalBkBrush);
+        dc.SetTextForeground(*wxBLACK);
         dc.SetFont(m_normalFont);
         textx = normal_textx;
         texty = normal_texty;

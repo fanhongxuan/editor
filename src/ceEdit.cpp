@@ -462,7 +462,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     // set margin 1 is hide, currently not used.
     SetMarginType (mDeviderMargin, wxSTC_MARGIN_SYMBOL);
     SetMarginMask(mDeviderMargin, ~wxSTC_MASK_FOLDERS); // use the first one.
-    SetMarginWidth (mDeviderMargin, 10);
+    SetMarginWidth (mDeviderMargin, 3);
     MarkerDefine(ceEdit_unsaved_modify_marker, wxSTC_MARK_FULLRECT, wxT("YELLOW"), wxT("YELLOW")); // for un-saved change.
     MarkerDefine(ceEdit_saved_modify_marker, wxSTC_MARK_FULLRECT, wxT("GREEN"), wxT("GREEN"));  // for saved change.
     SetMarginSensitive (mDeviderMargin, false);
@@ -471,6 +471,7 @@ bool ceEdit::LoadStyleByFileName(const wxString &filename)
     FoldDisplayTextSetStyle(wxSTC_FOLDDISPLAYTEXT_STANDARD); // display text after folder header line.
     SetMarginType (mFoldingMargin, wxSTC_MARGIN_SYMBOL);
     SetMarginMask (mFoldingMargin, wxSTC_MASK_FOLDERS);
+    
     SetMarginWidth (mFoldingMargin, 16);
     SetMarginSensitive (mFoldingMargin, true);
     SetFoldMarginColour(true, *wxBLACK);
@@ -2999,7 +3000,9 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
     if (';' == event.GetKeyCode() && event.AltDown()){
         long start, end;
         GetSelection(&start, &end);
+        BeginUndoAction();
         TriggerCommentRange(start, end);
+        EndUndoAction();
         return;
     }
     
@@ -3160,6 +3163,7 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
             PositionToXY(start, NULL, &startLine);
             PositionToXY(stop, NULL, &stopLine);
             // wxPrintf("startLine:%ld, stopLine:%ld\n", startLine, stopLine);
+            BeginUndoAction();
             if (startLine != stopLine){
                 if (startLine > stopLine){
                     long temp = stopLine; stopLine = startLine; startLine = temp;
@@ -3175,6 +3179,7 @@ void ceEdit::OnKeyUp(wxKeyEvent &event)
             else{
                 AutoIndentWithTab(GetCurrentLine());
             }
+            EndUndoAction();
         }
     }
     

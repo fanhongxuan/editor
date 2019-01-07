@@ -119,7 +119,7 @@ MyFrame::MyFrame(wxWindow* parent,
                  const wxPoint& pos,
                  const wxSize& size,
                  long style)
-        : wxFrame(parent, id, title, pos, size, style)
+: wxFrame(parent, id, title, pos, size, style)
 {
     mbLoadFinish = false;
     mpSearchDir = NULL;
@@ -539,6 +539,7 @@ void MyFrame::SaveInfo()
     // store current perspective, when open, will restore it.
     wxString perspective = m_mgr.SavePerspective();
     wxConfig config("CE");
+    
     config.Write("/Config/LastPerspective", perspective);
     // store all the open file, when open, open it again.
     if (config.HasGroup("/Config/LastOpenFile")){
@@ -563,6 +564,7 @@ void MyFrame::SaveInfo()
     wxSize size = GetSize();
     config.Write("/Config/LastPos.X", pos.x);
     config.Write("/Config/LastPos.Y", pos.y);
+    
     config.Write("/Config/LastSize.width", size.GetWidth());
     config.Write("/Config/LastSize.height", size.GetHeight());
 }

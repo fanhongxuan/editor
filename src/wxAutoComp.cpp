@@ -456,5 +456,3 @@ bool wxAutoCompMemberProvider::GetCandidate(const wxString &input, std::set<wxSt
     }
     return true;
 }
-
-
