@@ -295,9 +295,11 @@ void wxMyTabArt::DrawTab(wxDC& dc,
     wxWindow *paneWindow = page.window;
     if (NULL == paneWindow || NULL == focus || (!paneWindow->IsDescendant(focus))){
         m_selectedBkBrush = *wxWHITE_BRUSH;
+        dc.SetTextForeground(*wxBLACK);
     }
     else{
         m_selectedBkBrush = wxBrush(wxFocusColour);
+        dc.SetTextForeground(wxFocusTextColor);
     }
 
     // select pen, brush and font for the tab to be drawn
@@ -305,7 +307,6 @@ void wxMyTabArt::DrawTab(wxDC& dc,
     {
         dc.SetPen(m_selectedBkPen);
         dc.SetBrush(m_selectedBkBrush);
-        dc.SetTextForeground(wxFocusTextColor);
         dc.SetFont(m_selectedFont);
         textx = selected_textx;
         texty = selected_texty;
@@ -314,7 +315,6 @@ void wxMyTabArt::DrawTab(wxDC& dc,
     {
         dc.SetPen(m_normalBkPen);
         dc.SetBrush(m_normalBkBrush);
-        dc.SetTextForeground(*wxBLACK);
         dc.SetFont(m_normalFont);
         textx = normal_textx;
         texty = normal_texty;
