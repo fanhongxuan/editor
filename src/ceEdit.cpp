@@ -2734,34 +2734,44 @@ void ceEdit::OnModified(wxStyledTextEvent &evt)
         if (mbLoadFinish){
             // add marker for the changed line.
             int start = evt.GetPosition();
-            int len = evt.GetLength()-1;
+            int len = evt.GetLength();
             long startLine = 0, stopLine = 0;
+            wxString text = evt.GetString();
+            // if (text.size() > 0 && (text[0] == '\r' || text[0] == '\n')){
+            //     wxPrintf("text is start with newline\n");
+            //     start++;
+            //     len--;
+            // }
             PositionToXY(start, NULL, &startLine);
             PositionToXY(start+ len, NULL, &stopLine);
+            // wxPrintf("OnModified:Pos:%d, len:%d, startLine:%d, stopLine:%d\n", start, len, startLine+1, stopLine+1);
             if (type & wxSTC_MOD_INSERTTEXT){
                 for (int i = startLine; i <= stopLine; i++){
                     if (!(MarkerGet(i) & ceEdit_unsaved_modify_marker_mask)){
-                        wxPrintf("Marker Add:%d\n", i+1);
+                        // wxPrintf("Marker Add:%d\n", i+1);
                         MarkerAdd(i, ceEdit_unsaved_modify_marker);
                     }
                 }
             }
             else if (type & wxSTC_MOD_DELETETEXT){
+                // wxPrintf("Marker Add by delete:%d\n", startLine+1);
                 MarkerAdd(startLine, ceEdit_unsaved_modify_marker);
             }
-            if (type & wxSTC_PERFORMED_UNDO){
-                //wxPrintf("this is a undo\n");
-                for (int i = startLine; i <= stopLine; i++){
-                    // wxPrintf("Delete mark for line:%d\n", i+1);
-                    // note:fanhongxuan@gmail.com
-                    // MarkerDelete(i, 1); does not work,
-                    // if no saved mark,
-                    // we use markerDelete(i, -1) to delete all the mark
-                    if (!(MarkerGet(i) & ceEdit_saved_modify_marker_mask)){
-                        MarkerDelete(i, -1);// fanhongxuan
-                    }
-                }
-            }
+            // note:fanhongxuan@gmail.com
+            // when to delete this marker?
+            // if (type & wxSTC_PERFORMED_UNDO){
+            //     //wxPrintf("this is a undo\n");
+            //     for (int i = startLine; i <= stopLine; i++){
+            //         // note:fanhongxuan@gmail.com
+            //         // MarkerDelete(i, 1); does not work,
+            //         // if no saved mark,
+            //         // we use markerDelete(i, -1) to delete all the mark
+            //         if (!(MarkerGet(i) & ceEdit_saved_modify_marker_mask)){
+            //             wxPrintf("Delete mark for line:%d\n", i+1);
+            //             MarkerDelete(i, -1);// fanhongxuan
+            //         }
+            //     }
+            // }
         }
     }
     
@@ -2769,7 +2779,7 @@ void ceEdit::OnModified(wxStyledTextEvent &evt)
         // current not used.
         // wxPrintf("Style:%d:%d\n", evt.GetPosition(), GetStyleAt(evt.GetPosition()));
     }
-    if (type & (wxSTC_MOD_CHANGEMARKER | wxSTC_MOD_CHANGEFOLD /* | wxSTC_MOD_CHANGELINESTATE */)){
+    if (type & (/*wxSTC_MOD_CHANGEMARKER |*/ wxSTC_MOD_CHANGEFOLD /* | wxSTC_MOD_CHANGELINESTATE */)){
         // fold status changed.
         if (!mbLoadFinish){
             // document is still loading, skip this.
@@ -3461,6 +3471,7 @@ int ceEdit::SetClass(int curPos){
     else{
         name = WhichClass(GetCurrentPos());
     }
+    PrepareFunctionParams(GetCurrentPos());
     wxString type = GetType(curPos-1, *this, name, mLanguage, GetFilename());
         if (!type.empty()){
         name = type;
