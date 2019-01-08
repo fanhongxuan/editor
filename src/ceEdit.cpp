@@ -827,7 +827,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             int keywordStop = stop+1;
             stop = FindStyleStart(style, stop);
             wxString text = GetTextRange(stop, keywordStop);
-            if (text == "return" || text == "delete" || text == "typedef"){
+            if (text == "return" || text == "delete" || text == "typedef" || text == "goto"){
                 return false;
             }
             if ((text == "class" || text == "struct") && identyCount == 1){
@@ -3295,6 +3295,32 @@ static wxString GetTypeFromString(const wxString &input, const wxString &languag
     if (pos != ret.npos){
         ret = ret.substr(0, pos);
     }
+    
+    // check if this is a typedef, a enum, 
+    std::set<ceSymbol*> symbols;
+    if (NULL != wxGetApp().frame()){
+        wxGetApp().frame()->FindDef(symbols, ret, "", "cstd", language, "");
+        std::set<ceSymbol*>::iterator it = symbols.begin();
+        while(it != symbols.end()){
+            wxPrintf("symbol:<%s>\n", (*it)->ToAutoCompString());
+            ceSymbol *pSymbol = (*it);
+            if (pSymbol->symbolType == "Typedef"){
+                if (!pSymbol->name.empty()){
+                    // if (!retType.empty()){
+                    //     retType += "\n";
+                    // }
+                    ret = pSymbol->type;
+                }
+            }
+            else if (pSymbol->symbolType == "Macro"){
+                // todo:fanhongxuan@gmail.com
+                // find the right value of this macro.
+                ret = pSymbol->type;
+            }
+            delete (*it);
+            it++;
+        }
+    }
     // wxPrintf("currentType:%s\n", ret);
     return ret;
 }
@@ -3393,7 +3419,7 @@ static wxString GetType(int curPos, ceEdit &edit, const wxString &curClass,
     }
     else{
         // query from the database.
-        wxString type = "cmf"; // class
+        wxString type = "cmfst"; // class
         if (ret.empty()){
             return base;
         }
@@ -3418,7 +3444,7 @@ static wxString GetType(int curPos, ceEdit &edit, const wxString &curClass,
         while(it != outputs.end()){
             // wxPrintf("symbol:<%s>\n", (*it)->ToAutoCompString());
             ceSymbol *pSymbol = (*it);
-            if (pSymbol->symbolType == "Class"){
+            if (pSymbol->symbolType == "Class" || pSymbol->symbolType == "Struct"){
                 if (!pSymbol->name.empty()){
                     // if (!retType.empty()){
                     //     retType += "\n";
@@ -3705,6 +3731,9 @@ static wxString GetTypeByStyle(int style){
     }
     if (style == STYLE_FUNCTION){
         return "fp";
+    }
+    if (style == STYLE_TYPE){
+        return "cstde";
     }
     return "";
 }

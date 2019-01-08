@@ -221,6 +221,9 @@ static ceSymbol* BuildSymbol(const wxString &name,
         if (pRet->type.find("typename:") != pRet->type.npos){
             pRet->type = pRet->type.substr(strlen("typename:"));
         }
+        else if (pRet->type.find("struct:") != pRet->type.npos){
+            pRet->type = pRet->type.substr(strlen("struct:"));
+        }
     }
     pRet->name = name;
     pRet->scope = scope;
@@ -340,7 +343,7 @@ bool ceSymbolDb::GetSymbols(std::set<ceSymbol*> &symbols,
     if (type.empty() && scope.empty()){
         // try all global value first.
         // type and class is all empty
-        type = "dfec";
+        type = "dfecst";
         classNames.push_back("");
         classNames.push_back("__anon");
     }
@@ -388,7 +391,7 @@ bool ceSymbolDb::FindDef(std::set<ceSymbol*> &symbols,
     if (type.empty() && className.empty()){
         // try all global value first.
         // type and class is all empty
-        type = "dfe";
+        type = "dfecst"; // d --> macro, f: function, e: enum, c:class, s: struct, t:typedef,
     }
     else{
         classNames.push_back(className);
