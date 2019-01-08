@@ -163,7 +163,7 @@ bool wxAutoCompProviderKeyword::GetCandidate(const wxString &input, std::set<wxS
         for (i = 0; i < mJavaKeyWordList.size(); i++){
             wxString value = mJavaKeyWordList[i];
             if (value.find(input) == 0){
-                value += "[Keyworkd]";
+                value += "[Keyword]";
                 output.insert(value);
             }
         }

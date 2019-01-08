@@ -305,7 +305,7 @@ wxColor ceEdit::GetColourByStyle(int style, int type)
         // mBackgrounds[STYLE_FOLDER] = *wxBLACK;
         
         
-        mForegrounds[STYLE_NUMBER] = wxColor("YELLOW");
+        mForegrounds[STYLE_NUMBER] = wxColor("RED");
         mBackgrounds[STYLE_NUMBER] = *wxBLACK;
         
         
@@ -2758,6 +2758,15 @@ void ceEdit::OnModified(wxStyledTextEvent &evt)
                 // wxPrintf("Marker Add by delete:%d\n", startLine+1);
                 MarkerAdd(startLine, ceEdit_unsaved_modify_marker);
             }
+            
+            if (!GetModify()){
+                // delete all the unsaved_modify_marker
+                int line = MarkerNext(0, ceEdit_unsaved_modify_marker_mask);
+                while(line >= 0){
+                    MarkerDelete(line, ceEdit_unsaved_modify_marker);
+                    line = MarkerNext(line, ceEdit_unsaved_modify_marker_mask);
+                }
+            }
             // note:fanhongxuan@gmail.com
             // when to delete this marker?
             // if (type & wxSTC_PERFORMED_UNDO){
@@ -3459,9 +3468,12 @@ int ceEdit::SetClass(int curPos){
     // 4, if we are after . find the type before
     // 5, if we are after -> find the type before
     // search backword, meet ; }, will stop search.
+    // if we are in the preprocessor, return mode as 3,
+    int style = GetStyleAt(curPos);
+    if (style == STYLE_PREPROCESS_LOCAL || style == STYLE_PREPROCESS_SYSTEM){
+        return 3;
+    }
     
-    // note:fanhongxuan@gmail.com
-    // add a idle timer, to do some work when system is idle.
     // note:fanhongxuan@gmail.com
     // always load the global value here for later use.
     wxAutoCompMemberProvider::Instance().SetClassName("", mLanguage, GetFilename());
@@ -4376,6 +4388,10 @@ void ceEdit::OnCharAdded (wxStyledTextEvent &event) {
         }
         
         if (chr == '{' || chr == '\'' || chr == '\"' || chr == '(' || chr == '['){
+            InsertPair(currentLine, chr);
+        }
+        
+        if (chr == '<' && IsInPreproces(pos)){
             InsertPair(currentLine, chr);
         }
         
