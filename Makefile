@@ -11,7 +11,7 @@ target := $(outdir)ce
 
 CFLAGS := \
 	-I$(wx_inc_dir) \
-	-I$(wx_lib_dir)/include/ \
+	-I$(wx_lib_dir)/wx/include/gtk2-unicode-static-3.1/ \
     -I$(db_inc_dir) \
 	-I. -D__WXGTK__ -DNDEBUG -D_FILE_OFFSET_BITS=64 -DwxDEBUG_LEVEL=0
 
