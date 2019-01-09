@@ -830,7 +830,7 @@ bool ceEdit::IsValidVariable(int startPos, int stopPos, bool onlyHasName, int *p
             if (text == "return" || text == "delete" || text == "typedef" || text == "goto"){
                 return false;
             }
-            if ((text == "class" || text == "struct") && identyCount == 1){
+            if ((text == "class" || text == "struct") && (typeCount+identyCount) == 1){
                 // class, struct with one id, is a type declare, not a varaible define.
                 return false;
             }
