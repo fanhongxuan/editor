@@ -14,7 +14,7 @@
 #ifdef __BORLANDC__
     #pragma hdrstop
 #endif
-
+#include <wx/ipc.h>
 #include "wx/app.h"
 #include "wx/grid.h"
 #include "wx/treectrl.h"
@@ -35,13 +35,17 @@
 #include "wx/textdlg.h"
 
 #include <wx/textctrl.h>
+#include <wx/cmdline.h>
+#include <wx/snglinst.h>
+#include <wx/filefn.h> 
+#include <wx/config.h>
+#include <wx/wxcrtvararg.h> // for wxPrintf
+#include <wx/aui/aui.h>
 
-#include "wx/aui/aui.h"
 #include "ce.hpp"
 #include "res/sample.xpm"
 
-#include <wx/config.h>
-#include <wx/wxcrtvararg.h> // for wxPrintf
+
 #include "wxSearch.hpp"
 #include "wxBufferSelect.hpp"
 #include "wxExplorer.hpp"
@@ -54,11 +58,125 @@
 #include "ceEdit.hpp"
 
 wxIMPLEMENT_APP(MyApp);
+
+void MyApp::OnInitCmdLine( wxCmdLineParser &  parser )
+{
+    if (argc  != 1){
+        parser.AddParam();
+    }
+}
+
+bool MyApp::OnCmdLineError(wxCmdLineParser &parser)
+{
+    return true;
+}
+
+#define MY_IPC_TOPIC "ce-ipc"
+#define MY_IPC_SERVICE "61398"
+
+class MyConnection: public wxConnection
+{
+public:
+    MyConnection(){}
+    ~MyConnection(){}
+    
+    virtual bool OnPoke(const wxString &topic, const wxString &item, const void *data, size_t size, wxIPCFormat format) wxOVERRIDE{
+        wxPrintf("OnPoke:<%s><%s>\n", topic, item);
+        if (NULL != wxGetApp().frame()){
+            wxGetApp().frame()->OpenFile(item, item, true);
+            wxGetApp().frame()->Show();
+            wxGetApp().frame()->RequestUserAttention();
+        }
+    }
+    virtual bool OnDisconnect() wxOVERRIDE{}
+};
+
+class MyServer: public wxServer
+{
+public:
+    MyServer(){
+        mpConnection = NULL;
+        };
+    virtual ~MyServer(){
+        if (NULL != mpConnection){
+            delete mpConnection;
+            mpConnection = NULL;
+        }
+    }
+    
+    virtual wxConnectionBase *OnAcceptConnection(const wxString &topic) wxOVERRIDE
+    {
+        if (topic == MY_IPC_TOPIC){
+            if (NULL != mpConnection){
+                delete mpConnection;
+                mpConnection = NULL;
+            }
+            mpConnection = new MyConnection;
+            return mpConnection;
+        }
+        return NULL;
+    }
+protected:
+    MyConnection *mpConnection;
+};
+
+class MyClient: public wxClient
+{
+public:
+    MyClient(){}
+    virtual ~MyClient(){}
+};
+
+int MyApp::OnExit()
+{
+    if (NULL != mpChecker){
+        delete mpChecker;
+        mpChecker = NULL;
+    }
+    if (NULL != mpServer){
+        delete mpServer;
+        mpServer = NULL;
+    }
+    return 0;
+}
+
 bool MyApp::OnInit()
 {
+    mpChecker = new wxSingleInstanceChecker;
     mpFrame = NULL;
-    if ( !wxApp::OnInit() )
+    if (!wxApp::OnInit()){
         return false;
+    }
+    wxString target;
+    if (argc > 1 && (access(argv[1], R_OK) == 0)){
+        target = argv[1];
+    }
+    
+    if (mpChecker->IsAnotherRunning()){
+        if (!target.empty()){
+            // convert the target to a absolute file
+            wxFileName file(target);
+            file.MakeAbsolute();
+            target = file.GetFullPath();
+            MyClient client;
+            wxConnectionBase *pConnection = client.MakeConnection("localhost", MY_IPC_SERVICE, MY_IPC_TOPIC);
+            if (NULL != pConnection){
+                // wxPrintf("Connected to service\n");
+                pConnection->Poke(target, target);
+                wxPrintf("Open %s in exist ce\n", target);
+                delete pConnection;
+            }
+        }
+        return false;
+    }
+    
+    mpServer = new MyServer;
+    if(!mpServer->Create(MY_IPC_SERVICE)){
+        wxPrintf("Failed to start IPC Server\n");
+    }
+    else{
+        wxPrintf("Start IPC Server ok\n");
+    }
     
     mpFrame = new MyFrame(NULL,
                           wxID_ANY,
@@ -66,6 +184,10 @@ bool MyApp::OnInit()
                           wxDefaultPosition,
                           wxSize(800, 600));
     mpFrame->Show();
+    
+    if (!target.empty()){
+        mpFrame->OpenFile(target, target, true);
+    }
     return true;
 }
 
@@ -112,6 +234,59 @@ public:
         }
     }
 };
+
+class MyDnDText: public wxTextDropTarget
+{
+public:
+    MyDnDText(wxWindow *pOwner, MyFrame *pFrame)
+    {
+        mpOwner = pOwner;
+        mpFrame = pFrame;
+    }
+    virtual bool OnDropText(wxCoord x, wxCoord y, const wxString &text)
+    {
+        if (text.find("file://") == 0){
+            // the target is a file.
+            wxString path = text.substr(wxString("file://").length());
+            if (path.size() > 1 && (path[path.length()-1] == '\r' || path[path.length()-1] == '\n')){
+                path = path.substr(0, path.length()-1);
+            }
+            if (path.size() > 1 && (path[path.length()-1] == '\r' || path[path.length()-1] == '\n')){
+                path = path.substr(0, path.length()-1);
+            }
+            if (access(static_cast<const char *>(path), R_OK) == 0){
+                if (NULL != mpFrame){
+                    mpFrame->OpenFile(path, path, true);
+                }
+                return true;
+            }
+            else{
+                wxPrintf("Failed to access <%s>\n", path);
+            }
+        }
+        ceEdit *pEdit = dynamic_cast<ceEdit*>(mpOwner);
+        if (NULL != pEdit){
+            pEdit->InsertText(pEdit->GetCurrentPos(), text);
+            return true;
+        }
+        return false;
+    }
+private:
+    wxWindow *mpOwner;
+    MyFrame *mpFrame;
+};
+
+// class MyDnDFile: public wxFileDropTarget
+// {
+// public:
+//     MyDnDFile(wxWindow *pOwner)
+//     {
+//         mpOwner = pOwner;
+//     }
+//     virtual bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &files);
+// private:
+//     wxWindow *mpOwner;
+// };
 
 MyFrame::MyFrame(wxWindow* parent,
                  wxWindowID id,
@@ -420,6 +595,10 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     if (NULL == mpBufferList){
         return;
     }
+    wxFileName fpath(path);
+    fpath.MakeAbsolute();
+    wxString fname = fpath.GetFullPath();
+    
     int i = 0;
     ceEdit *pEdit = NULL;
     if (updateGotoHistory && bActive){
@@ -429,8 +608,8 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
             mGotoHistory.push_back(std::pair<wxString, int>(pEdit->GetFilename(), pEdit->GetCurrentLine()));
         }
         mGotoIndex = mGotoHistory.size();
-        // wxPrintf("GotoHistory:<%s><%d>\n", path, line);
-        mGotoHistory.push_back(std::pair<wxString, int>(path, line));
+        // wxPrintf("GotoHistory:<%s><%d>\n", fname, line);
+        mGotoHistory.push_back(std::pair<wxString, int>(fname, line));
     }
     
     wxString name, ext;
@@ -441,7 +620,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     }
     for (i = 0; i < mpBufferList->GetPageCount(); i++){
         pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(i));
-        if (NULL != pEdit && pEdit->GetFilename() == path){
+        if (NULL != pEdit && pEdit->GetFilename() == fname){
             mpBufferList->SetSelection(i);
             break;
         }
@@ -449,17 +628,18 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     
     if (i == mpBufferList->GetPageCount()){
         pEdit = new ceEdit(mpBufferList);
-        if (!path.empty()){
-            pEdit->LoadFile(path);
+        pEdit->SetDropTarget(new MyDnDText(pEdit, this));
+        if (!name.empty()){
+            pEdit->LoadFile(fname);
         }
         else{
             pEdit->NewFile(name);
         }
         pEdit->SelectNone();
         mpBufferList->AddPage(pEdit, name, true);
-        mpBufferList->SetPageToolTip(i, path);
+        mpBufferList->SetPageToolTip(i, fname);
         if (NULL != mpBufferSelect){
-            mpBufferSelect->AddBuffer(name, path);
+            mpBufferSelect->AddBuffer(name, fname);
         }
     }
     if (line > 0){

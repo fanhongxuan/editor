@@ -8,14 +8,21 @@
 // -- application --
 class ceSymbol;
 class MyFrame;
+class MyServer;
+class wxSingleInstanceChecker;
 class MyApp : public wxApp
 {
 private:
     MyFrame *mpFrame;
+    MyServer *mpServer;
+    wxSingleInstanceChecker *mpChecker;
 public:
     MyApp():mpFrame(NULL){}
     MyFrame *frame(){return mpFrame;}
     bool OnInit() wxOVERRIDE;
+    int OnExit() wxOVERRIDE;
+    void OnInitCmdLine(wxCmdLineParser &parser);
+    bool OnCmdLineError(wxCmdLineParser &parser);
 };
 
 wxDECLARE_APP(MyApp);
