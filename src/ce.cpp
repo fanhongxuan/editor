@@ -84,8 +84,10 @@ public:
         wxPrintf("OnPoke:<%s><%s>\n", topic, item);
         if (NULL != wxGetApp().frame()){
             wxGetApp().frame()->OpenFile(item, item, true);
-            wxGetApp().frame()->Show();
-            wxGetApp().frame()->RequestUserAttention();
+            wxGetApp().frame()->Restore();
+            wxGetApp().frame()->Raise();
+            // wxGetApp().frame()->Show();
+            // wxGetApp().frame()->RequestUserAttention();
         }
     }
     virtual bool OnDisconnect() wxOVERRIDE{}
