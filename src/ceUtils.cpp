@@ -63,6 +63,8 @@ BOOL system_hide(const wchar_t* CommandLine, std::vector<wxString> &output)
 int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
 {
     wxPrintf("exec:<%s>\n", cmd);
+    wxString rCmd = cmd;
+    rCmd += " 2>&1";
 #ifdef WIN32
     system_hide(static_cast<const wchar_t*>(cmd.c_str()), output);
 #else
@@ -78,7 +80,7 @@ int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
             // if the line include invalid charsec, will convert to a null string.
             // wxPrintf("Read:%s\n", line);
             // OnResult(cmd, line);
-            wxString strLine = line;
+            wxString strLine = wxString::FromUTF8(line);
             if (strLine[strLine.size() -1 ] == '\n'){
                 strLine = strLine.substr(0, strLine.size() -1);
             }
@@ -87,6 +89,65 @@ int ceSyncExec(const wxString &cmd, std::vector<wxString> &output)
         pclose(fp);
     }
 #endif
+    return 0;
+}
+
+class MyThread: public wxThread
+{
+    wxEvtHandler *mpHandler;
+    wxString mCmd;
+    int mMsgId;
+public:
+    MyThread(const wxString &cmd, wxEvtHandler *pHandler, int msgId){
+        mpHandler = pHandler;
+        mCmd = cmd;
+        mMsgId = msgId;
+    }
+    ~MyThread(){}
+protected:
+    virtual ExitCode Entry(){
+        FILE *fp = popen(mCmd.c_str(), "r");
+        if (NULL != fp){
+            char buffer[1024];
+            while(1){
+                char *line = fgets(buffer, 1024, fp);
+                if (line == NULL){
+                    break;
+                }
+                
+                wxString strLine = wxString::FromUTF8(line);
+                std::cout << strLine << std::endl;
+                //wxPrintf("strLine:<%s>\n", strLine);
+                // output.push_back(strLine);
+                if (NULL != mpHandler){
+                    wxThreadEvent *pEvt = new wxThreadEvent();
+                    pEvt->SetString(strLine);
+                    pEvt->SetId(mMsgId);
+                    pEvt->SetInt(0);
+                    mpHandler->QueueEvent(pEvt);
+                }
+            }
+            int ret = pclose(fp);
+            if (NULL != mpHandler){
+                wxThreadEvent *pEvt = new wxThreadEvent();
+                pEvt->SetId(mMsgId);
+                pEvt->SetInt(ret);
+                mpHandler->QueueEvent(pEvt);
+            }
+        }
+        // notify the result.
+        return 0;
+    }
+};
+
+int ceAsyncExec(const wxString &cmd, wxEvtHandler &handler, int msgId){
+    // start a new thread to run the cmd
+    wxString iCmd = cmd + " 2>&1";
+    MyThread *pThread = new MyThread(iCmd, &handler, msgId);
+    if (pThread->Run() != wxTHREAD_NO_ERROR){
+        delete pThread;
+        return -1;
+    }
     return 0;
 }
 
@@ -114,13 +175,13 @@ wxString ceGetExecPath()
 {
     char buffer[1024+1] = {0};
 	wxString path;
-	int pos = 0;
+	size_t pos = 0;
 #ifdef WIN32
 	// GetModuleFileName(NULL, (LPWSTR)buffer, 1024);
 	path = _pgmptr;
 	pos = path.find_last_of("\\");
 #else
-	int ret = readlink("/proc/self/exe", buffer, 1024);
+	readlink("/proc/self/exe", buffer, 1024);
 	path = buffer;
     pos = path.find_last_of("/");
 #endif
@@ -177,7 +238,7 @@ wxString ceGetLine(const wxString &filename, long linenumber, int count)
         ret += buffer;
     }
     if (count == 1){
-        int pos = ret.find_first_of("\r\n");
+        size_t pos = ret.find_first_of("\r\n");
         if (pos != ret.npos){
             ret = ret.substr(0, pos);
         }

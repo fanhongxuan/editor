@@ -56,6 +56,10 @@
 #include "ceRefSearch.hpp"
 #include "ceUtils.hpp"
 #include "ceEdit.hpp"
+#include "ceCompile.hpp"
+#ifdef USE_NOTEBOOK
+#include "Notebook.h"
+#endif
 
 wxIMPLEMENT_APP(MyApp);
 
@@ -89,8 +93,9 @@ public:
             // wxGetApp().frame()->Show();
             // wxGetApp().frame()->RequestUserAttention();
         }
+		return true;
     }
-    virtual bool OnDisconnect() wxOVERRIDE{}
+    virtual bool OnDisconnect() wxOVERRIDE{return true;}
 };
 
 class MyServer: public wxServer
@@ -150,7 +155,7 @@ bool MyApp::OnInit()
         return false;
     }
     wxString target;
-    if (argc > 1 && (access(argv[1], R_OK) == 0)){
+    if (argc > 1 && (access(argv[1], 0) == 0)){
         target = argv[1];
     }
     
@@ -215,6 +220,7 @@ EVT_MENU(ID_GoBack, MyFrame::OnGoBack)
 EVT_MENU(ID_NextFile, MyFrame::OnNextFile)
 EVT_MENU(ID_PrevFile, MyFrame::OnPrevFile)
 EVT_MENU(ID_GoForward, MyFrame::OnGoForward)
+EVT_MENU(ID_Compile, MyFrame::OnCompile)
 EVT_AUINOTEBOOK_PAGE_CLOSE(wxID_ANY, MyFrame::OnFileClose)
 EVT_AUINOTEBOOK_PAGE_CLOSED(wxID_ANY, MyFrame::OnFileClosed)
 wxEND_EVENT_TABLE()
@@ -256,7 +262,7 @@ public:
             if (path.size() > 1 && (path[path.length()-1] == '\r' || path[path.length()-1] == '\n')){
                 path = path.substr(0, path.length()-1);
             }
-            if (access(static_cast<const char *>(path), R_OK) == 0){
+            if (access(static_cast<const char *>(path), 0) == 0){
                 if (NULL != mpFrame){
                     mpFrame->OpenFile(path, path, true);
                 }
@@ -329,12 +335,20 @@ MyFrame::MyFrame(wxWindow* parent,
     SetMinSize(wxSize(400,300));
 
     // add by fanhongxuan@gmail.com
-	mpBufferList = new wxAuiNotebook(this, wxID_ANY,
-                                     wxDefaultPosition,
-                                     wxDefaultSize,
-                                     wxAUI_NB_DEFAULT_STYLE | wxAUI_NB_WINDOWLIST_BUTTON);
-    // mpBufferList->SetArtProvider(new wxAuiSimpleTabArt);
+#ifdef USE_NOTEBOOK    
+    mpBufferList = new ceNootBook(this, wxID_ANY,
+                                  wxDefaultPosition,
+                                  wxDefaultSize,
+                                  kNotebook_DarkTabs | kNotebook_EnableNavigationEvent | kNotebook_AllowDnD |
+                                  kNotebook_ShowFileListButton);
+#else
+    mpBufferList = new ceNootBook(this, wxID_ANY,
+                                  wxDefaultPosition,
+                                  wxDefaultSize,
+                                  wxAUI_NB_DEFAULT_STYLE | wxAUI_NB_WINDOWLIST_BUTTON);
     mpBufferList->SetArtProvider(new wxMyTabArt);
+#endif
+
     m_mgr.AddPane(mpBufferList, wxAuiPaneInfo().Name(wxT("Main")).Caption(wxT("Main")).CenterPane());
 
     mpCmd = new wxTextCtrl(this, wxID_ANY, "", wxDefaultPosition, wxSize(9999, 25));
@@ -352,7 +366,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  17  
+#define ACCE_COUNT  18  
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[ 1].Set(wxACCEL_ALT, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -371,6 +385,7 @@ void MyFrame::CreateAcceTable()
     e[14].Set(wxACCEL_ALT, WXK_LEFT, ID_GoBack);
     e[15].Set(wxACCEL_CTRL, WXK_PAGEDOWN, ID_NextFile);
     e[16].Set(wxACCEL_CTRL, WXK_PAGEUP, ID_PrevFile);
+    e[17].Set(wxACCEL_NORMAL, WXK_F6, ID_Compile);
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -576,7 +591,35 @@ void MyFrame::OnGoBack(wxCommandEvent &evt){
     }
     // wxPrintf("OnGoBack<%d>(%ld)\n", mGotoIndex, mGotoHistory.size());
     OpenFile(mGotoHistory[mGotoIndex].first, 
-        mGotoHistory[mGotoIndex].first, true, mGotoHistory[mGotoIndex].second, false);
+             mGotoHistory[mGotoIndex].first, true, mGotoHistory[mGotoIndex].second, false);
+}
+
+void MyFrame::OnCompile(wxCommandEvent &evt){
+    int selection = mpBufferList->GetSelection();
+    if (selection < 0 || selection >= mpBufferList->GetPageCount()){
+        return;
+    }
+    ceEdit *pEdit = dynamic_cast<ceEdit*>(mpBufferList->GetPage(selection));
+    if (NULL == pEdit){
+        return;
+    }
+    wxPrintf("Compile <%s>\n", pEdit->GetFilename());
+    
+    wxAuiPaneInfo &compile = m_mgr.GetPane(wxT("compile"));
+    if (compile.IsOk()){
+        compile.Show();
+    }
+    else{
+        mpCompile = new ceCompile(this);
+        m_mgr.AddPane(mpCompile, wxAuiPaneInfo().Name(wxT("compile")).Caption(wxT("compile")).
+                      Bottom().Row(1).CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
+    }
+    m_mgr.Update();
+    if (NULL != mpCompile && mbLoadFinish){
+        UpdateWorkDirs(mpActiveEdit);
+        mpCompile->Compile(pEdit->GetFilename());
+        mpCompile->SetFocus();
+    }
 }
 
 void MyFrame::OnGoForward(wxCommandEvent &evt){
@@ -589,7 +632,9 @@ void MyFrame::OnGoForward(wxCommandEvent &evt){
     }
     // wxPrintf("OnGoForward:<%d>(%ld)\n", mGotoIndex, mGotoHistory.size());
     OpenFile(mGotoHistory[mGotoIndex].first, 
-        mGotoHistory[mGotoIndex].first, true, mGotoHistory[mGotoIndex].second, false);
+             mGotoHistory[mGotoIndex].first, 
+             true, 
+             mGotoHistory[mGotoIndex].second, false);
 }
 
 void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bActive, int line, bool updateGotoHistory)
@@ -597,9 +642,12 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     if (NULL == mpBufferList){
         return;
     }
-    wxFileName fpath(path);
-    fpath.MakeAbsolute();
-    wxString fname = fpath.GetFullPath();
+    wxString fname = path;
+    if (!fname.empty()){
+        wxFileName fpath(path);
+        fpath.MakeAbsolute();
+        fname = fpath.GetFullPath();
+    }
     
     int i = 0;
     ceEdit *pEdit = NULL;
@@ -631,7 +679,7 @@ void MyFrame::OpenFile(const wxString &filename, const wxString &path, bool bAct
     if (i == mpBufferList->GetPageCount()){
         pEdit = new ceEdit(mpBufferList);
         pEdit->SetDropTarget(new MyDnDText(pEdit, this));
-        if (!name.empty()){
+        if (!fname.empty()){
             pEdit->LoadFile(fname);
         }
         else{
@@ -1446,6 +1494,9 @@ void MyFrame::OnKillCurrentBuffer(wxCommandEvent &evt)
     else if (NULL != mpRefSearch && mpRefSearch->IsDescendant(window)){
         window = mpRefSearch;
     }
+    else if (NULL != mpCompile && mpCompile->IsDescendant(window)){
+        window = mpCompile;
+    } 
     else if (NULL != mpCmd && mpCmd->IsDescendant(window)){
         // note:fanhongxuan@gmail.com
         // the cmd window can not be killed.
@@ -1525,6 +1576,14 @@ void MyFrame::SwitchFocus()
         if (info.IsOk() && info.IsShown()){
             wxPrintf("Change focus to ref Search\n");
             mpRefSearch->SetFocus();
+            return;
+        }
+    }
+    if (NULL != mpCompile){
+        wxAuiPaneInfo &info = m_mgr.GetPane(mpCompile);
+        if (info.IsOk() && info.IsShown()){
+            wxPrintf("Change focus to compile\n");
+            mpCompile->SetFocus();
             return;
         }
     }

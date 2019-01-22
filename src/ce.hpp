@@ -10,6 +10,14 @@ class ceSymbol;
 class MyFrame;
 class MyServer;
 class wxSingleInstanceChecker;
+// #define USE_NOTEBOOK
+#ifdef USE_NOTEBOOK
+class Notebook;
+#define ceNootBook Notebook
+#else
+#define ceNootBook wxAuiNotebook
+#endif
+
 class MyApp : public wxApp
 {
 private:
@@ -43,6 +51,7 @@ class ceRefSearch;
 class wxBufferSelect;
 class wxExplorer;
 class wxWorkSpace;
+class ceCompile;
 class wxAuiDockArt;
 class wxAuiNotebookEvent;
 class wxAuiManagerEvent;
@@ -71,6 +80,7 @@ class MyFrame : public wxFrame
         ID_GoForward,
         ID_NextFile,
         ID_PrevFile,
+        ID_Compile,
         // add end by fanhongxuan@gmail.com
         ID_FirstPerspective = ID_CreatePerspective+1000
     };
@@ -126,6 +136,7 @@ public:
     void OnSaveCurrentBuffer(wxCommandEvent &evt);
     void OnNextFile(wxCommandEvent &evt);
     void OnPrevFile(wxCommandEvent &evt);
+    void OnCompile(wxCommandEvent &evt);
     void OnFileClose(wxAuiNotebookEvent &evt);
     void OnFileClosed(wxAuiNotebookEvent &evt);
     void OnPaneClose(wxAuiManagerEvent &evt);
@@ -145,7 +156,7 @@ private:
     std::vector<std::pair<wxString, int> > mGotoHistory;
     int mGotoIndex;
     bool mbLoadFinish;
-    wxAuiNotebook *mpBufferList;
+    ceNootBook *mpBufferList;
     wxSearchFile *mpSearch;
     MySearchHandler *mpSearchHandler;
     MyAgSearchHandler *mpAgSearchHandler;
@@ -158,6 +169,7 @@ private:
     wxSymbolSearch *mpSymbolSearch;
     wxExplorer *mpExplorer;
     wxWorkSpace *mpWorkSpace;
+    ceCompile *mpCompile;
     ceEdit *mpActiveEdit;
     wxAuiManager m_mgr;
     wxArrayString m_perspectives;
