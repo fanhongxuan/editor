@@ -2945,6 +2945,12 @@ void ceEdit::OnKillFocus(wxFocusEvent &evt)
 void ceEdit::OnKeyDown (wxKeyEvent &event)
 {
     RestartIdleTimer();
+    
+    if (event.GetKeyCode() == 'G' && event.ControlDown()){
+        wxCommandEvent evt;
+        OnGotoLine(evt);
+    }
+    
     if (GetLexer() != wxSTC_LEX_CONTAINER){
         event.Skip();
         return;
@@ -2982,11 +2988,6 @@ void ceEdit::OnKeyDown (wxKeyEvent &event)
                 CallTipCancel();
             }
         }
-    }
-    
-    if (event.GetKeyCode() == 'G' && event.ControlDown()){
-        wxCommandEvent evt;
-        OnGotoLine(evt);
     }
     
     if ('C' == event.GetKeyCode() && event.ControlDown()){
