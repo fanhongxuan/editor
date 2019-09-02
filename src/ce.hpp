@@ -70,6 +70,7 @@ class MyFrame : public wxFrame
         ID_SaveCurrentBuffer,
         ID_TriggerComment,
         ID_ShowExplorer,
+        ID_ShowExplorerOfCurrentFile,
         ID_ShowWorkSpace,
         ID_ShowAgSearch,
         ID_ShowSymbolList,
@@ -131,6 +132,7 @@ public:
     void OnShowOneWindow(wxCommandEvent &evt);
     void OnShowBufferSelect(wxCommandEvent &evt);
     void OnShowExplorer(wxCommandEvent &evt);
+    void OnShowExplorerOfCurrentFile(wxCommandEvent &evt);
     void OnShowWorkSpace(wxCommandEvent &evt);
     void OnShowAgSearch(wxCommandEvent &evt);
     void OnSaveCurrentBuffer(wxCommandEvent &evt);

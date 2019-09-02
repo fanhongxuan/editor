@@ -332,7 +332,7 @@ void wxAutoCompMemberProvider::SetClassName(const wxString &className, const wxS
     if (NULL == wxGetApp().frame()){
         return;
     }
-    wxPrintf("GetSymbols for <%s>(%s)\n", className, language);
+    // wxPrintf("GetSymbols for <%s>(%s)\n", className, language);
     std::set<wxString> *pSet = new std::set<wxString>;
     std::set<ceSymbol*> symbols;
     if (!wxGetApp().frame()->GetSymbols(symbols, className, "", language, filename)){

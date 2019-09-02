@@ -139,37 +139,9 @@ wxExplorer::wxExplorer(wxWindow *parent)
     else{
         cwd = wxGetCwd();
     }
-    wxString volume;
-    wxFileName::SplitPath(cwd, &volume, NULL, NULL, NULL);
-    if (volume.empty()){
-        volume = "/";
-    }
-    else{
-        volume += ":/";
-    }
-#ifdef WIN32
-    wxTreeItemId root = AddRoot(wxT("FileSystem"), explorer_harddisk);
-    
-    // on win32, try other disk
-    // from A-Z
-    for (char i = 'A'; i < 'Z'; i++){
-        wxString vol = i;
-        vol += ":/";
-        wxString target;
-        if (vol == volume){
-            target = cwd;
-        }
-        wxDir dir(vol);
-        if (!dir.IsOpened()){
-            continue;
-        }
-        wxTreeItemId data = AppendItem(root, vol, explorer_harddisk);
-        AddDir(vol, *this, data, target);
-    }
-#else
-    wxTreeItemId root = AddRoot(volume, explorer_harddisk);
-    AddDir(volume, *this, root, cwd);
-#endif    
+    wxPrintf("opening %s\n", cwd);
+    mCwd = cwd;
+    LoadDir(cwd);
 }
 
 wxExplorer::~wxExplorer()
@@ -424,6 +396,44 @@ int wxExplorer::OnCompareItems(const wxTreeItemId &first, const wxTreeItemId &se
     return wxTreeCtrl::OnCompareItems(first, second);
 }
 
+bool wxExplorer::LoadDir(const wxString &cwd)
+{
+    wxString volume;
+    wxFileName::SplitPath(cwd, &volume, NULL, NULL, NULL);
+    if (volume.empty()){
+        volume = "/";
+    }
+    else{
+        volume += ":/";
+    }
+    wxPrintf("LoadDir:%s\n", cwd);
+    DeleteAllItems();
+#ifdef WIN32
+    wxTreeItemId root = AddRoot(wxT("FileSystem"), explorer_harddisk);
+    
+    // on win32, try other disk
+    // from A-Z
+    for (char i = 'A'; i < 'Z'; i++){
+        wxString vol = i;
+        vol += ":/";
+        wxString target;
+        if (vol == volume){
+            target = cwd;
+        }
+        wxDir dir(vol);
+        if (!dir.IsOpened()){
+            continue;
+        }
+        wxTreeItemId data = AppendItem(root, vol, explorer_harddisk);
+        AddDir(vol, *this, data, target);
+    }
+#else
+    wxTreeItemId root = AddRoot(volume, explorer_harddisk);
+    AddDir(volume, *this, root, cwd);
+#endif
+    return true;
+}
+
 wxString wxExplorer::GetCwd()
 {
     return mCwd;
@@ -434,4 +444,5 @@ void wxExplorer::SetCwd(const wxString &cwd)
     // todo:fanhongxuan@gmail.com
     // update the selection in the tree.
     mCwd = cwd;
+    LoadDir(mCwd);
 }

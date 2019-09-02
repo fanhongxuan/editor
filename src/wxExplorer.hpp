@@ -19,13 +19,14 @@ public:
     void OnSelectionChanged(wxTreeEvent &evt);
     void OnItemCollapsed(wxTreeEvent &evt);
     void OnItemExpanding(wxTreeEvent &evt);
-        void OnRightDown(wxMouseEvent &evt);
-        void OnAddDirToWorkSpace(wxCommandEvent &evt);
+    void OnRightDown(wxMouseEvent &evt);
+    void OnAddDirToWorkSpace(wxCommandEvent &evt);
     void OnKeyDown(wxKeyEvent &evt);
     void OnFocus(wxFocusEvent &evt);
     virtual int OnCompareItems(const wxTreeItemId &first,
                                const wxTreeItemId &second);
 private:
+    bool LoadDir(const wxString &dir);
     void CreateImageList();
     wxString mCwd;
         wxString mAddPath;

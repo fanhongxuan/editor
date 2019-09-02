@@ -184,12 +184,13 @@ bool MyApp::OnInit()
     else{
         wxPrintf("Start IPC Server ok\n");
     }
-    
+    wxPrintf("Start create MyFrame\n");
     mpFrame = new MyFrame(NULL,
                           wxID_ANY,
                           wxT("CodeBrowser"),
                           wxDefaultPosition,
                           wxSize(800, 600));
+    wxPrintf("Create mpFrame ok\n");
     mpFrame->Show();
     
     if (!target.empty()){
@@ -210,6 +211,7 @@ EVT_MENU(ID_ShowOneWindow, MyFrame::OnShowOneWindow)
 EVT_MENU(ID_ShowBufferSelect, MyFrame::OnShowBufferSelect)
 EVT_MENU(ID_SaveCurrentBuffer, MyFrame::OnSaveCurrentBuffer)
 EVT_MENU(ID_ShowExplorer, MyFrame::OnShowExplorer)
+EVT_MENU(ID_ShowExplorerOfCurrentFile, MyFrame::OnShowExplorerOfCurrentFile)
 EVT_MENU(ID_ShowWorkSpace, MyFrame::OnShowWorkSpace)
 EVT_MENU(ID_ShowAgSearch, MyFrame::OnShowAgSearch)
 EVT_MENU(ID_ShowSymbolList, MyFrame::OnShowSymbolList)
@@ -366,7 +368,7 @@ MyFrame::~MyFrame()
 
 void MyFrame::CreateAcceTable()
 {
-#define ACCE_COUNT  18  
+#define ACCE_COUNT  19
     wxAcceleratorEntry e[ACCE_COUNT];
     e[ 0].Set(wxACCEL_CTRL, (int)'F', ID_ShowSearch); // CTRL+F (Find in current file)
     e[ 1].Set(wxACCEL_ALT, (int)'O', ID_ShowFindFiles); // CTRL+O (find and Open of file)
@@ -386,6 +388,7 @@ void MyFrame::CreateAcceTable()
     e[15].Set(wxACCEL_CTRL, WXK_PAGEDOWN, ID_NextFile);
     e[16].Set(wxACCEL_CTRL, WXK_PAGEUP, ID_PrevFile);
     e[17].Set(wxACCEL_NORMAL, WXK_F6, ID_Compile);
+    e[18].Set(wxACCEL_ALT,  (int)'E', ID_ShowExplorerOfCurrentFile); // ALT+E show explorer and switch to current file.
     // todo:fanhongxuan@gmail.com
     // add CTRL+X C to close CE.
     wxAcceleratorTable acce(ACCE_COUNT, e);
@@ -1394,6 +1397,7 @@ void MyFrame::OnShowWorkSpace(wxCommandEvent &evt)
 
 void MyFrame::OnShowExplorer(wxCommandEvent &evt)
 {
+    wxPrintf("OnShowExplorer\n");
     // note:fanhongxuan@gmail.com
     // when show explorer, will hide WorkSpace
     wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
@@ -1415,6 +1419,36 @@ void MyFrame::OnShowExplorer(wxCommandEvent &evt)
         mpExplorer->SetFocus();
     }
 }
+
+void MyFrame::OnShowExplorerOfCurrentFile(wxCommandEvent &evt)
+{
+    wxAuiPaneInfo &workspace = m_mgr.GetPane(wxT("WorkSpace"));
+    if (workspace.IsOk()){
+        workspace.Hide();
+    }
+    wxAuiPaneInfo &pane = m_mgr.GetPane(wxT("Explorer"));
+    if (pane.IsOk()){
+        pane.Show();
+    }
+    else{
+        mpExplorer = new wxExplorer(this);
+        m_mgr.AddPane(mpExplorer, wxAuiPaneInfo().Name(wxT("Explorer")).Caption(wxT("Explorer")).
+                      Left().CloseButton(false).BestSize(wxSize(200, 500)).PaneBorder(false).MinSize(wxSize(200,200)));
+    }
+    m_mgr.Update();
+    if (NULL != mpExplorer && mbLoadFinish){
+        if (NULL != mpActiveEdit){
+            wxString filename = mpActiveEdit->GetFilename();
+            int pos = filename.find_last_of("/\\");
+            if (pos != filename.npos){
+                mpExplorer->SetCwd(filename.substr(0, pos));
+            }
+        }
+        UpdateWorkDirs(mpActiveEdit);
+        mpExplorer->SetFocus();
+    }    
+}
+
 
 void MyFrame::OnShowBufferSelect(wxCommandEvent &evt)
 {
