@@ -1,0 +1,3 @@
+[submodule "buildscript"]
+	path = buildscript
+	url = https://github.com/fanhongxuan/buildscript
