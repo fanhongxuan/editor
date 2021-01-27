@@ -193,11 +193,12 @@ bool ceEdit::SaveFile (bool bClose)
     }
     else if (GetLastModifyTime(GetFilename()) == 0){
         // file is deleted outsize, confirm to create it again?
-        int ret = wxMessageBox(wxString::Format(wxT("File(%s) is delete outside, do you want to created it again?"), GetFilename()), 
-                               wxT("Confirm"),wxYES_NO| wxCANCEL, this);
-        if (ret != wxYES){
-            return true;
-        }
+        // int ret = wxMessageBox(wxString::Format(wxT("File(%s) is delete outside, do you want to created it again?"), GetFilename()), 
+        //                        wxT("Confirm"),wxYES_NO| wxCANCEL, this);
+        // if (ret != wxYES){
+        //     return true;
+        // }
+        return true;
     }
     else if (!Modified()){
         // return if no change
@@ -2833,6 +2834,7 @@ void ceEdit::OnTimer(wxTimerEvent &evt){
     OnDwellStart(event);
 }
 
+static unsigned int gNotifyIndex = 0;
 void ceEdit::OnIdleTimer(wxTimerEvent &evt){
     // wxPrintf("OnIdleTimer\n");
     // todo:fanhongxuan@gmail.com
@@ -2844,19 +2846,26 @@ void ceEdit::OnIdleTimer(wxTimerEvent &evt){
     //    if currenlty has un-saved modification,
     time_t lmt = GetLastModifyTime(GetFilename());
     if ((!mFilename.empty()) && lmt == 0){
+        // todo:fanhongxuan@gmail.com
+        // save the file as a hide temp file.
+        // when reopen this file, check if the temp file is newer than the file itself.
         SaveFile();
     }
     if (lmt > mLastModifyTime){
         // wxPrintf("File %s is modified outside\n", GetFilename());
-        int ret = wxMessageBox(wxString::Format(wxT("File(%s) is Modified outside, Do you want to reload the file?"), GetFilename()),
-                               wxT("Confirm"), wxYES_NO|wxCANCEL, this);
-        if (ret == wxYES){
-            int curPos = GetCurrentPos();
-            int curLine = GetFirstVisibleLine();
-            LoadFile(GetFilename());
-            // SetCurrentPos(curPos);
-            SetFirstVisibleLine(curLine);
-            GotoPos(curPos);
+        if (gNotifyIndex == 0){
+            gNotifyIndex++;
+            int ret = wxMessageBox(wxString::Format(wxT("File(%s) is Modified outside, Do you want to reload the file?"), GetFilename()),
+                                   wxT("Confirm"), wxYES_NO|wxCANCEL, this);
+            if (ret == wxYES){
+                int curPos = GetCurrentPos();
+                int curLine = GetFirstVisibleLine();
+                LoadFile(GetFilename());
+                // SetCurrentPos(curPos);
+                SetFirstVisibleLine(curLine);
+                GotoPos(curPos);
+            }
+            gNotifyIndex--;
         }
     }
     wxAutoCompMemberProvider::Instance().SetClassName("", mLanguage, GetFilename());

@@ -75,6 +75,9 @@ bool MyApp::OnCmdLineError(wxCmdLineParser &parser)
     return true;
 }
 
+bool MyApp::OnCmdLineParsed(wxCmdLineParser& parser){
+    return true;
+}
 #define MY_IPC_TOPIC "ce-ipc"
 #define MY_IPC_SERVICE "61398"
 
@@ -155,7 +158,15 @@ bool MyApp::OnInit()
         return false;
     }
     wxString target;
-    if (argc > 1 && (access(argv[1], 0) == 0)){
+    if (argc > 1){
+        if((access(argv[1], 0) != 0)){
+            FILE *fp = fopen(argv[1], "w+");
+            if (NULL == fp){
+                wxPrintf("Failed to create %s\n", argv[1]);
+                return false;
+            }
+            fclose(fp);
+        }
         target = argv[1];
     }
     

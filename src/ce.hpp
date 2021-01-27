@@ -27,10 +27,11 @@ private:
 public:
     MyApp():mpFrame(NULL){}
     MyFrame *frame(){return mpFrame;}
-    bool OnInit() wxOVERRIDE;
-    int OnExit() wxOVERRIDE;
-    void OnInitCmdLine(wxCmdLineParser &parser);
-    bool OnCmdLineError(wxCmdLineParser &parser);
+    virtual bool OnInit() wxOVERRIDE;
+    virtual int OnExit() wxOVERRIDE;
+    virtual bool OnCmdLineParsed(wxCmdLineParser& parser) wxOVERRIDE;
+    virtual void OnInitCmdLine(wxCmdLineParser &parser) wxOVERRIDE;
+    virtual bool OnCmdLineError(wxCmdLineParser &parser) wxOVERRIDE;
 };
 
 wxDECLARE_APP(MyApp);
