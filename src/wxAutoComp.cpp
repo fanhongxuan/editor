@@ -80,7 +80,7 @@ wxString gCppKeyWord = "asm auto bool break case catch char class const "
     "mutable namespace new operator private protected public register "
     "reinterpret_cast return short signed sizeof static static_cast struct "
     "switch template this throw true try typedef typeid typename union "
-    "unsigned unsing virtual void volatile wchar_t while";
+    "unsigned using virtual void volatile wchar_t while";
 
 wxString gJavaKeyWord = "abstract assert boolean break byte case catch char class const continue default do double "
     "else enum extends final finally float for goto if implements import instanceof int interface long native "
